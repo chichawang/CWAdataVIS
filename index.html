@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>氣象署 OPEN DATA 即時觀測資料地圖</title>
+<style>
+  :root{--bg:#0b1220;--card:#16213a;--line:#2a3a57;--txt:#e6edf6;--muted:#9fb0c8;--accent:#3b82f6}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;font-family:"Segoe UI","Microsoft JhengHei",system-ui,sans-serif;color:var(--txt)}
+  body{display:flex;align-items:center;justify-content:center;min-height:100vh;
+    background:radial-gradient(1200px 600px at 50% -10%,#12203c,#0b1220)}
+  .box{width:min(560px,calc(100% - 32px));background:var(--card);border:1px solid var(--line);
+    border-radius:16px;padding:32px 28px;box-shadow:0 20px 60px rgba(0,0,0,.45)}
+  h1{margin:0 0 6px;font-size:22px}
+  .sub{color:var(--muted);font-size:13px;line-height:1.6;margin-bottom:22px}
+  a.go{display:block;text-align:center;padding:14px;background:var(--accent);color:#fff;
+    border-radius:10px;font-size:15px;font-weight:700;text-decoration:none}
+  a.go:hover{filter:brightness(1.12)}
+  ul{margin:18px 0 0;padding:0;list-style:none;color:var(--muted);font-size:12px;line-height:1.9}
+  li::before{content:"‧ ";color:var(--accent)}
+  .foot{margin-top:20px;font-size:11px;color:var(--muted);line-height:1.6}
+  .foot a{color:var(--accent)}
+</style>
+</head>
+<body>
+  <div class="box">
+    <h1>🗺️ 氣象署 OPEN DATA 即時觀測資料地圖</h1>
+    <div class="sub">以中央氣象署（CWA）開放資料呈現全臺測站即時觀測，支援多種觀測變數、縣市篩選與測站搜尋。需自備 CWA API 授權碼。</div>
+    <a class="go" href="cwa_station_map_V4.html">進入地圖 →</a>
+    <ul>
+      <li>氣溫、濕度、氣壓、風向風速（O-A0003-001）</li>
+      <li>時雨量與累積雨量（O-A0002-001）</li>
+      <li>署屬氣象站日射量（O-A0091-001）</li>
+      <li>街道 / 衛星 / 地形 / 深色底圖切換</li>
+    </ul>
+    <div class="foot">資料來源：<a href="https://opendata.cwa.gov.tw/" target="_blank" rel="noopener">中央氣象署開放資料平臺</a>；金鑰僅存於您的瀏覽器，不會上傳。</div>
+  </div>
+</body>
+</html>
