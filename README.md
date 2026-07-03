@@ -22,18 +22,20 @@
 | [O-A0091-001](https://opendata.cwa.gov.tw/dataset/observation/O-A0091-001) | 署屬氣象站日射量資料（MJ/m²） | 檔案型 fileapi |
 | [O-A0059-001](https://opendata.cwa.gov.tw/dataset/observation/O-A0059-001) | 雷達整合回波網格（dBZ，921×921）） | 檔案型 fileapi |
 | [O-B0045-001](https://opendata.cwa.gov.tw/dataset/observation/O-B0045-001) |雷達估計降雨 QPESUMS 網格（mm，441×561） | 檔案型 fileapi |
+| [O-A0001-001](https://opendata.cwa.gov.tw/dataset/observation/O-A0001-001) | 自動氣象站逐時觀測資料（逐時地圖） | REST datastore API |
 
 資料皆來自[中央氣象署氣象資料開放平臺](https://opendata.cwa.gov.tw/)。
 
 ## 使用方式
 1. 至[氣象署開放資料平臺](https://opendata.cwa.gov.tw/user/authkey)免費註冊會員並取得 API 授權碼（格式 `CWA-XXXXXXXX-...`）
-2. 開啟網頁https://chichawang.github.io/CWAdataVIS/ ，輸入授權碼即可進入地圖
+2. 開啟網頁https://chichawang.github.io/CWAdataVIS/ ，選擇「逐 10 分鐘觀測」或「逐時觀測 × 格點分析」地圖，輸入授權碼即可進入
 3. 勾選「記住金鑰」可儲存於瀏覽器，下次直接載入
 
 ## 檔案結構
 ```
-├── index.html                # 首頁（入口連結）
-├── CWA_opendata_10min_display.html  # 地圖主程式（單一檔案，含 HTML/CSS/JS）
+├── index.html                        # 首頁（入口連結，可選擇逐 10 分鐘或逐時地圖）
+├── CWA_opendata_10min_display.html   # 逐 10 分鐘觀測地圖（單一檔案，含 HTML/CSS/JS）
+├── CWA_opendata_hourly_display.html  # 逐時觀測 × 格點分析地圖（單一檔案，含 HTML/CSS/JS）
 └── README.md
 ```
 
