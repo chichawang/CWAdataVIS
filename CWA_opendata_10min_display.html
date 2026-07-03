@@ -33,6 +33,20 @@
   .chip{display:block;margin-top:9px;font-size:11px;color:var(--muted)}
   .chip.time{color:#e6edf6;font-weight:600}
 
+  /* 面板 / 圖例 縮小切換 */
+  .phead{display:flex;align-items:center;gap:8px}
+  .phead h1{flex:1;margin:0}
+  .mini{flex:0 0 auto;width:26px;height:26px;padding:0;background:transparent;border:1px solid var(--line);
+    color:var(--muted);border-radius:6px;font-size:14px;line-height:1;cursor:pointer;font-weight:700}
+  .mini:hover{color:var(--txt);border-color:var(--accent);filter:none}
+  .panel.collapsed{width:auto;padding:8px 10px}
+  .panel.collapsed .pbody{display:none}
+  .panel.collapsed .phead h1{font-size:14px}
+  .legend.collapsed{width:auto;padding:8px 10px}
+  .legend.collapsed .lbody{display:none}
+  .lhead{display:flex;align-items:center;gap:8px}
+  .lhead .title{flex:1;margin-bottom:0}
+
   /* colorbar 圖例 */
   .legend{position:absolute;bottom:22px;right:12px;z-index:1000;background:rgba(16,24,42,.94);
     border:1px solid var(--line);border-radius:12px;padding:12px 14px;width:230px}
@@ -88,8 +102,12 @@
 <div id="map"></div>
 <div id="loader" class="loader">⏳ 載入氣象署即時資料中…</div>
 
-<div class="panel">
-  <h1>🗺️ 氣象站觀測地圖</h1>
+<div class="panel" id="panel">
+  <div class="phead">
+    <h1>🗺️ 氣象站觀測地圖</h1>
+    <button type="button" class="mini" id="panelToggle" title="縮小 / 展開面板">−</button>
+  </div>
+  <div class="pbody">
   <div class="sub">中央氣象署 O-A0003-001 / O-A0002-001 / O-A0091-001 即時觀測</div>
   <span class="chip time" id="obsTime">🕒 資料時間：—</span>
   <label>觀測變數</label>
@@ -113,14 +131,20 @@
     <button class="ghost" id="changeKey">🔑 更換金鑰</button>
   </div>
   <span class="chip" id="info">—</span>
+  </div><!-- /pbody -->
 </div>
 
-<div class="legend">
-  <div class="title" id="legTitle">—</div>
+<div class="legend" id="legend">
+  <div class="lhead">
+    <div class="title" id="legTitle">—</div>
+    <button type="button" class="mini" id="legToggle" title="縮小 / 展開圖例">−</button>
+  </div>
+  <div class="lbody">
   <div class="bar" id="legBar"></div>
   <div class="ticks" id="legTicks"></div>
   <div id="legNote" style="font-size:11px;color:var(--muted);margin-top:7px;display:none"></div>
   <div class="na"><span class="dot"></span> 無觀測值 / 缺測</div>
+  </div><!-- /lbody -->
 </div>
 
 <script>
@@ -226,10 +250,11 @@ let curBase=BASES.osm.addTo(map);
 const layer=L.layerGroup().addTo(map);
 
 let RAW=[],RAIN=[],SUN=[],rainById={},weatherById={},sunById={},bounds=null,refZoom=null;
-// 以「台灣本島全圖」的縮放層級為基準，放大時標示等比例放大 → 維持與原畫面相同的相對尺寸
+// 以「台灣本島全圖」的縮放層級為基準，放大時標示緩慢放大（指數 0.45、上限 2.6 倍）
+// → 放大檢視時標示相對地圖變小，避免互相遮擋
 function sizeScale(){
   if(refZoom===null)refZoom=map.getBoundsZoom(TAIWAN);
-  return Math.max(0.7,Math.min(8,Math.pow(2,map.getZoom()-refZoom)));
+  return Math.max(0.7,Math.min(2.6,Math.pow(2,(map.getZoom()-refZoom)*0.45)));
 }
 const $=id=>document.getElementById(id);
 VARS.forEach(v=>{const o=document.createElement("option");o.value=v.key;o.textContent=`${v.label} (${v.unit})`;$("varSel").appendChild(o);});
@@ -438,6 +463,22 @@ $("reload").onclick=load;
 $("fit").onclick=()=>{$("countySel").value="";$("search").value="";map.fitBounds(TAIWAN);render(false);};
 $("baseSel").onchange=e=>{map.removeLayer(curBase);curBase=BASES[e.target.value].addTo(map);curBase.bringToBack();};
 $("changeKey").onclick=()=>openGate();
+
+// ===== 面板 / 圖例 縮小切換（利於手機排版）=====
+function bindCollapse(boxId,btnId){
+  const box=$(boxId),btn=$(btnId);
+  btn.onclick=()=>{
+    box.classList.toggle("collapsed");
+    btn.textContent=box.classList.contains("collapsed")?"＋":"−";
+  };
+}
+bindCollapse("panel","panelToggle");
+bindCollapse("legend","legToggle");
+// 手機窄螢幕：預設縮小圖例，減少遮擋地圖
+if(window.innerWidth<=520){
+  $("legend").classList.add("collapsed");
+  $("legToggle").textContent="＋";
+}
 
 // ===== 金鑰輸入畫面控制 =====
 function openGate(msg){
