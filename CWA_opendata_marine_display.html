@@ -38,6 +38,17 @@
     align-items: center;
     gap: 10px;
   }
+  .top-buttons {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .top-times {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    white-space: nowrap;
+  }
 
   /* ===== 手機／窄螢幕 ===== */
   @media(max-width:860px){
@@ -49,12 +60,29 @@
     .top-actions-group {
       width: 100%;
       display: flex;
-      align-items: center;
-      justify-content: space-between;
+      flex-direction: column;
+      align-items: stretch;
       gap: 6px;
       border-top: 1px solid rgba(255,255,255,0.06);
-      padding-top: 5px;
-      margin-top: 2px;
+      padding-top: 6px;
+      margin-top: 4px;
+    }
+    .top-buttons {
+      display: flex;
+      width: 100%;
+      gap: 6px;
+    }
+    .top-buttons button {
+      flex: 1;
+    }
+    #reload {
+      flex: 2;
+    }
+    .top-times {
+      display: flex;
+      width: 100%;
+      justify-content: space-between;
+      align-items: center;
     }
     #obsTime{white-space:nowrap;font-size:11px}
     
@@ -206,12 +234,23 @@
   <span class="sp"></span>
   <select id="mapVarSel" title="地圖著色變數"></select>
   <select id="stSel" title="選擇測站"><option value="">— 選擇測站 —</option></select>
+  <select id="baseSel" title="選擇底圖">
+    <option value="sat" selected>衛星影像</option>
+    <option value="dark">深色底圖</option>
+    <option value="osm">街道圖 (OSM)</option>
+    <option value="topo">地形圖</option>
+    <option value="light">淺色底圖</option>
+  </select>
   <div class="top-actions-group">
-    <span id="countdownTimer" style="font-size:11.5px;color:var(--accent);font-weight:600">⏱️ 更新中...</span>
-    <button id="reload">↻ 重新整理</button>
-    <button class="ghost" id="changeKey">🔑</button>
-    <button class="ghost" onclick="location.href='index.html'" title="切換至氣象站觀測地圖">🌦️</button>
-    <span id="obsTime">—</span>
+    <div class="top-buttons">
+      <button id="reload">↻ 重新整理</button>
+      <button class="ghost" id="changeKey">🔑</button>
+      <button class="ghost" onclick="location.href='index.html'" title="切換至氣象站觀測地圖">🌦️</button>
+    </div>
+    <div class="top-times">
+      <span id="countdownTimer" style="font-size:11.5px;color:var(--accent);font-weight:600">⏱️ 更新中...</span>
+      <span id="obsTime">—</span>
+    </div>
   </div>
 </div>
 
@@ -617,8 +656,14 @@ async function fetchMeta(k){
 /* ===================== 地圖 ===================== */
 const map=L.map("map",{zoomControl:true});
 map.setView([23.7,121.3],7);
-L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-  {maxZoom:19,attribution:"© OpenStreetMap © CARTO ‧ 資料：中央氣象署"}).addTo(map);
+const BASES={
+  dark:L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",{maxZoom:20,attribution:"© CARTO © OpenStreetMap ‧ 資料：中央氣象署"}),
+  osm:L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap ‧ 資料：中央氣象署"}),
+  sat:L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:19,attribution:"Esri World Imagery ‧ 資料：中央氣象署"}),
+  topo:L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",{maxZoom:17,attribution:"© OpenTopoMap ‧ 資料：中央氣象署"}),
+  light:L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",{maxZoom:20,attribution:"© CARTO © OpenStreetMap ‧ 資料：中央氣象署"})
+};
+let curBase=BASES.sat.addTo(map);
 const layerG=L.layerGroup().addTo(map);
 let markers={},selectedId=null;
 
@@ -899,6 +944,7 @@ MAPVARS.forEach(v=>{const o=document.createElement("option");o.value=v.key;
   o.textContent=v.key==="__type"?v.label:"地圖著色："+v.label;$("mapVarSel").appendChild(o);});
 $("mapVarSel").onchange=()=>renderMap(false);
 $("stSel").onchange=e=>{if(e.target.value)selectStation(e.target.value,true);};
+$("baseSel").onchange=e=>{map.removeLayer(curBase);curBase=BASES[e.target.value].addTo(map);curBase.bringToBack();};
 $("reload").onclick=()=>load();
 $("changeKey").onclick=()=>openGate();
 
