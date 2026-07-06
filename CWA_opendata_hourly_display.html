@@ -6,6 +6,7 @@
 <title>氣象署OPEN DATA逐時觀測×格點分析地圖</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
   :root{--bg:#0b1220;--card:#16213a;--line:#2a3a57;--txt:#e6edf6;--muted:#9fb0c8;--accent:#3b82f6;--chip:#1e293b}
   *{box-sizing:border-box}
@@ -15,6 +16,9 @@
   .leaflet-popup-content{margin:12px 14px;font-size:13px;line-height:1.55}
   .windarrow{background:none;border:none}
   .windarrow svg{filter:drop-shadow(0 0 1px rgba(0,0,0,.6))}
+  /* 颱風符號：緩慢逆時針旋轉（北半球氣旋方向） */
+  .tyicon svg{animation:tyspin 6s linear infinite;transform-origin:50% 50%}
+  @keyframes tyspin{to{transform:rotate(-360deg)}}
   .pop h3{margin:0 0 6px;font-size:15px}
   .pop .row{display:flex;justify-content:space-between;gap:18px}
   .pop .k{color:var(--muted)} .pop .big{font-size:20px;font-weight:700;color:#fff}
@@ -85,7 +89,7 @@
   @media(max-width:520px){.panel{width:min(240px,calc(100vw - 24px))}.legend{width:165px}}
 
   /* ===== API 金鑰輸入畫面 ===== */
-  #gate{position:fixed;inset:0;z-index:3000;display:none;align-items:center;justify-content:center;
+  #gate{position:fixed;inset:0;z-index:3000;display:flex;align-items:center;justify-content:center;
     background:radial-gradient(1200px 600px at 50% -10%,#12203c,#0b1220)}
   #gate .box{width:min(420px,calc(100% - 32px));background:var(--card);border:1px solid var(--line);
     border-radius:16px;padding:26px 24px;box-shadow:0 20px 60px rgba(0,0,0,.45)}
@@ -105,7 +109,7 @@
 </head>
 <body>
 
-<!-- ===== API 金鑰輸入畫面（預設帶入金鑰，可更換） ===== -->
+<!-- ===== 進入前：先輸入 API 金鑰 ===== -->
 <div id="gate">
   <div class="box">
     <h1>🔑 氣象署OPEN DATA逐時觀測×格點分析地圖</h1>
@@ -134,7 +138,7 @@
     <button type="button" class="mini" id="panelToggle" title="縮小 / 展開面板">−</button>
   </div>
   <div class="pbody">
-  <div class="sub">中央氣象署 O-A0001-001 自動氣象站逐時觀測 ＋ O-A0038-003 / O-A0040-004 格點分析 ＋ O-B0069-001 大潮 / O-B0070-001 長浪監測</div>
+  <div class="sub">中央氣象署 O-A0001-001 自動氣象站逐時觀測 ＋ O-A0038-003 / O-A0040-004 格點分析 ＋ O-B0069-001 大潮 / O-B0070-001 長浪監測 ＋ O-A0039-001 閃電落雷 ＋ W-C0034-005 颱風路徑 / W-C0034-003 侵襲機率</div>
   <span class="chip time" id="obsTime">🕒 資料時間：—</span>
   <label>測站觀測變數</label>
   <select id="varSel"></select>
@@ -156,11 +160,17 @@
     <option value="temp">小時溫度分析 (O-A0038-003)</option>
     <option value="rain">日累積雨量分析 (O-A0040-004)</option>
   </select>
-  <label>海象監測（點位圖層）</label>
+  <label>海象 / 閃電 / 颱風監測（點位圖層）</label>
   <label class="ckrow"><input type="checkbox" id="tideChk"> 🌕 大潮監測 (O-B0069-001) ◆</label>
   <label class="ckrow"><input type="checkbox" id="swellChk"> 🌊 長浪監測 (O-B0070-001) ▲</label>
+  <label class="ckrow"><input type="checkbox" id="lightChk"> ⚡ 閃電落雷 (O-A0039-001) ●</label>
+  <label class="ckrow"><input type="checkbox" id="tyChk"> 🌀 颱風路徑 (W-C0034-005)</label>
+  <label class="ckrow"><input type="checkbox" id="typChk"> 🎯 颱風侵襲機率 (W-C0034-003)</label>
   <span class="chip" style="margin-top:5px">標記顏色：<b style="color:#ef4444">警戒</b>｜<b style="color:#f59e0b">注意</b>｜<b style="color:#38bdf8">低於警戒</b>｜<b style="color:#7a8aa3">無資料</b></span>
   <span class="chip" id="marineStat" style="display:none"></span>
+  <span class="chip" id="lightStat" style="display:none"></span>
+  <span class="chip" id="tyStat" style="display:none"></span>
+  <span class="chip" id="typStat" style="display:none"></span>
   <div class="btns">
     <button id="reload">↻ 重新整理</button>
     <button class="ghost" id="fit">⤢ 重置視角</button>
@@ -213,8 +223,7 @@
 </div>
 
 <script>
-// ===== API 金鑰 =====
-const DEFAULT_KEY="CWA-667DD403-55B5-4107-9E25-AD13077C9350";
+// ===== API 金鑰：進入頁面時輸入，之後才建立 API 網址 =====
 let KEY="", API_OBS="";
 const STORE="cwa_api_key";
 function setKey(k){
@@ -225,6 +234,10 @@ function setKey(k){
 function fileApi(id){
   return "https://opendata.cwa.gov.tw/fileapi/v1/opendataapi/"+id
     +"?Authorization="+encodeURIComponent(KEY)+"&downloadType=WEB&format=JSON&_t="+Date.now();
+}
+function fileApiKMZ(id){
+  return "https://opendata.cwa.gov.tw/fileapi/v1/opendataapi/"+id
+    +"?Authorization="+encodeURIComponent(KEY)+"&downloadType=WEB&format=KMZ&_t="+Date.now();
 }
 
 const NA=v=>v===null||v===undefined||v===""||v==="X"||v==="-99"||v==="-990"||v==="-99.0"||v==="-990.0"||(typeof v==="number"&&v<=-90);
@@ -978,6 +991,499 @@ function marineStat(){
 $("tideChk").onchange=e=>loadMarine("tide",e.target.checked);
 $("swellChk").onchange=e=>loadMarine("swell",e.target.checked);
 
+// ===== 閃電落雷即時觀測圖層（O-A0039-001，KMZ 檔）=====
+// 資料為 KMZ（壓縮的 KML）：以 JSZip 解壓後用 DOMParser 解析 Placemark 點位。
+// 標記顏色代表落雷距今時間（0–60 分鐘，越紅越新）；●實心=雲對地（落雷）、○空心=雲間閃電。
+const LIGHT_ID="O-A0039-001";
+const lightRenderer=L.canvas({padding:0.4});   // canvas 繪製，大量點位效能較佳
+const lightLayer=L.layerGroup();
+let lightCache=null;
+const LIGHT_RAMP=[[0,'#ff3030'],[10,'#ff8c00'],[20,'#ffd500'],[30,'#4ade80'],[40,'#38bdf8'],[50,'#a78bfa'],[60,'#64748b']];
+function lightAgeMin(t){return t?Math.max(0,(Date.now()-t.getTime())/60000):null;}
+function lightColor(t){const a=lightAgeMin(t);return a==null?'#ffd500':colorAt(LIGHT_RAMP,Math.min(60,a));}
+
+function parseLightKML(text){
+  const doc=new DOMParser().parseFromString(text,"text/xml");
+  if(doc.getElementsByTagName("parsererror").length)throw new Error("KML 解析失敗");
+  const out=[],pms=doc.getElementsByTagName("Placemark");
+  for(let i=0;i<pms.length;i++){
+    const pm=pms[i];
+    const co=pm.getElementsByTagName("coordinates")[0];
+    if(!co)continue;
+    const p=co.textContent.trim().split(/\s+/)[0].split(",");
+    const lon=parseFloat(p[0]),lat=parseFloat(p[1]);
+    if(!isFinite(lat)||!isFinite(lon))continue;
+    const g=tag=>{const el=pm.getElementsByTagName(tag)[0];return el?el.textContent.trim():"";};
+    const nm=g("name"),desc=g("description"),when=g("when");
+    const blob=nm+" "+desc;
+    // 時間：TimeStamp/when 優先，其次從名稱/描述中擷取日期字串
+    let t=when?new Date(when):null;
+    if(!t||isNaN(t)){
+      const m=blob.match(/\d{4}[-\/]\d{1,2}[-\/]\d{1,2}[T ]\d{1,2}:\d{2}(:\d{2})?/);
+      t=m?new Date(m[0].replace(" ","T")):null;
+      if(t&&isNaN(t))t=null;
+    }
+    // 類型：雲對地 (CG，落雷) / 雲間 (IC)
+    const cg=/雲對地|對地|CG|cloud.?to.?ground/i.test(blob)?true
+            :(/雲間|雲中|IC|intra/i.test(blob)?false:null);
+    out.push({lat,lon,t,cg,nm,desc});
+  }
+  return out;
+}
+
+function lightPopup(s){
+  const row=(k,v)=>`<div class="row"><span class="k">${k}</span><span>${v}</span></div>`;
+  const type=s.cg===true?"雲對地閃電（落雷）":s.cg===false?"雲間閃電":"閃電";
+  let html=`<div class="pop"><h3>⚡ ${type}</h3>`;
+  html+=row("時間",s.t?s.t.toLocaleString("zh-TW"):"—");
+  if(s.t){const a=lightAgeMin(s.t);
+    html+=row("距今",a<60?Math.round(a)+" 分鐘前":(a/60).toFixed(1)+" 小時前");}
+  html+=row("位置",s.lat.toFixed(3)+"°N, "+s.lon.toFixed(3)+"°E");
+  const d=(s.desc||"").replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim();
+  if(d)html+=`<div style="border-top:1px solid var(--line);margin:6px 0 4px;padding-top:5px;color:#9fb0c8;font-size:11px">${d.slice(0,300)}</div>`;
+  html+=`<div style="color:#9fb0c8;font-size:11px;margin-top:4px">閃電落雷系統即時觀測 (O-A0039-001)</div></div>`;
+  return html;
+}
+
+async function loadLightning(on){
+  if(!on){map.removeLayer(lightLayer);lightStatUI();return;}
+  if(!KEY){$("lightChk").checked=false;openGate();return;}
+  if(!lightCache){
+    $("lightStat").style.display="block";
+    $("lightStat").textContent="⏳ 載入閃電落雷資料（O-A0039-001 KMZ）…";
+    try{
+      const r=await fetch(fileApiKMZ(LIGHT_ID));
+      if(!r.ok)throw new Error("HTTP "+r.status);
+      const buf=await r.arrayBuffer();
+      if(!buf.byteLength)throw new Error("回傳內容為空");
+      const head=new Uint8Array(buf,0,Math.min(2,buf.byteLength));
+      let text;
+      if(head[0]===0x50&&head[1]===0x4B){      // 'PK'：KMZ（zip 壓縮）
+        if(typeof JSZip==="undefined")throw new Error("JSZip 程式庫未載入");
+        const zip=await JSZip.loadAsync(buf);
+        const name=Object.keys(zip.files).find(n=>/\.kml$/i.test(n));
+        if(!name)throw new Error("KMZ 內找不到 KML 檔");
+        text=await zip.files[name].async("string");
+      }else{                                    // 伺服器直接回傳 KML/XML 純文字
+        text=new TextDecoder("utf-8").decode(buf);
+      }
+      const strikes=parseLightKML(text);
+      let latest=null;strikes.forEach(s=>{if(s.t&&(!latest||s.t>latest))latest=s.t;});
+      lightCache={strikes,latest};
+    }catch(e){
+      $("lightChk").checked=false;
+      $("lightStat").textContent="⚠️ 閃電落雷載入失敗："+e.message+"（可能為瀏覽器 CORS 限制）";
+      return;
+    }
+  }
+  if(!$("lightChk").checked)return;   // 下載期間使用者已取消勾選
+  lightLayer.clearLayers();
+  lightCache.strikes.forEach(s=>{
+    const col=lightColor(s.t);
+    const m=(s.cg===false)
+      ?L.circleMarker([s.lat,s.lon],{renderer:lightRenderer,radius:3.5,color:col,weight:1.6,fill:false,opacity:.95})
+      :L.circleMarker([s.lat,s.lon],{renderer:lightRenderer,radius:4,fillColor:col,color:"#fff",weight:.8,fillOpacity:.95});
+    m.bindPopup(()=>lightPopup(s));
+    m.addTo(lightLayer);
+  });
+  lightLayer.addTo(map);
+  lightStatUI();
+}
+function lightStatUI(){
+  const el=$("lightStat");
+  if(!$("lightChk").checked||!lightCache){el.style.display="none";el.textContent="";return;}
+  const st=lightCache.strikes;
+  const cg=st.filter(s=>s.cg===true).length,ic=st.filter(s=>s.cg===false).length;
+  const bar=LIGHT_RAMP.map(x=>`<span style="display:inline-block;width:13px;height:8px;background:${x[1]}"></span>`).join("");
+  el.style.display="block";
+  el.innerHTML="⚡ 閃電："+st.length.toLocaleString("zh-TW")+" 筆"
+    +(cg||ic?`（●落雷 ${cg}｜○雲間 ${ic}）`:"")
+    +(lightCache.latest?"｜🕒 最新 "+lightCache.latest.toLocaleString("zh-TW"):"")
+    +`<br>　新 ${bar} 舊（落雷距今 0–60 分鐘）`;
+}
+$("lightChk").onchange=e=>loadLightning(e.target.checked);
+
+// ===== 颱風消息與警報：熱帶氣旋路徑（W-C0034-005，datastore API）=====
+// 結構（依 CWA 資料說明文件）：records.tropicalCyclones.tropicalCyclone[]
+//   ├ year / typhoonName / cwaTyphoonName / cwaTdNo / cwaTyNo
+//   ├ analysisData.fix[]：過去與現在定位（fixTime、coordinate、風速、氣壓、七級/十級風暴風半徑、移向移速）
+//   └ forecastData.fix[]：未來預報（initTime、tau 預報時距、coordinate、強度、70% 侵襲機率圓半徑）
+// 欄位名稱以正則比對（snake_case / camelCase 皆可解析）。無活動熱帶氣旋時資料為空。
+const TY_ID="W-C0034-005";
+const tyLayer=L.layerGroup();
+let tyCache=null;
+function dataApi(id){
+  return "https://opendata.cwa.gov.tw/api/v1/rest/datastore/"+id
+    +"?Authorization="+encodeURIComponent(KEY)+"&format=JSON&_t="+Date.now();
+}
+// 容錯欄位存取（不分大小寫 / 底線）
+const tyK=(o,re)=>{
+  if(!o||typeof o!=="object")return undefined;
+  for(const k of Object.keys(o)){if(re.test(k))return o[k];}
+  return undefined;
+};
+const tyNum=v=>{const n=parseFloat(v);return isFinite(n)?n:null;};
+// 座標：可能為 "經度,緯度" 字串或 {latitude,longitude} 物件（以數值範圍區分經緯度）
+function tyLL(fix){
+  const c=tyK(fix,/^coordinates?$/i);
+  let lat=null,lon=null;
+  if(typeof c==="string"){
+    const p=c.split(",").map(parseFloat);
+    if(p.length>=2&&isFinite(p[0])&&isFinite(p[1])){
+      if(p[0]>60){lon=p[0];lat=p[1];}else{lat=p[0];lon=p[1];}
+    }
+  }else if(c&&typeof c==="object"){
+    lat=tyNum(tyK(c,/lat/i));lon=tyNum(tyK(c,/lon/i));
+  }else{
+    lat=tyNum(tyK(fix,/latitude/i));lon=tyNum(tyK(fix,/longitude/i));
+  }
+  return(lat!=null&&lon!=null)?[lat,lon]:null;
+}
+// 暴風半徑（物件含 radius 欄位，或直接數值）
+function tyRad(fix,re){
+  const c=tyK(fix,re);
+  if(c==null)return null;
+  if(typeof c==="object"){const r=tyK(c,/^radius$/i);return r!=null?tyNum(r):tyNum(tyK(c,/radius/i));}
+  return tyNum(c);
+}
+// 強度分類（近中心最大風速 m/s，CWA 標準）
+// 顏色依 CWA「颱風路徑潛勢預測圖」圖例：熱帶性低氣壓=青、輕颱=黃綠、中颱=橙、強颱=粉紅
+function tyCat(ws){
+  if(ws==null)return{name:"—",color:"#9fb0c8"};
+  if(ws<17.2)return{name:"熱帶性低氣壓",color:"#29c5e0"};
+  if(ws<32.7)return{name:"輕度颱風",color:"#a3c832"};
+  if(ws<51.0)return{name:"中度颱風",color:"#ffa726"};
+  return{name:"強烈颱風",color:"#f0507a"};
+}
+// 颱風符號 SVG（中心圓＋兩旋臂，顏色依強度分類）
+function tyIconSVG(col,size){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}">
+    <path d="M12 1.6 C6.6 1.6 2.9 5.4 2.9 10.6 C4.6 7.4 8 5.9 12 5.9 Z" fill="${col}" stroke="#0b1220" stroke-width="0.6"/>
+    <path d="M12 22.4 C17.4 22.4 21.1 18.6 21.1 13.4 C19.4 16.6 16 18.1 12 18.1 Z" fill="${col}" stroke="#0b1220" stroke-width="0.6"/>
+    <circle cx="12" cy="12" r="5.2" fill="${col}" stroke="#0b1220" stroke-width="0.8"/>
+    <circle cx="12" cy="12" r="2" fill="#0b1220"/>
+  </svg>`;
+}
+function tyTime(s){
+  if(!s)return"—";
+  const d=new Date(s);
+  return isNaN(d)?String(s):d.toLocaleString("zh-TW");
+}
+function tyParse(j){
+  let list=j?.records?.tropicalCyclones?.tropicalCyclone
+        ||tyK(tyK(j?.records||{},/tropical_?cyclones/i)||{},/tropical_?cyclone$/i)||[];
+  if(list&&!Array.isArray(list))list=[list];
+  const cyclones=[];
+  (list||[]).forEach(tc=>{
+    const name=tyK(tc,/^typhoon_?name$/i),cname=tyK(tc,/cwa_?typhoon_?name/i);
+    const tyNo=tyK(tc,/cwa_?ty_?no/i),tdNo=tyK(tc,/cwa_?td_?no/i);
+    const norm=x=>{let f=x?(tyK(x,/^fix(es)?$/i)||[]):[];if(f&&!Array.isArray(f))f=[f];return f||[];};
+    const past=norm(tyK(tc,/analysis_?data/i)).map(f=>({
+      raw:f,ll:tyLL(f),ws:tyNum(tyK(f,/max_?wind/i)),
+      r15:tyRad(f,/15\s*ms|of_?15/i),r25:tyRad(f,/25\s*ms|of_?25/i),
+      time:tyK(f,/fix_?time/i)
+    })).filter(f=>f.ll);
+    past.sort((a,b)=>new Date(a.time||0)-new Date(b.time||0));
+    const fcst=norm(tyK(tc,/forecast_?data/i)).map(f=>({
+      raw:f,ll:tyLL(f),ws:tyNum(tyK(f,/max_?wind/i)),
+      tau:tyNum(tyK(f,/^tau$/i)),
+      r70:tyRad(f,/70\s*percent|probability/i)
+    })).filter(f=>f.ll);
+    fcst.sort((a,b)=>(a.tau??0)-(b.tau??0));
+    if(past.length||fcst.length)cyclones.push({name,cname,tyNo,tdNo,past,fcst});
+  });
+  return cyclones;
+}
+function tyPopup(cy,f,kind){
+  const fix=f.raw;
+  const ws=tyNum(tyK(fix,/max_?wind/i)),gs=tyNum(tyK(fix,/max_?gust/i)),pr=tyNum(tyK(fix,/pressure/i));
+  const cat=tyCat(ws);
+  const row=(k,v)=>`<div class="row"><span class="k">${k}</span><span>${v}</span></div>`;
+  const name=(cy.cname?cy.cname+" ":"")+(cy.name||"");
+  let html=`<div class="pop"><h3>🌀 ${name||"熱帶氣旋"} <small style="color:#9fb0c8">${kind==="fcst"?"預報位置":kind==="now"?"目前位置":"過去位置"}</small></h3>`;
+  html+=`<div class="row"><span class="k">強度分類</span><span class="big" style="color:${cat.color}">${cat.name}</span></div>`;
+  if(kind==="fcst"){
+    html+=row("預報時距",f.tau!=null?"+"+f.tau+" 小時":"—")
+      +row("初始時間",tyTime(tyK(fix,/init_?time/i)));
+  }else{
+    html+=row("定位時間",tyTime(tyK(fix,/fix_?time/i)));
+  }
+  html+=row("近中心最大風速",ws!=null?ws+" m/s":"—")
+    +row("最大陣風",gs!=null?gs+" m/s":"—")
+    +row("中心氣壓",pr!=null?pr+" hPa":"—");
+  const r15=tyRad(fix,/15\s*ms|of_?15/i),r25=tyRad(fix,/25\s*ms|of_?25/i);
+  if(r15!=null)html+=row("七級風暴風半徑",r15+" km");
+  if(r25!=null)html+=row("十級風暴風半徑",r25+" km");
+  if(kind==="fcst"&&f.r70!=null)html+=row("70% 侵襲機率圓半徑",f.r70+" km");
+  if(kind==="now"){
+    const mv=tyK(fix,/^movement$/i)||fix;
+    const spd=tyNum(tyK(mv,/moving_?speed|^speed$/i)),dir=tyK(mv,/moving_?direction/i);
+    if(spd!=null||dir)html+=row("移向 / 移速",(dir||"—")+" / "+(spd!=null?spd+" km/h":"—"));
+  }
+  html+=`<div style="color:#9fb0c8;font-size:11px;margin-top:4px">颱風消息與警報-熱帶氣旋路徑 (W-C0034-005)</div></div>`;
+  return html;
+}
+function tyDraw(){
+  tyLayer.clearLayers();
+  const allPts=[];
+  tyCache.cyclones.forEach(cy=>{
+    const past=cy.past,fc=cy.fcst;
+    // 過去路徑：白實線＋強度色圓點
+    if(past.length>1)L.polyline(past.map(f=>f.ll),{color:"#e6edf6",weight:2,opacity:.75}).addTo(tyLayer);
+    past.forEach((f,i)=>{
+      if(i<past.length-1){
+        L.circleMarker(f.ll,{radius:3.5,fillColor:tyCat(f.ws).color,color:"#0b1220",weight:1,fillOpacity:.95})
+          .bindPopup(()=>tyPopup(cy,f,"past")).addTo(tyLayer);
+      }
+      allPts.push(f.ll);
+    });
+    // 現況：暴風半徑圈（七級風=粉紅圓，依 CWA 圖例）＋颱風符號
+    const cur=past[past.length-1];
+    if(cur){
+      if(cur.r15)L.circle(cur.ll,{radius:cur.r15*1000,color:"#ff8fb0",weight:1.5,fillColor:"#ff8fb0",fillOpacity:.18}).addTo(tyLayer);
+      if(cur.r25)L.circle(cur.ll,{radius:cur.r25*1000,color:"#e8447a",weight:1.5,fillColor:"#e8447a",fillOpacity:.15}).addTo(tyLayer);
+      const cat=tyCat(cur.ws);
+      const ic=L.divIcon({className:"windarrow tyicon",iconSize:[34,34],iconAnchor:[17,17],
+        html:tyIconSVG(cat.color,34)});
+      L.marker(cur.ll,{icon:ic}).bindPopup(()=>tyPopup(cy,cur,"now")).addTo(tyLayer);
+    }
+    // 預報路徑：灰白虛線＋白色圓點（依 CWA 圖例）＋70% 路徑潛勢圓（淺黃）＋時距標籤
+    if(fc.length){
+      const fLL=(cur?[cur.ll]:[]).concat(fc.map(f=>f.ll));
+      if(fLL.length>1)L.polyline(fLL,{color:"#e6edf6",weight:2,dashArray:"6 5",opacity:.85}).addTo(tyLayer);
+      fc.forEach(f=>{
+        if(f.r70)L.circle(f.ll,{radius:f.r70*1000,color:"#e8d44d",weight:1.2,dashArray:"3 4",fillColor:"#f5e97a",fillOpacity:.10}).addTo(tyLayer);
+        L.circleMarker(f.ll,{radius:5,fillColor:"#ffffff",color:tyCat(f.ws).color,weight:2.5,fillOpacity:1})
+          .bindPopup(()=>tyPopup(cy,f,"fcst")).addTo(tyLayer);
+        if(f.tau!=null){
+          L.marker(f.ll,{icon:L.divIcon({className:"windarrow",iconSize:[40,14],iconAnchor:[-7,7],
+            html:`<div style="font-size:10px;font-weight:700;color:#e6edf6;text-shadow:0 0 3px #000;white-space:nowrap">+${f.tau}h</div>`})}).addTo(tyLayer);
+        }
+        allPts.push(f.ll);
+      });
+    }
+  });
+  return allPts;
+}
+async function loadTyphoon(on,fit){
+  if(!on){map.removeLayer(tyLayer);tyStatUI();return;}
+  if(!KEY){$("tyChk").checked=false;openGate();return;}
+  const st=$("tyStat");
+  if(!tyCache){
+    st.style.display="block";
+    st.textContent="⏳ 載入颱風路徑（W-C0034-005）…";
+    try{
+      const j=await fetch(dataApi(TY_ID)).then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json();});
+      if(j&&j.success==="false")throw new Error("API 回應失敗，請確認金鑰");
+      tyCache={cyclones:tyParse(j)};
+    }catch(e){
+      $("tyChk").checked=false;
+      st.textContent="⚠️ 颱風路徑載入失敗："+e.message;
+      return;
+    }
+  }
+  if(!$("tyChk").checked)return;   // 載入期間使用者已取消勾選
+  const pts=tyDraw();
+  tyLayer.addTo(map);
+  tyStatUI();
+  if(fit&&pts.length){
+    const bb=L.latLngBounds(pts);bb.extend(TAIWAN);
+    map.fitBounds(bb,{padding:[30,30]});
+  }
+}
+function tyStatUI(){
+  const el=$("tyStat");
+  if(!$("tyChk").checked||!tyCache){el.style.display="none";el.textContent="";return;}
+  el.style.display="block";
+  const cys=tyCache.cyclones;
+  if(!cys.length){el.textContent="🌀 目前西北太平洋及南海無活動中之熱帶氣旋";return;}
+  el.innerHTML=cys.map(cy=>{
+    const cur=cy.past[cy.past.length-1];
+    const cat=tyCat(cur?cur.ws:null);
+    return "🌀 "+(cy.cname?cy.cname+" ":"")+(cy.name||"")
+      +"（<b style='color:"+cat.color+"'>"+cat.name+"</b>）"
+      +(cur&&cur.time?"｜🕒 "+tyTime(cur.time):"");
+  }).join("<br>")
+  +"<br>　點色=強度：<b style='color:#29c5e0'>低壓</b>｜<b style='color:#a3c832'>輕颱</b>｜<b style='color:#ffa726'>中颱</b>｜<b style='color:#f0507a'>強颱</b>"
+  +"<br>　白虛線+白點=預報路徑｜粉紅圈=七級風暴風區｜黃虛圓=70%路徑潛勢";
+}
+$("tyChk").onchange=e=>loadTyphoon(e.target.checked,true);
+
+// ===== 颱風侵襲機率（W-C0034-003，KMZ）=====
+// 通用 KML 解析：支援 Placemark（點 / 線 / 多邊形）、KML 樣式色彩（aabbggrr）、
+// GroundOverlay（KMZ 內嵌圖檔）。上色優先序：KML 樣式 → 機率值色階 → 灰色。
+// 侵襲機率 % 由 name / description 文字中擷取。無警報期間資料可能為空。
+const TYP_ID="W-C0034-003";
+const typLayer=L.layerGroup();
+let typCache=null;
+// 侵襲機率色階：CWA 官方離散分級（參考 app.cwa.gov.tw/web/obsmap/typhoon.html 侵襲機率圖層）
+// 10-20 深綠、20-40 綠、40-60 黃、60-80 橙、80+ 紅（等值線由外而內）
+function typColor(p){
+  if(p==null)return"#7a8aa3";
+  if(p<10)return"#0f5f1e";
+  if(p<20)return"#1a7a24";
+  if(p<40)return"#58b32d";
+  if(p<60)return"#f7d708";
+  if(p<80)return"#ff8c00";
+  return"#e60000";
+}
+// KML 色彩（aabbggrr 十六進位）→ CSS 色與不透明度
+function kmlColor(s){
+  if(!s)return null;
+  s=String(s).trim();
+  if(s.length!==8)return null;
+  const a=parseInt(s.slice(0,2),16),b=parseInt(s.slice(2,4),16),
+        g=parseInt(s.slice(4,6),16),r=parseInt(s.slice(6,8),16);
+  if(![a,b,g,r].every(isFinite))return null;
+  return{css:`rgb(${r},${g},${b})`,op:a/255};
+}
+// KML coordinates 字串（"經度,緯度[,高度] ..."）→ [[lat,lon],...]
+function typCoords(txt){
+  return txt.trim().split(/\s+/).map(p=>{
+    const c=p.split(",");
+    const lo=parseFloat(c[0]),la=parseFloat(c[1]);
+    return(isFinite(la)&&isFinite(lo))?[la,lo]:null;
+  }).filter(Boolean);
+}
+function typParse(text){
+  const doc=new DOMParser().parseFromString(text,"text/xml");
+  if(doc.getElementsByTagName("parsererror").length)throw new Error("KML 解析失敗");
+  // 文件層級樣式表（含 StyleMap 轉址）
+  const styles={};
+  Array.from(doc.getElementsByTagName("Style")).forEach(st=>{
+    const id=st.getAttribute("id");if(!id)return;
+    const pick=t=>{const el=st.getElementsByTagName(t)[0];
+      return el?kmlColor(el.getElementsByTagName("color")[0]?.textContent):null;};
+    styles["#"+id]={poly:pick("PolyStyle"),line:pick("LineStyle")};
+  });
+  Array.from(doc.getElementsByTagName("StyleMap")).forEach(sm=>{
+    const id=sm.getAttribute("id");if(!id)return;
+    const su=sm.getElementsByTagName("styleUrl")[0]?.textContent.trim();
+    if(su&&styles[su])styles["#"+id]=styles[su];
+  });
+  const items=[];
+  Array.from(doc.getElementsByTagName("Placemark")).forEach(pm=>{
+    const g=t=>{const el=pm.getElementsByTagName(t)[0];return el?el.textContent.trim():"";};
+    const nm=g("name"),desc=g("description");
+    const mp=(nm+" "+desc).match(/(\d+(?:\.\d+)?)\s*%/);
+    let prob=mp?parseFloat(mp[1]):null;
+    if(prob==null&&/^\d+(\.\d+)?$/.test(nm))prob=parseFloat(nm);   // 名稱為純數字時視為機率值
+    const stl=styles[g("styleUrl")]||null;
+    const inPoly=pm.getElementsByTagName("PolyStyle")[0];
+    const inColor=inPoly?kmlColor(inPoly.getElementsByTagName("color")[0]?.textContent):null;
+    const polys=Array.from(pm.getElementsByTagName("Polygon")).map(pg=>{
+      const outer=pg.getElementsByTagName("outerBoundaryIs")[0]||pg;
+      const co=outer.getElementsByTagName("coordinates")[0];
+      return co?typCoords(co.textContent):null;
+    }).filter(x=>x&&x.length>2);
+    const lines=Array.from(pm.getElementsByTagName("LineString")).map(ls=>{
+      const co=ls.getElementsByTagName("coordinates")[0];
+      return co?typCoords(co.textContent):null;
+    }).filter(x=>x&&x.length>1);
+    const pts=[];
+    Array.from(pm.getElementsByTagName("Point")).forEach(pt=>{
+      const co=pt.getElementsByTagName("coordinates")[0];
+      if(co){const c=typCoords(co.textContent);if(c.length)pts.push(c[0]);}
+    });
+    if(polys.length||lines.length||pts.length)
+      items.push({nm,desc,prob,polys,lines,pts,color:inColor||(stl&&stl.poly)||null});
+  });
+  const overlays=[];
+  Array.from(doc.getElementsByTagName("GroundOverlay")).forEach(go=>{
+    const href=go.getElementsByTagName("href")[0]?.textContent.trim();
+    const box=go.getElementsByTagName("LatLonBox")[0];
+    if(!href||!box)return;
+    const gv=t=>parseFloat(box.getElementsByTagName(t)[0]?.textContent);
+    const n=gv("north"),s=gv("south"),e=gv("east"),w=gv("west");
+    if([n,s,e,w].every(isFinite))overlays.push({href,bounds:[[s,w],[n,e]]});
+  });
+  const tm=text.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(Z|[+-]\d{2}:?\d{2})?/);
+  return{items,overlays,time:tm?tm[0]:null};
+}
+async function loadTyProb(on){
+  if(!on){map.removeLayer(typLayer);typStatUI();return;}
+  if(!KEY){$("typChk").checked=false;openGate();return;}
+  const st=$("typStat");
+  if(!typCache){
+    st.style.display="block";
+    st.textContent="⏳ 載入颱風侵襲機率（W-C0034-003 KMZ）…";
+    try{
+      const r=await fetch(fileApiKMZ(TYP_ID));
+      if(!r.ok)throw new Error("HTTP "+r.status);
+      const buf=await r.arrayBuffer();
+      if(!buf.byteLength)throw new Error("回傳內容為空（可能目前無警報）");
+      const head=new Uint8Array(buf,0,Math.min(2,buf.byteLength));
+      let text,zip=null;
+      if(head[0]===0x50&&head[1]===0x4B){
+        if(typeof JSZip==="undefined")throw new Error("JSZip 程式庫未載入");
+        zip=await JSZip.loadAsync(buf);
+        const name=Object.keys(zip.files).find(n=>/\.kml$/i.test(n));
+        if(!name)throw new Error("KMZ 內找不到 KML 檔");
+        text=await zip.files[name].async("string");
+      }else{
+        text=new TextDecoder("utf-8").decode(buf);
+      }
+      const parsed=typParse(text);
+      // GroundOverlay 圖檔：優先取 KMZ 內嵌檔案，其次外部連結
+      for(const ov of parsed.overlays){
+        let zf=zip&&(zip.files[ov.href]
+          ||zip.files[Object.keys(zip.files).find(n=>n.endsWith(ov.href))||""]);
+        if(zf){const b=await zf.async("blob");ov.url=URL.createObjectURL(b);}
+        else if(/^https?:/i.test(ov.href))ov.url=ov.href;
+      }
+      typCache=parsed;
+    }catch(e){
+      $("typChk").checked=false;
+      st.textContent="⚠️ 颱風侵襲機率載入失敗："+e.message;
+      return;
+    }
+  }
+  if(!$("typChk").checked)return;   // 載入期間使用者已取消勾選
+  typLayer.clearLayers();
+  typCache.overlays.forEach(ov=>{
+    if(ov.url)L.imageOverlay(ov.url,ov.bounds,{opacity:.65,interactive:false}).addTo(typLayer);
+  });
+  // 依機率值由低到高排序，高機率多邊形疊在上層才看得到
+  [...typCache.items].sort((a,b)=>(a.prob??-1)-(b.prob??-1)).forEach(it=>{
+    // 上色優先序：機率值色階（CWA 官方分級）→ KML 內建樣式 → 灰
+    const col=it.prob!=null?typColor(it.prob):((it.color&&it.color.css)||"#7a8aa3");
+    const fop=it.prob!=null?.35:(it.color?Math.max(.15,Math.min(.5,it.color.op)):.3);
+    const pop=()=>{
+      let h=`<div class="pop"><h3>🎯 ${it.nm||"颱風侵襲機率"}</h3>`;
+      if(it.prob!=null)h+=`<div class="row"><span class="k">侵襲機率</span><span class="big" style="color:${typColor(it.prob)}">${it.prob}%</span></div>`;
+      const d=(it.desc||"").replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim();
+      if(d)h+=`<div style="margin-top:5px;font-size:12px">${d.slice(0,400)}</div>`;
+      h+=`<div style="color:#9fb0c8;font-size:11px;margin-top:5px">颱風侵襲機率 (W-C0034-003)</div></div>`;
+      return h;
+    };
+    it.polys.forEach(pg=>L.polygon(pg,{color:col,weight:1.2,fillColor:col,fillOpacity:fop}).bindPopup(pop).addTo(typLayer));
+    it.lines.forEach(ln=>L.polyline(ln,{color:col,weight:2}).bindPopup(pop).addTo(typLayer));
+    it.pts.forEach(p0=>L.circleMarker(p0,{radius:6,fillColor:col,color:"#fff",weight:1,fillOpacity:.9}).bindPopup(pop).addTo(typLayer));
+  });
+  typLayer.addTo(map);
+  typStatUI();
+}
+function typStatUI(){
+  const el=$("typStat");
+  if(!$("typChk").checked||!typCache){el.style.display="none";el.textContent="";return;}
+  el.style.display="block";
+  const n=typCache.items.length+typCache.overlays.length;
+  if(!n){el.textContent="🎯 目前無颱風侵襲機率資料（無警報期間）";return;}
+  const withP=typCache.items.filter(i=>i.prob!=null).length;
+  el.innerHTML="🎯 颱風侵襲機率："+typCache.items.length+" 區"
+    +(withP?"（含機率值 "+withP+" 區）":"")
+    +(typCache.overlays.length?"＋"+typCache.overlays.length+" 疊圖":"")
+    +(typCache.time?"｜🕒 "+new Date(typCache.time).toLocaleString("zh-TW"):"")
+    +"<br>　機率分級（CWA 標準）："
+    +"<b style='color:#1a7a24'>10-20</b>｜<b style='color:#58b32d'>20-40</b>｜"
+    +"<b style='color:#f7d708'>40-60</b>｜<b style='color:#ff8c00'>60-80</b>｜<b style='color:#e60000'>80+ %</b>";
+}
+function typClearCache(){
+  if(typCache)typCache.overlays.forEach(o=>{if(o.url&&o.url.startsWith("blob:"))URL.revokeObjectURL(o.url);});
+  typCache=null;
+}
+$("typChk").onchange=e=>loadTyProb(e.target.checked);
+
 map.on("zoomend",()=>{if(RAW.length)render(false);});
 $("varSel").onchange=()=>render(false);
 $("countySel").onchange=()=>render(true);
@@ -986,9 +1492,15 @@ $("reload").onclick=()=>{
   Object.keys(gridCache).forEach(k=>delete gridCache[k]);
   Object.keys(marineCache).forEach(k=>delete marineCache[k]);
   marineMetaPromise=null;
+  lightCache=null;
+  tyCache=null;
+  typClearCache();
   load();
   if(gridKind)loadGrid(gridKind);
   Object.keys(MARINE_DEFS).forEach(k=>{if($(MARINE_DEFS[k].chk).checked)loadMarine(k,true);});
+  if($("lightChk").checked)loadLightning(true);
+  if($("tyChk").checked)loadTyphoon(true);
+  if($("typChk").checked)loadTyProb(true);
 };
 $("fit").onclick=()=>{$("countySel").value="";$("search").value="";map.fitBounds(TAIWAN);render(false);};
 $("baseSel").onchange=e=>{map.removeLayer(curBase);curBase=BASES[e.target.value].addTo(map);curBase.bringToBack();};
@@ -1019,7 +1531,7 @@ function openGate(msg){
   if(msg){$("keyErr").textContent=msg;$("keyErr").style.display="block";}
   else{$("keyErr").style.display="none";}
   const inp=$("keyInput");
-  inp.value=KEY||DEFAULT_KEY;
+  if(KEY)inp.value=KEY;
   setTimeout(()=>inp.focus(),50);
 }
 function closeGate(){$("gate").style.display="none";}
@@ -1038,20 +1550,31 @@ function submitKey(){
   closeGate();
   marineMetaPromise=null;
   Object.keys(marineCache).forEach(k2=>delete marineCache[k2]);
+  lightCache=null;
+  tyCache=null;
+  typClearCache();
   load();
   if(gridKind)loadGrid(gridKind);
   Object.keys(MARINE_DEFS).forEach(k2=>{if($(MARINE_DEFS[k2].chk).checked)loadMarine(k2,true);});
+  if($("lightChk").checked)loadLightning(true);
+  if($("tyChk").checked)loadTyphoon(true);
+  if($("typChk").checked)loadTyProb(true);
 }
 $("enterBtn").onclick=submitKey;
 $("keyInput").addEventListener("keydown",e=>{if(e.key==="Enter")submitKey();});
 
-// 啟動：優先使用瀏覽器記住的金鑰，否則直接使用內建預設金鑰載入
+// 啟動：若瀏覽器已記住金鑰則直接載入，否則顯示金鑰輸入畫面
 (function init(){
   let saved="";
   try{saved=localStorage.getItem(STORE)||"";}catch(e){}
-  if(saved){$("rememberKey").checked=true;setKey(saved);}
-  else{setKey(DEFAULT_KEY);}
-  load();
+  if(saved){
+    $("rememberKey").checked=true;
+    setKey(saved);
+    closeGate();
+    load();
+  }else{
+    openGate();
+  }
 })();
 </script>
 </body>

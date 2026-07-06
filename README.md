@@ -5,33 +5,49 @@
 
 ## 功能特色
 - **多種觀測變數**：氣溫、相對濕度、氣壓、風向風速（箭號圖示）、最大陣風、日最高／最低溫、日照時數、日射量，以及當前／1／3／6／12／24 小時累積雨量
-- **雷達疊加圖層**：雷達整合回波（dBZ）與雷達估計降雨（QPESUMS，mm）可疊加於測站標示下層，透明度可調；游標移動或點擊（手機點按）即顯示該點經緯度與回波／雨量數值
+- **雷達疊加圖層**（10 分鐘地圖）：雷達整合回波（dBZ）與雷達估計降雨（QPESUMS，mm）可疊加於測站標示下層，透明度可調；游標移動或點擊（手機點按）即顯示該點經緯度與回波／雨量數值
+- **格點分析疊加圖層**（逐時地圖）：小時溫度分析與日累積雨量分析格點，透明度可調、支援游標讀值
+- **衛星雲圖疊加圖層**（10 分鐘地圖）：可見光、紅外線色調強化、紅外線彩色衛星雲圖（臺灣區域），依 CWA 產品文件之橫麥卡托投影參數逐像素反投影重採樣，海岸線對位準確，透明度可調
+- **閃電落雷即時觀測**：KMZ（壓縮 KML）於瀏覽器端以 JSZip 解壓解析，標記顏色代表落雷距今時間（0–60 分鐘，越紅越新），並區分雲對地（落雷，實心）與雲間閃電（空心）
+- **颱風路徑與侵襲機率**：熱帶氣旋過去路徑（依 CWA 強度分級上色：青=熱帶性低氣壓、黃綠=輕颱、橙=中颱、粉紅=強颱）、旋轉颱風符號、七級／十級風暴風半徑圈、白點預報路徑與 70% 路徑潛勢圓；120 小時暴風侵襲機率以 CWA 官方離散分級上色（深綠 10-20%→綠→黃→橙→紅 80%+）
+- **海象監測點位**（逐時地圖）：大潮與長浪監測，依警戒狀態上色，測站座標優先取自海象測站基本資料
 - **氣象署相似色階**：雨量採 CWA 標準 17 級分級色階、溫度採 CWA 溫度分布圖 2℃ 分級色階，其餘變數為連續漸層色階
 - **風場視覺化**：箭號指向風的去向，大小與顏色代表風速
 - **縣市篩選與測站搜尋**：可依縣市縮放檢視，或以測站名稱／站號搜尋
-- **五種底圖**：街道圖（OSM）、衛星影像、地形圖、深色圖
+- **五種底圖**：街道圖（OSM）、衛星影像、地形圖、深色圖、淺色圖
 - **點選測站彈出詳細資訊**：整合氣象、雨量、日射量觀測於同一視窗
-- **行動裝置友善**：控制面板、圖例與雷達控制盒皆可縮小／展開，窄螢幕自動縮小並限制面板寬度；控制面板可切換靠左／靠右（⇄ 按鈕，偏好自動記憶）；地圖放大時標示緩慢縮放避免重疊
+- **行動裝置友善**：控制面板、圖例與圖層控制盒皆可縮小／展開，窄螢幕自動縮小並限制面板寬度；控制面板可切換靠左／靠右（⇄ 按鈕）；地圖放大時標示緩慢縮放避免重疊
 - **海象自動監控儀表板**：提供資料浮標與潮位站的即時健康監控，具備 KPI 狀態卡（正常、延遲、離線、警報中）與警報日誌，點擊測站可載入並展示 48 小時內各海象觀測指標之歷史時序圖表（Chart.js）
-- **金鑰安全**：API 授權碼僅儲存於使用者瀏覽器（localStorage，可選），不會上傳
+- **金鑰安全**：三個頁面進入前皆須輸入 API 授權碼；授權碼僅儲存於使用者瀏覽器（localStorage，可選「記住金鑰」），不會上傳
 
 ## 資料來源
 | 資料集 | 內容 | 介接方式 |
 |---|---|---|
 | [O-A0003-001](https://opendata.cwa.gov.tw/dataset/observation/O-A0003-001) | 氣象站 10 分鐘綜觀氣象資料 | REST datastore API |
 | [O-A0002-001](https://opendata.cwa.gov.tw/dataset/observation/O-A0002-001) | 雨量站雨量資料 | REST datastore API |
-| [O-A0091-001](https://opendata.cwa.gov.tw/dataset/observation/O-A0091-001) | 署屬氣象站日射量資料（MJ/m²） | 檔案型 fileapi |
-| [O-A0059-001](https://opendata.cwa.gov.tw/dataset/observation/O-A0059-001) | 雷達整合回波網格（dBZ，921×921）） | 檔案型 fileapi |
-| [O-B0045-001](https://opendata.cwa.gov.tw/dataset/observation/O-B0045-001) |雷達估計降雨 QPESUMS 網格（mm，441×561） | 檔案型 fileapi |
-| [O-A0001-001](https://opendata.cwa.gov.tw/dataset/observation/O-A0001-001) | 自動氣象站逐時觀測資料（逐時地圖） | REST datastore API |
+| [O-A0001-001](https://opendata.cwa.gov.tw/dataset/observation/O-A0001-001) | 自動氣象站逐時觀測資料 | REST datastore API |
+| [O-A0091-001](https://opendata.cwa.gov.tw/dataset/observation/O-A0091-001) | 署屬氣象站日射量資料（MJ/m²） | 檔案型 fileapi（JSON） |
+| [O-A0059-001](https://opendata.cwa.gov.tw/dataset/observation/O-A0059-001) | 雷達整合回波網格（dBZ，921×921） | 檔案型 fileapi（JSON） |
+| [O-B0045-001](https://opendata.cwa.gov.tw/dataset/observation/O-B0045-001) | 雷達估計降雨 QPESUMS 網格（mm，441×561） | 檔案型 fileapi（JSON） |
+| [O-A0038-003](https://opendata.cwa.gov.tw/dataset/observation/O-A0038-003) | 小時溫度分析格點（0.03°，67×120） | 檔案型 fileapi（JSON） |
+| [O-A0040-004](https://opendata.cwa.gov.tw/dataset/observation/O-A0040-004) | 日累積雨量分析格點 | 檔案型 fileapi（JSON） |
+| [O-A0039-001](https://opendata.cwa.gov.tw/dataset/observation/O-A0039-001) | 閃電落雷系統即時觀測資料 | 檔案型 fileapi（KMZ，JSZip 解壓） |
+| [O-B0031-003](https://opendata.cwa.gov.tw/dataset/observation/O-B0031-003) | 可見光衛星雲圖-臺灣（jpg，橫麥卡托投影） | 檔案型 fileapi（JSON → 圖檔） |
+| [O-B0030-003](https://opendata.cwa.gov.tw/dataset/observation/O-B0030-003) | 紅外線色調強化衛星雲圖-臺灣 | 檔案型 fileapi（JSON → 圖檔） |
+| [O-B0028-003](https://opendata.cwa.gov.tw/dataset/observation/O-B0028-003) | 紅外線彩色衛星雲圖-臺灣 | 檔案型 fileapi（JSON → 圖檔） |
+| [W-C0034-005](https://opendata.cwa.gov.tw/dataset/warning/W-C0034-005) | 颱風消息與警報-熱帶氣旋路徑 | REST datastore API |
+| [W-C0034-003](https://opendata.cwa.gov.tw/dataset/warning/W-C0034-003) | 颱風消息與警報-颱風侵襲機率 | 檔案型 fileapi（KMZ，JSZip 解壓） |
+| [O-B0069-001](https://opendata.cwa.gov.tw/dataset/observation/O-B0069-001) | 大潮監測 | 檔案型 fileapi（JSON） |
+| [O-B0070-001](https://opendata.cwa.gov.tw/dataset/observation/O-B0070-001) | 長浪監測 | 檔案型 fileapi（JSON） |
 | [O-B0075-001](https://opendata.cwa.gov.tw/dataset/observation/O-B0075-001) | 海象自動監控觀測資料 | REST datastore API |
-| [O-B0076-001](https://opendata.cwa.gov.tw/dataset/observation/O-B0076-001) | 海象自動監控測站基本資料 | 檔案型 fileapi |
+| [O-B0076-001](https://opendata.cwa.gov.tw/dataset/observation/O-B0076-001) | 海象自動監控測站基本資料 | 檔案型 fileapi（JSON） |
+| [O-A0043-001](https://opendata.cwa.gov.tw/dataset/observation/O-A0043-001) | 向日葵九號衛星頻道03反射率（HDF，實驗性，預設隱藏） | 檔案型 fileapi（JSON → HDF，h5wasm 解析） |
 
-資料皆來自[中央氣象署氣象資料開放平臺](https://opendata.cwa.gov.tw/)。
+資料皆來自[中央氣象署氣象資料開放平臺](https://opendata.cwa.gov.tw/)。颱風路徑與侵襲機率產品僅於西北太平洋及南海有熱帶氣旋活動／警報期間提供資料；閃電落雷與可見光雲圖於無閃電／夜間時內容可能為空，均屬正常。衛星雲圖與衛星觀測資料之時間欄位為 UTC，頁面顯示時已轉換為台灣時間。
 
 ## 使用方式
 1. 至[氣象署開放資料平臺](https://opendata.cwa.gov.tw/user/authkey)免費註冊會員並取得 API 授權碼（格式 `CWA-XXXXXXXX-...`）
-2. 開啟網頁https://chichawang.github.io/CWAdataVIS/ ，選擇「逐 10 分鐘觀測」、「逐時觀測 × 格點分析」或「即時海象監控」地圖/儀表板，輸入授權碼即可進入
+2. 開啟網頁 https://chichawang.github.io/CWAdataVIS/ ，選擇「逐 10 分鐘觀測」、「逐時觀測 × 格點分析」或「即時海象監控」地圖/儀表板，輸入授權碼即可進入（三個頁面進入前皆須先輸入金鑰）
 3. 勾選「記住金鑰」可儲存於瀏覽器，下次直接載入
 
 ## 檔案結構
@@ -44,10 +60,11 @@
 ```
 
 ## 缺測值處理
-依 CWA 資料標準，`X`（儀器故障）、`-99`（缺值或資料異常）等特殊代碼一律視為缺測，於地圖上以灰點呈現。
+依 CWA 資料標準，`X`（儀器故障）、`-99`（缺值或資料異常）、`None` 等特殊代碼一律視為缺測，於地圖上以灰點呈現。
 
 ## 授權與致謝
 - 氣象資料：中央氣象署氣象資料開放平臺（[政府資料開放授權條款](https://data.gov.tw/license)）
+- 颱風路徑與機率產品圖例配色：參考中央氣象署[颱風機率預報產品說明](https://www.cwa.gov.tw/V8/C/P/Typhoon/TY_NEWS.html)與[颱風消息地圖](https://app.cwa.gov.tw/web/obsmap/typhoon.html)
 - 地圖圖磚：© OpenStreetMap contributors、Esri World Imagery、OpenTopoMap、CARTO
-- 地圖套件：Leaflet 1.9.4
+- 地圖套件：Leaflet 1.9.4；KMZ 解壓：JSZip 3.10.1；圖表：Chart.js（海象儀表板）
 - 本文件權益為 AGPL-3.0 license
