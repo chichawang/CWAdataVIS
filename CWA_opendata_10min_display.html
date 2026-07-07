@@ -281,7 +281,7 @@ const VARS=[
   {key:"AirPressure",label:"氣壓",unit:"hPa",ramp:RAMP.pres,get:s=>num(s.WeatherElement?.AirPressure)},
   {key:"PeakGustSpeed",label:"最大陣風",unit:"m/s",ramp:RAMP.wind,get:s=>num(s.WeatherElement?.GustInfo?.PeakGustSpeed)},
   {key:"RainNow",label:"當前降水量",unit:"mm",src:"rain",levels:RAIN_LEVELS,colors:RAIN_COLORS,get:s=>rget(s,"Now")},
-  {key:"RelativeHumidity",label:"相對濕度",unit:"%",ramp:RAMP.humid,get:s=>num(s.WeatherElement?.RelativeHumidity)},
+  {key:"RelativeHumidity",label:"相對溼度",unit:"%",ramp:RAMP.humid,get:s=>num(s.WeatherElement?.RelativeHumidity)},
   {key:"Rain3hr",label:"3小時累積雨量",unit:"mm",src:"rain",levels:RAIN_LEVELS,colors:RAIN_COLORS,get:s=>rget(s,"Past3hr")},
   {key:"Rain6hr",label:"6小時累積雨量",unit:"mm",src:"rain",levels:RAIN_LEVELS,colors:RAIN_COLORS,get:s=>rget(s,"Past6Hr")},
   {key:"Rain12hr",label:"12小時累積雨量",unit:"mm",src:"rain",levels:RAIN_LEVELS,colors:RAIN_COLORS,get:s=>rget(s,"Past12hr")},
@@ -413,7 +413,7 @@ function buildPopup(s,v,val,color){
   if(w){
     html+=`<div style="border-top:1px solid var(--line);margin:6px 0 4px;padding-top:5px;color:#9fb0c8;font-size:11px">氣象觀測</div>`
       +row("天氣",NA(we.Weather)?"—":we.Weather)
-      +row("氣溫 / 濕度",(num(we.AirTemperature)??"—")+"°C / "+(num(we.RelativeHumidity)??"—")+"%")
+      +row("氣溫 / 溼度",(num(we.AirTemperature)??"—")+"°C / "+(num(we.RelativeHumidity)??"—")+"%")
       +row("風速 / 風向",(num(we.WindSpeed)??"—")+" m/s / "+(num(we.WindDirection)??"—")+"°")
       +row("氣壓",(num(we.AirPressure)??"—")+" hPa");
   }
