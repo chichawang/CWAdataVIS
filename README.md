@@ -3,6 +3,10 @@
 # 氣象署 OPEN DATA 即時觀測資料地圖
 以中央氣象署（CWA）開放資料呈現全臺測站即時觀測的互動式地圖。純前端單頁網頁（HTML + [Leaflet](https://leafletjs.com/)），無需後端伺服器。
 
+## 畫面預覽
+
+![逐 10 分鐘觀測地圖](examples/10min.png)
+
 ## 功能特色
 - **多種觀測變數**：氣溫、相對濕度、氣壓、風向風速（箭號圖示）、最大陣風、日最高／最低溫、日照時數、日射量，以及當前／1／3／6／12／24 小時累積雨量
 - **雷達疊加圖層**（10 分鐘地圖）：雷達整合回波（dBZ）與雷達估計降雨（QPESUMS，mm）可疊加於測站標示下層；透明度調整條位於圖層選單下方、僅在選取圖層時顯示；雷達圖層狀態與游標／點擊讀值（經緯度與回波／雨量數值）整合於右下圖例框
@@ -61,6 +65,8 @@
 ├── CWA_opendata_10min_display.html   # 逐 10 分鐘觀測地圖（單一檔案，含 HTML/CSS/JS）
 ├── CWA_opendata_hourly_display.html  # 逐時觀測 × 格點分析地圖（單一檔案，含 HTML/CSS/JS）
 ├── CWA_opendata_marine_display.html  # 海象自動監控儀表板（單一檔案，含 HTML/CSS/JS）
+├── examples/
+│   └── 10min.png                     # 逐 10 分鐘觀測地圖畫面截圖
 └── README.md
 ```
 
