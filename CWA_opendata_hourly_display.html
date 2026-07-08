@@ -23,9 +23,14 @@
   .pop .row{display:flex;justify-content:space-between;gap:18px}
   .pop .k{color:var(--muted)} .pop .big{font-size:20px;font-weight:700;color:#fff}
 
-  /* 控制面板 */
-  .panel{position:absolute;top:12px;left:12px;z-index:1000;background:rgba(16,24,42,.94);
-    border:1px solid var(--line);border-radius:12px;padding:14px;width:295px;backdrop-filter:blur(6px)}
+  /* 控制面板：全高側欄（參考 O-B0055 頁面），收合時整片滑出畫面左側 */
+  :root{--panelW:300px}
+  .panel{position:absolute;top:0;left:0;bottom:0;z-index:1000;background:rgba(16,24,42,.94);
+    border-right:1px solid var(--line);padding:14px;width:var(--panelW);backdrop-filter:blur(10px);
+    overflow-y:auto;transition:transform .2s ease}
+  .panel::-webkit-scrollbar{width:5px}
+  .panel::-webkit-scrollbar-track{background:transparent}
+  .panel::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px}
   .panel h1{margin:0 0 2px;font-size:16px}
   .panel .sub{color:var(--muted);font-size:11px;margin-bottom:10px}
   label{display:block;font-size:11px;color:var(--muted);margin:8px 0 4px;font-weight:600}
@@ -53,9 +58,14 @@
   .mini{flex:0 0 auto;width:26px;height:26px;padding:0;background:transparent;border:1px solid var(--line);
     color:var(--muted);border-radius:6px;font-size:14px;line-height:1;cursor:pointer;font-weight:700}
   .mini:hover{color:var(--txt);border-color:var(--accent);filter:none}
-  .panel.collapsed{width:auto;padding:8px 10px}
-  .panel.collapsed .pbody{display:none}
-  .panel.collapsed .phead h1{font-size:14px}
+  .panel.collapsed{transform:translateX(-100%)}
+  /* 面板收合把手：貼於面板右緣，跟隨收合位置移動 */
+  #panelTab{position:absolute;top:50%;left:var(--panelW);transform:translateY(-50%);z-index:1001;
+    width:22px;height:56px;padding:0;flex:none;background:rgba(16,24,42,.94);
+    border:1px solid var(--line);border-left:none;border-radius:0 8px 8px 0;
+    color:var(--muted);font-size:12px;cursor:pointer;transition:left .2s ease}
+  #panelTab:hover{color:var(--txt);border-color:var(--accent);filter:none}
+  #panelTab.collapsed{left:0}
   .legend.collapsed{width:auto;padding:8px 10px}
   .legend.collapsed .lbody{display:none}
   .lhead{display:flex;align-items:center;gap:8px}
@@ -71,8 +81,6 @@
   input[type=range]{padding:0;height:22px;background:transparent;border:none;accent-color:var(--accent)}
   #gridLegend{margin-top:8px}
 
-  /* 面板靠左 / 靠右 */
-  .panel.dockright{left:auto;right:12px}
 
   /* colorbar 圖例 */
   .legend{position:absolute;bottom:22px;right:12px;z-index:1000;background:rgba(16,24,42,.94);
@@ -84,7 +92,7 @@
   .dot{width:11px;height:11px;border-radius:50%;background:#7a8aa3;border:1px solid #fff;display:inline-block}
   .loader{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
     background:rgba(11,18,32,.7);z-index:2000;color:var(--muted);font-size:15px}
-  @media(max-width:520px){.panel{width:min(240px,calc(100vw - 24px))}.legend{width:165px}}
+  @media(max-width:520px){:root{--panelW:min(260px,85vw)}.legend{width:165px}}
 
   /* ===== API 金鑰輸入畫面 ===== */
   #gate{position:fixed;inset:0;z-index:3000;display:flex;align-items:center;justify-content:center;
@@ -129,11 +137,10 @@
 <div id="map"></div>
 <div id="loader" class="loader">⏳ 載入氣象署觀測資料中…</div>
 
+<button type="button" id="panelTab" title="收合 / 展開面板">◀</button>
 <div class="panel" id="panel">
   <div class="phead">
     <h1>🗺️ 逐時觀測×格點分析</h1>
-    <button type="button" class="mini" id="dockToggle" title="面板靠左 / 靠右">⇄</button>
-    <button type="button" class="mini" id="panelToggle" title="縮小 / 展開面板">−</button>
   </div>
   <div class="pbody">
   <div class="sub">中央氣象署 O-A0001-001 自動氣象站逐時觀測 ＋ O-A0038-003 / O-A0040-004 格點分析 ＋ O-B0069-001 大潮 / O-B0070-001 長浪監測 ＋ O-A0039-001 閃電落雷 ＋ W-C0034-005 颱風路徑 / W-C0034-003 侵襲機率</div>
@@ -307,6 +314,7 @@ function gradientCSS(ramp){
 // 台灣本島預設範圍
 const TAIWAN=L.latLngBounds([21.85,119.95],[25.35,122.05]);
 const map=L.map("map",{zoomControl:true}).fitBounds(TAIWAN);
+map.zoomControl.setPosition("topright");   // 側欄改為全高靠左，縮放鈕移至右上避免被遮擋
 const BASES={
   osm:L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}),
   sat:L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:19,attribution:"Esri World Imagery"}),
@@ -1545,15 +1553,20 @@ function bindCollapse(boxId,btnId){
     btn.textContent=box.classList.contains("collapsed")?"＋":"−";
   };
 }
-bindCollapse("panel","panelToggle");
 bindCollapse("legend","legToggle");
+// 面板收合：整片側欄滑出畫面左側，把手按鈕跟隨移動（參考 O-B0055 頁面）
+$("panelTab").onclick=()=>{
+  const c=$("panel").classList.toggle("collapsed");
+  $("panelTab").classList.toggle("collapsed",c);
+  $("panelTab").textContent=c?"▶":"◀";
+};
+// 手機窄螢幕：預設收合面板與圖例，減少遮擋地圖
 if(window.innerWidth<=520){
+  $("panelTab").onclick();
   [["legend","legToggle"]].forEach(([b,t])=>{
     $(b).classList.add("collapsed");$(t).textContent="＋";
   });
 }
-// 面板靠左 / 靠右切換
-$("dockToggle").onclick=()=>$("panel").classList.toggle("dockright");
 
 // ===== 金鑰輸入畫面控制 =====
 function openGate(msg){

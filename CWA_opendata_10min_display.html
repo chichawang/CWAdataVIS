@@ -23,9 +23,14 @@
   .pop .row{display:flex;justify-content:space-between;gap:18px}
   .pop .k{color:var(--muted)} .pop .big{font-size:20px;font-weight:700;color:#fff}
 
-  /* 控制面板 */
-  .panel{position:absolute;top:12px;left:12px;z-index:1000;background:rgba(16,24,42,.94);
-    border:1px solid var(--line);border-radius:12px;padding:14px;width:290px;backdrop-filter:blur(6px)}
+  /* 控制面板：全高側欄（參考 O-B0055 頁面），收合時整片滑出畫面左側 */
+  :root{--panelW:300px}
+  .panel{position:absolute;top:0;left:0;bottom:0;z-index:1000;background:rgba(16,24,42,.94);
+    border-right:1px solid var(--line);padding:14px;width:var(--panelW);backdrop-filter:blur(10px);
+    overflow-y:auto;transition:transform .2s ease}
+  .panel::-webkit-scrollbar{width:5px}
+  .panel::-webkit-scrollbar-track{background:transparent}
+  .panel::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px}
   .panel h1{margin:0 0 2px;font-size:16px}
   .panel .sub{color:var(--muted);font-size:11px;margin-bottom:10px}
   label{display:block;font-size:11px;color:var(--muted);margin:8px 0 4px;font-weight:600}
@@ -47,10 +52,14 @@
   .mini{flex:0 0 auto;width:26px;height:26px;padding:0;background:transparent;border:1px solid var(--line);
     color:var(--muted);border-radius:6px;font-size:14px;line-height:1;cursor:pointer;font-weight:700}
   .mini:hover{color:var(--txt);border-color:var(--accent);filter:none}
-  .panel.collapsed{width:auto;padding:8px 10px}
-  .panel.collapsed .pbody{display:none}
-  .panel.collapsed .phead h1{font-size:14px}
-  .panel.dock-right{left:auto;right:12px}
+  .panel.collapsed{transform:translateX(-100%)}
+  /* 面板收合把手：貼於面板右緣，跟隨收合位置移動 */
+  #panelTab{position:absolute;top:50%;left:var(--panelW);transform:translateY(-50%);z-index:1001;
+    width:22px;height:56px;padding:0;flex:none;background:rgba(16,24,42,.94);
+    border:1px solid var(--line);border-left:none;border-radius:0 8px 8px 0;
+    color:var(--muted);font-size:12px;cursor:pointer;transition:left .2s ease}
+  #panelTab:hover{color:var(--txt);border-color:var(--accent);filter:none}
+  #panelTab.collapsed{left:0}
   .legend.collapsed{width:auto;padding:8px 10px}
   .legend.collapsed .lbody{display:none}
   .lhead{display:flex;align-items:center;gap:8px}
@@ -75,7 +84,7 @@
   .dot{width:11px;height:11px;border-radius:50%;background:#7a8aa3;border:1px solid #fff;display:inline-block}
   .loader{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
     background:rgba(11,18,32,.7);z-index:2000;color:var(--muted);font-size:15px}
-  @media(max-width:520px){.panel{width:min(230px,calc(100% - 24px))}.legend{width:160px}}
+  @media(max-width:520px){:root{--panelW:min(260px,85vw)}.legend{width:160px}}
 
   /* ===== API 金鑰輸入畫面 ===== */
   #gate{position:fixed;inset:0;z-index:3000;display:flex;align-items:center;justify-content:center;
@@ -120,14 +129,13 @@
 <div id="map"></div>
 <div id="loader" class="loader">⏳ 載入氣象署即時資料中…</div>
 
+<button type="button" id="panelTab" title="收合 / 展開面板">◀</button>
 <div class="panel" id="panel">
   <div class="phead">
     <h1>🗺️ 氣象站觀測地圖</h1>
-    <button type="button" class="mini" id="panelSide" title="切換靠左 / 靠右">⇄</button>
-    <button type="button" class="mini" id="panelToggle" title="縮小 / 展開面板">−</button>
   </div>
   <div class="pbody">
-  <div class="sub">中央氣象署 O-A0003-001 / O-A0002-001 / O-A0091-001 即時觀測 ＋ O-A0039-001 閃電落雷 ＋ 衛星雲圖（臺灣/東亞）＋ W-C0034 颱風路徑 / 侵襲機率</div>
+  <div class="sub">中央氣象署 O-A0003-001 / O-A0002-001 / O-A0091-001 即時觀測 ＋ O-A0039-001 閃電落雷 ＋ 衛星雲圖（臺灣/東亞 PNG / GeoTIFF）＋ W-C0034 颱風路徑 / 侵襲機率</div>
   <span class="chip time" id="obsTime">🕒 資料時間：—</span>
   <label>觀測變數</label>
   <select id="varSel"></select>
@@ -153,6 +161,29 @@
     <label style="margin-top:6px">雷達透明度 <span id="radarOpV">75%</span></label>
     <input type="range" id="radarOp" min="0" max="100" value="75">
   </div>
+  <label>衛星雲圖（疊加圖層）</label>
+  <select id="cloudSel">
+    <option value="">無</option>
+    <optgroup label="臺灣 PNG 雲圖">
+      <option value="vis">可見光衛星雲圖 (O-C0042-008)</option>
+      <option value="enh">紅外線色調強化衛星雲圖 (O-C0042-006)</option>
+      <option value="irc">紅外線彩色衛星雲圖 (O-C0042-002)</option>
+    </optgroup>
+    <optgroup label="東亞 PNG 雲圖">
+      <option value="visEA">可見光衛星雲圖 (O-B0032-001)</option>
+      <option value="enhEA">紅外線色調強化衛星雲圖 (O-B0032-004)</option>
+      <option value="ircEA">紅外線彩色衛星雲圖 (O-B0032-002)</option>
+    </optgroup>
+    <optgroup label="東亞高解析度">
+      <option value="gtAlb">可見光反照率 (O-B0055-001)</option>
+      <option value="gtBt">紅外線亮度溫度 (O-B0056-001)</option>
+    </optgroup>
+  </select>
+  <div id="cloudOpWrap" style="display:none">
+    <label style="margin-top:6px">雲圖透明度 <span id="cloudOpV">75%</span></label>
+    <input type="range" id="cloudOp" min="0" max="100" value="75">
+  </div>
+  <span class="chip" id="cloudStat" style="display:none;margin-top:5px"></span>
   <label>閃電監測（點位圖層）</label>
   <label class="ckrow"><input type="checkbox" id="lightChk"> ⚡ 閃電落雷 (O-A0039-001) ●</label>
   <span class="chip" id="lightStat" style="display:none;margin-top:5px"></span>
@@ -161,25 +192,6 @@
   <label class="ckrow"><input type="checkbox" id="typChk"> 🎯 颱風侵襲機率 (W-C0034-003)</label>
   <span class="chip" id="tyStat" style="display:none;margin-top:5px"></span>
   <span class="chip" id="typStat" style="display:none;margin-top:5px"></span>
-  <label>衛星雲圖（疊加圖層）</label>
-  <select id="cloudSel">
-    <option value="">無</option>
-    <optgroup label="臺灣">
-      <option value="vis">高解析可見光衛星雲圖 (O-C0042-008)</option>
-      <option value="enh">高解析紅外線色調強化衛星雲圖 (O-C0042-006)</option>
-      <option value="irc">高解析紅外線彩色衛星雲圖 (O-C0042-002)</option>
-    </optgroup>
-    <optgroup label="東亞">
-      <option value="visEA">高解析可見光衛星雲圖 (O-B0032-001)</option>
-      <option value="enhEA">高解析紅外線色調強化衛星雲圖 (O-B0032-004)</option>
-      <option value="ircEA">高解析紅外線彩色衛星雲圖 (O-B0032-002)</option>
-    </optgroup>
-  </select>
-  <div id="cloudOpWrap" style="display:none">
-    <label style="margin-top:6px">雲圖透明度 <span id="cloudOpV">75%</span></label>
-    <input type="range" id="cloudOp" min="0" max="100" value="75">
-  </div>
-  <span class="chip" id="cloudStat" style="display:none;margin-top:5px"></span>
   <!-- 衛星觀測圖層（O-A0043-001）：暫時隱藏，移除下方 display:none 即可恢復 -->
   <div id="satSection" style="display:none">
     <label>衛星觀測（疊加圖層）</label>
@@ -318,6 +330,7 @@ function gradientCSS(ramp){
 // 台灣本島預設範圍（不含離島）
 const TAIWAN=L.latLngBounds([21.85,119.95],[25.35,122.05]);
 const map=L.map("map",{zoomControl:true}).fitBounds(TAIWAN);
+map.zoomControl.setPosition("topright");   // 側欄改為全高靠左，縮放鈕移至右上避免被遮擋
 const BASES={
   osm:L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}),
   sat:L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:19,attribution:"Esri World Imagery"}),
@@ -547,7 +560,7 @@ function legend(v){
   $("legNote").style.display=(v.wind||v.levels||v.src==="sun")?"block":"none";
 }
 
-// ===== 雷達疊加圖層（O-A0059-001 整合回波 / O-B0045-001 估計降雨）=====
+// ===== 雷達疊加圖層（O-A0059-001 整合回波 / O-B0045-001 估計降雨 / O-A0084-* 降雨雷達回波圖）=====
 // 專用 pane：底圖(200)之上、測站圓點(overlayPane 400)與箭號(markerPane 600)之下
 map.createPane("radar");
 map.getPane("radar").style.zIndex=350;
@@ -570,7 +583,8 @@ const RADAR_DEFS={
     bad:v=>v<0||!isFinite(v),
     stops:[[0.5,[156,251,255]],[2,[0,205,255]],[6,[0,150,250]],[10,[0,105,250]],[15,[50,150,0]],
       [20,[50,255,0]],[30,[255,255,0]],[40,[255,200,0]],[50,[255,150,0]],[70,[250,0,0]],
-      [90,[200,0,0]],[110,[160,0,0]],[130,[150,0,155]],[150,[200,0,210]],[200,[255,0,245]],[300,[255,200,255]]]}
+      [90,[200,0,0]],[110,[160,0,0]],[130,[150,0,155]],[150,[200,0,210]],[200,[255,0,245]],[300,[255,200,255]]]},
+  // 結束 RADAR_DEFS
 };
 function stopColor(stops,v){
   if(v==null||isNaN(v))return null;
@@ -634,6 +648,8 @@ async function loadRadar(kind){
   updatePosBox(lastLL);
 }
 
+
+
 function buildRadarOverlay(){
   const def=RADAR_DEFS[radarKind],c=radarCache[radarKind];
   if(!def||!c)return;
@@ -670,7 +686,7 @@ function buildRadarOverlay(){
 }
 
 function radarAt(lat,lng){
-  const c=radarCache[radarKind];if(!c)return null;
+  const c=radarCache[radarKind];if(!c||!c.grid)return null;
   const{nx:NXr,ny:NYr,lon0:LO,lat0:LA,res:RS}=c.grid;
   const col=Math.round((lng-LO)/RS),row=Math.round((lat-LA)/RS);
   if(col<0||row<0||col>=NXr||row>=NYr)return null;
@@ -685,6 +701,7 @@ function updatePosBox(ll){
   $("posLL").textContent=ll.lat.toFixed(3)+"°N, "+ll.lng.toFixed(3)+"°E";
   const def=RADAR_DEFS[radarKind],el=$("posVal");
   if(!def){el.textContent="（未啟用雷達圖層）";el.style.color="var(--muted)";return;}
+  if(def.img){el.textContent=def.label+"：圖像產品（無數值讀取）";el.style.color="var(--muted)";return;}
   const v=radarAt(ll.lat,ll.lng);
   const cc=v==null?null:stopColor(def.stops,v);
   el.textContent=def.label+"："+(v==null?"--":v.toFixed(1)+" "+def.unit);
@@ -1372,13 +1389,233 @@ $("satOp").oninput=e=>{
 // 疊圖時逐像素反投影重採樣為 Web Mercator，海岸線位置才準確。
 // 資料時間為 UTC → 顯示時轉為台灣時間。
 const CLOUD_DEFS={
-  vis:{id:"O-C0042-008",label:"高解析可見光衛星雲圖-臺灣",area:"tw"},
-  enh:{id:"O-C0042-006",label:"高解析紅外線色調強化衛星雲圖-臺灣",area:"tw"},
-  irc:{id:"O-C0042-002",label:"高解析紅外線彩色衛星雲圖-臺灣",area:"tw"},
-  visEA:{id:"O-B0032-001",label:"高解析可見光衛星雲圖-東亞",area:"ea"},
-  enhEA:{id:"O-B0032-004",label:"高解析紅外線色調強化衛星雲圖-東亞",area:"ea"},
-  ircEA:{id:"O-B0032-002",label:"高解析紅外線彩色衛星雲圖-東亞",area:"ea"}
+  vis:{id:"O-C0042-008",label:"可見光衛星雲圖-臺灣",area:"tw"},
+  enh:{id:"O-C0042-006",label:"紅外線色調強化衛星雲圖-臺灣",area:"tw"},
+  irc:{id:"O-C0042-002",label:"紅外線彩色衛星雲圖-臺灣",area:"tw"},
+  visEA:{id:"O-B0032-001",label:"可見光衛星雲圖-東亞",area:"ea"},
+  enhEA:{id:"O-B0032-004",label:"紅外線色調強化衛星雲圖-東亞",area:"ea"},
+  ircEA:{id:"O-B0032-002",label:"紅外線彩色衛星雲圖-東亞",area:"ea"}
 };
+// ===== 東亞高解析 GeoTIFF 衛星圖層（O-B0055 / O-B0056，蘭伯特投影，3000×3000）=====
+// 資料流程：fileapi JSON → 解析 cwaopendata.dataset.Resource.ProductURL
+// → 下載 .gtif.zip → JSZip 解壓 → geotiff.js 解析 → LCC 投影重採樣 → Leaflet imageOverlay
+const GEOTIFF_DEFS={
+  gtAlb:{id:"O-B0055-001",label:"高解析可見光反照率-東亞 GeoTIFF",unit:"",invert:false,
+         note:"可見光夜間無訊號屬正常，請改選紅外線產品"},
+  gtBt: {id:"O-B0056-001",label:"高解析紅外線亮度溫度-東亞 GeoTIFF",unit:" K",invert:true,
+         note:"冷（高雲）＝白，與一般紅外雲圖慣例相同"}
+};
+const gtCache={};
+let gtOverlay=null;
+map.createPane("gtpane");
+map.getPane("gtpane").style.zIndex=346;   // 在 cloudpane(345) 之上、雷達(350) 之下
+map.getPane("gtpane").style.pointerEvents="none";
+
+// 解析 cwaopendata JSON 結構，取出 ProductURL、ObsTime 等欄位
+function parseGtMeta(j){
+  const root=j.cwaopendata||j;
+  const ds=root.dataset||{};
+  const obs=ds.ObsTime||{};
+  const res=ds.Resource||{};
+  return{
+    obsTime: obs.Datetime||"",
+    productURL: res.ProductURL||"",
+    resDesc: res.ResourceDesc||""
+  };
+}
+
+// 蘭伯特正形圓錐投影（LCC-2SP Snyder 公式，由 GeoTIFF geoKeys 讀取參數）
+function makeLCC_GT(gk){
+  const a=gk.GeogSemiMajorAxisGeoKey||6378137;
+  const invF=gk.GeogInvFlatteningGeoKey;
+  const f=(invF&&invF>0)?1/invF:0,e2=2*f-f*f,e=Math.sqrt(e2);
+  const rad=Math.PI/180;
+  const p1=((gk.ProjStdParallel1GeoKey!=null?gk.ProjStdParallel1GeoKey:30))*rad;
+  const p2=((gk.ProjStdParallel2GeoKey!=null?gk.ProjStdParallel2GeoKey:60))*rad;
+  const lat0=((gk.ProjFalseOriginLatGeoKey!=null?gk.ProjFalseOriginLatGeoKey:(gk.ProjNatOriginLatGeoKey!=null?gk.ProjNatOriginLatGeoKey:0)))*rad;
+  const lon0=((gk.ProjFalseOriginLongGeoKey!=null?gk.ProjFalseOriginLongGeoKey:(gk.ProjNatOriginLongGeoKey!=null?gk.ProjNatOriginLongGeoKey:(gk.ProjCenterLongGeoKey!=null?gk.ProjCenterLongGeoKey:128.5))))*rad;
+  const fe=gk.ProjFalseEastingGeoKey||gk.ProjFalseOriginEastingGeoKey||0;
+  const fn=gk.ProjFalseNorthingGeoKey||gk.ProjFalseOriginNorthingGeoKey||0;
+  function mm(p){return Math.cos(p)/Math.sqrt(1-e2*Math.sin(p)*Math.sin(p));}
+  function tt(p){return Math.tan(Math.PI/4-p/2)/Math.pow((1-e*Math.sin(p))/(1+e*Math.sin(p)),e/2);}
+  const n=(Math.log(mm(p1))-Math.log(mm(p2)))/(Math.log(tt(p1))-Math.log(tt(p2)));
+  const F=mm(p1)/(n*Math.pow(tt(p1),n));
+  const r0=a*F*Math.pow(tt(lat0),n);
+  return{
+    fwd:function(latD,lonD){
+      const r=a*F*Math.pow(tt(latD*rad),n),th=n*(lonD*rad-lon0);
+      return[fe+r*Math.sin(th),fn+r0-r*Math.cos(th)];
+    },
+    inv:function(x,y){
+      const xr=x-fe,yr=r0-(y-fn);
+      const r=Math.hypot(xr,yr),t2=Math.pow(r/(a*F),1/n),th=Math.atan2(xr,yr);
+      let phi=Math.PI/2-2*Math.atan(t2);
+      for(let i=0;i<6;i++)
+        phi=Math.PI/2-2*Math.atan(t2*Math.pow((1-e*Math.sin(phi))/(1+e*Math.sin(phi)),e/2));
+      return[phi/rad,(th/n+lon0)/rad];
+    }
+  };
+}
+
+// GeoTIFF 數值陣列 → Mercator 疊圖
+function buildOverlayGT(vals,SW,SH,bbox,lcc,invert){
+  const x0=bbox[0],y0=bbox[1],x1=bbox[2],y1=bbox[3];
+  let laMin=90,laMax=-90,loMin=360,loMax=-360;
+  for(let i=0;i<=100;i++){
+    const fx=x0+i/100*(x1-x0),fy=y0+i/100*(y1-y0);
+    [[fx,y0],[fx,y1],[x0,fy],[x1,fy]].forEach(function(p){
+      const ll=lcc.inv(p[0],p[1]);
+      if(ll[0]<laMin)laMin=ll[0];if(ll[0]>laMax)laMax=ll[0];
+      if(ll[1]<loMin)loMin=ll[1];if(ll[1]>loMax)loMax=ll[1];
+    });
+  }
+  function bad(v){return !isFinite(v)||v<=-100||v>=32766;}
+  const smp=[];
+  for(let ii=0;ii<vals.length;ii+=97){const vv=vals[ii];if(!bad(vv))smp.push(vv);}
+  if(smp.length<100)throw new Error("有效資料不足（"+GEOTIFF_DEFS[gtLoadKind].note+"）");
+  smp.sort(function(a,b){return a-b;});
+  const vLo=smp[(smp.length*.02)|0],vHi=smp[(smp.length*.98)|0]||vLo+1;
+  function mercYgt(la){return Math.log(Math.tan(Math.PI/4+la*Math.PI/360));}
+  const yN=mercYgt(laMax),yS=mercYgt(laMin);
+  const W=1400,H=Math.max(200,Math.round(W*(yN-yS)/((loMax-loMin)*Math.PI/180)));
+  const oc=document.createElement("canvas");oc.width=W;oc.height=H;
+  const ctx=oc.getContext("2d"),im=ctx.createImageData(W,H);
+  for(let r=0;r<H;r++){
+    const my=yN-(r+.5)/H*(yN-yS);
+    const la=(2*Math.atan(Math.exp(my))-Math.PI/2)*180/Math.PI;
+    for(let c=0;c<W;c++){
+      const lo=loMin+(c+.5)/W*(loMax-loMin);
+      const p=lcc.fwd(la,lo);
+      const sx=Math.round((p[0]-x0)/(x1-x0)*(SW-1));
+      const sy=Math.round((1-(p[1]-y0)/(y1-y0))*(SH-1));
+      if(sx<0||sy<0||sx>=SW||sy>=SH)continue;
+      const v=vals[sy*SW+sx];
+      if(bad(v))continue;
+      let t3=(v-vLo)/(vHi-vLo);if(invert)t3=1-t3;
+      const g=Math.max(0,Math.min(255,Math.round(t3*255)));
+      const o=(r*W+c)*4;
+      im.data[o]=g;im.data[o+1]=g;im.data[o+2]=g;im.data[o+3]=255;
+    }
+  }
+  ctx.putImageData(im,0,0);
+  return{url:oc.toDataURL("image/png"),bounds:[[laMin,loMin],[laMax,loMax]],vLo:vLo,vHi:vHi};
+}
+
+// 下載並解壓（支援 .gtif / .gtif.zip / .tif.zip）
+async function fetchTiffBuffer_GT(url,stEl){
+  stEl.textContent="⏳ 下載衛星 GeoTIFF 資料（檔案較大，請稍候）…";
+  const r=await fetch(url);
+  if(!r.ok)throw new Error("GeoTIFF 下載失敗 HTTP "+r.status);
+  const isZip=/\.zip$/i.test(url.split("?")[0]);
+  const buf=await r.arrayBuffer();
+  if(!isZip)return buf;
+  stEl.textContent="⏳ 解壓縮 ZIP（"+(buf.byteLength/1048576).toFixed(1)+" MB）…";
+  const zip=await JSZip.loadAsync(buf);
+  const files=Object.values(zip.files);
+  let entry=null;
+  for(let i=0;i<files.length;i++){
+    if(/\.(gtif|tiff?)$/i.test(files[i].name)){entry=files[i];break;}
+  }
+  if(!entry)throw new Error("ZIP 中找不到 TIFF/GeoTIFF 檔案");
+  return await entry.async("arraybuffer");
+}
+
+let gtLoadKind="";  // 追蹤正在載入的 key（避免切換時錯誤疊圖）
+
+async function loadGeoTiff(kind){
+  gtLoadKind=kind;
+  // 移除舊疊圖
+  if(gtOverlay){map.removeLayer(gtOverlay);gtOverlay=null;}
+  const st=$("cloudStat");
+  $("cloudOpWrap").style.display=kind?"block":"none";
+  if(!kind){st.style.display="none";st.textContent="";return;}
+  if(!KEY){$("cloudSel").value="";cloudKind="";gtLoadKind="";$("cloudOpWrap").style.display="none";openGate();return;}
+  // 確保 geotiff.js 已載入
+  if(typeof GeoTIFF==="undefined"){
+    st.style.display="block";
+    st.textContent="⏳ 載入 GeoTIFF 解析程式庫…";
+    await new Promise(function(resolve,reject){
+      const s=document.createElement("script");
+      s.src="https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js";
+      s.onload=resolve;s.onerror=function(){reject(new Error("GeoTIFF 程式庫載入失敗"));}
+      document.head.appendChild(s);
+    });
+  }
+  const def=GEOTIFF_DEFS[kind];
+  st.style.display="block";
+  // 使用快取
+  if(gtCache[kind]){
+    gtOverlay=L.imageOverlay(gtCache[kind].url,gtCache[kind].bounds,
+      {opacity:+$("cloudOp").value/100,pane:"gtpane",interactive:false}).addTo(map);
+    gtStatUI(kind);
+    return;
+  }
+  try{
+    // 1. 讀取 JSON API
+    st.textContent="⏳ 讀取 "+def.label+" JSON API…";
+    const jurl="https://opendata.cwa.gov.tw/fileapi/v1/opendataapi/"+def.id
+      +"?Authorization="+encodeURIComponent(KEY)+"&downloadType=WEB&format=JSON&_t="+Date.now();
+    const jr=await fetch(jurl);
+    if(!jr.ok)throw new Error("JSON API HTTP "+jr.status+(jr.status===401?"（金鑰無效或未授權）":""));
+    const j=await jr.json();
+    // 2. 解析 JSON 結構（cwaopendata.dataset.Resource.ProductURL）
+    const meta=parseGtMeta(j);
+    // 3. 取得下載 URL
+    let turl=meta.productURL;
+    if(!turl){
+      const js=JSON.stringify(j);
+      const m1=(js.match(/https?:\/\/[^"'\\]+\.(?:gtiff?|tiff?)(?:\.zip)?/i)||[])[0];
+      if(m1)turl=m1;
+    }
+    if(!turl)turl="https://cwaopendata.s3.ap-northeast-1.amazonaws.com/Observation/"+def.id+".gtif";
+    // 4. 解析觀測時間
+    const obsStr=meta.obsTime||meta.sent||"";
+    const time=(function(s){
+      if(!s)return null;
+      let str=String(s).trim();
+      if(!/Z$|[+-]\d{2}:?\d{2}$/.test(str))str=str.replace(" ","T")+"Z";
+      const d=new Date(str);return isNaN(d)?null:d;
+    })(obsStr);
+    // 5. 下載 & 解壓 GeoTIFF
+    const buf=await fetchTiffBuffer_GT(turl,st);
+    // 6. 解析 GeoTIFF
+    st.textContent="⏳ 解析 GeoTIFF（"+(buf.byteLength/1048576).toFixed(1)+" MB）…";
+    await new Promise(function(res){setTimeout(res,30);});
+    const tiff=await GeoTIFF.fromArrayBuffer(buf);
+    const img2=await tiff.getImage();
+    const SW=img2.getWidth(),SH=img2.getHeight();
+    const gk=img2.getGeoKeys()||{};
+    const bbox2=img2.getBoundingBox();
+    const lcc2=makeLCC_GT(gk);
+    // 7. 讀取數值陣列
+    st.textContent="⏳ 讀取數據陣列（"+SW+"×"+SH+"）…";
+    await new Promise(function(res){setTimeout(res,30);});
+    const ras=await img2.readRasters({samples:[0]});
+    // 8. 重採樣疊圖
+    st.textContent="⏳ 重採樣疊圖（Mercator 投影轉換）…";
+    await new Promise(function(res){setTimeout(res,30);});
+    const res2=buildOverlayGT(ras[0],SW,SH,bbox2,lcc2,def.invert);
+    gtCache[kind]={url:res2.url,bounds:res2.bounds,vLo:res2.vLo,vHi:res2.vHi,
+                   time:time,dims:SW+"×"+SH};
+    if(gtLoadKind!==kind)return;   // 切換期間不疊圖
+    gtOverlay=L.imageOverlay(gtCache[kind].url,gtCache[kind].bounds,
+      {opacity:+$("cloudOp").value/100,pane:"gtpane",interactive:false}).addTo(map);
+    gtStatUI(kind);
+  }catch(e){
+    st.textContent="⚠️ "+def.label+" 載入失敗："+e.message+"（GeoTIFF 較大，可能需要較長時間）";
+    if(gtLoadKind===kind){$("cloudSel").value="";cloudKind="";gtLoadKind="";$("cloudOpWrap").style.display="none";}
+  }
+}
+function gtStatUI(kind){
+  const def=GEOTIFF_DEFS[kind],c=gtCache[kind],st=$("cloudStat");
+  if(!def||!c){st.style.display="none";return;}
+  const unit=(def.unit===" K"&&c.vHi>400)?"（縮放值，非 K）":def.unit;
+  st.style.display="block";
+  st.innerHTML="🛰️ "+def.label+"（"+def.id+"）｜"+c.dims+" px"
+    +(c.time?"<br>🕒 "+c.time.toLocaleString("zh-TW")+"（已由 UTC 轉為台灣時間）":"")
+    +"<br>顯示範圍 "+c.vLo.toFixed(2)+"–"+c.vHi.toFixed(2)+unit
+    +"<br>※ "+def.note;
+}
 const CLOUD_GEO={lon0:121.0,latLL:19.0295,lonLL:116.1417,latUR:28.2065,lonUR:126.2109};
 const CLOUD_GEO_EA={lon0:128.5,lat0:0.0,sp1:30.0,sp2:60.0,latLL:-1.503,lonLL:102.111,latUR:48.589,lonUR:155.270};
 // 蘭伯特正形圓錐投影（球體近似）正向 / 反向轉換
@@ -1524,10 +1761,28 @@ async function loadCloud(kind){
       :"")
     +(kind.indexOf("vis")===0?"<br>※ 可見光雲圖夜間無訊號":"");
 }
-$("cloudSel").onchange=e=>loadCloud(e.target.value);
+$("cloudSel").onchange=e=>{
+  const val=e.target.value;
+  // 區分 GeoTIFF 產品（gtAlb/gtBt）與一般 PNG 雲圖
+  if(val==="gtAlb"||val==="gtBt"){
+    // 關閉一般雲圖
+    cloudKind="";
+    if(cloudOverlay){map.removeLayer(cloudOverlay);cloudOverlay=null;}
+    // 關閉另一個 GeoTIFF（若切換）
+    if(gtOverlay&&gtLoadKind!==val){map.removeLayer(gtOverlay);gtOverlay=null;}
+    loadGeoTiff(val);
+  }else{
+    // 關閉 GeoTIFF
+    gtLoadKind="";
+    if(gtOverlay){map.removeLayer(gtOverlay);gtOverlay=null;}
+    $("cloudStat").style.display="none";
+    loadCloud(val);
+  }
+};
 $("cloudOp").oninput=e=>{
   $("cloudOpV").textContent=e.target.value+"%";
   if(cloudOverlay)cloudOverlay.setOpacity(e.target.value/100);
+  if(gtOverlay)gtOverlay.setOpacity(e.target.value/100);
 };
 
 map.on("zoomend",()=>{if(RAW.length)render(false);});  // 縮放時等比例調整標示大小
@@ -1541,6 +1796,8 @@ function refreshAll(fit){
   satCache=null;
   if(satOverlay){map.removeLayer(satOverlay);satOverlay=null;}
   Object.keys(cloudCache).forEach(k=>delete cloudCache[k]);
+  Object.keys(gtCache).forEach(k=>delete gtCache[k]);   // 清除 GeoTIFF 快取
+  if(gtOverlay){map.removeLayer(gtOverlay);gtOverlay=null;}
   tyCache=null;
   typClearCache();
   load(fit);
@@ -1548,6 +1805,7 @@ function refreshAll(fit){
   if($("lightChk").checked)loadLightning(true);
   if($("satChk").checked)loadSat(true);
   if(cloudKind)loadCloud(cloudKind);
+  if(gtLoadKind)loadGeoTiff(gtLoadKind);
   if($("tyChk").checked)loadTyphoon(true);
   if($("typChk").checked)loadTyProb(true);
 }
@@ -1598,16 +1856,16 @@ function bindCollapse(boxId,btnId){
     btn.textContent=box.classList.contains("collapsed")?"＋":"−";
   };
 }
-bindCollapse("panel","panelToggle");
 bindCollapse("legend","legToggle");
-// 面板靠左 / 靠右切換（記住偏好）
-$("panelSide").onclick=()=>{
-  const right=$("panel").classList.toggle("dock-right");
-  try{localStorage.setItem("cwa_panel_side",right?"right":"left");}catch(e){}
+// 面板收合：整片側欄滑出畫面左側，把手按鈕跟隨移動（參考 O-B0055 頁面）
+$("panelTab").onclick=()=>{
+  const c=$("panel").classList.toggle("collapsed");
+  $("panelTab").classList.toggle("collapsed",c);
+  $("panelTab").textContent=c?"▶":"◀";
 };
-try{if(localStorage.getItem("cwa_panel_side")==="right")$("panel").classList.add("dock-right");}catch(e){}
-// 手機窄螢幕：預設縮小圖例，減少遮擋地圖
+// 手機窄螢幕：預設收合面板與圖例，減少遮擋地圖
 if(window.innerWidth<=520){
+  $("panelTab").onclick();
   [["legend","legToggle"]].forEach(([b,t])=>{
     $(b).classList.add("collapsed");$(t).textContent="＋";
   });
@@ -1640,12 +1898,15 @@ function submitKey(){
   satCache=null;
   if(satOverlay){map.removeLayer(satOverlay);satOverlay=null;}
   Object.keys(cloudCache).forEach(k2=>delete cloudCache[k2]);
+  Object.keys(gtCache).forEach(k2=>delete gtCache[k2]);
+  if(gtOverlay){map.removeLayer(gtOverlay);gtOverlay=null;}
   tyCache=null;
   typClearCache();
   load();
   if($("lightChk").checked)loadLightning(true);
   if($("satChk").checked)loadSat(true);
   if(cloudKind)loadCloud(cloudKind);
+  if(gtLoadKind)loadGeoTiff(gtLoadKind);
   if($("tyChk").checked)loadTyphoon(true);
   if($("typChk").checked)loadTyProb(true);
 }
