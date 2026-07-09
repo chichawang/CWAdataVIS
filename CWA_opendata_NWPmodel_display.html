@@ -551,8 +551,14 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.25)}
       </label>
       <div id="typStat" style="display:none;font-size:11px;color:var(--txt2);background:var(--surface2);border:1px solid var(--border2);padding:6px;border-radius:4px;margin-top:4px;line-height:1.4"></div>
       
+      <!-- 風場粒子開關（可疊在任何色階場之上）-->
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:8px;border-top:1px solid var(--border2);padding-top:8px;font-size:13px;user-select:none">
+        <input type="checkbox" id="particleChk" checked style="width:14px;height:14px;cursor:pointer">
+        <span>🌬️ 顯示風場粒子（離地 10m 風）</span>
+      </label>
+
       <!-- 流場粒子密度控制 -->
-      <div style="margin-top:8px;border-top:1px solid var(--border2);padding-top:8px">
+      <div style="margin-top:8px">
         <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--txt2);margin-bottom:3px">
           <span>流場粒子密度</span>
           <span id="particleCountVal">500</span>
@@ -572,7 +578,7 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.25)}
     </div>
 
     <!-- 狀態 -->
-    <div id="status-card">尚未載入。選擇預報時步後按上方按鈕開始。<br><span style="color:var(--amber)">※ GRIB2 檔案較大（約 30–80 MB），首次載入約需 30–90 秒。</span></div>
+    <div id="status-card">尚未載入。選擇預報時步後按上方按鈕開始。<br><span style="color:var(--amber)">※ GRIB2 檔案較大（約 50–200 MB），首次載入約需 30–120 秒。</span></div>
 
     <!-- JSON 元資料 -->
     <div id="meta-section" style="display:none">
@@ -774,6 +780,11 @@ $('particleCountSlider').oninput=function(e){
   initParticles();
 };
 
+$('particleChk').onchange=function(e){
+  showParticles = e.target.checked;
+  updateWindBarbs();
+};
+
 /* ── 面板摺疊 ─────────────────────────────── */
 var panelEl=$('panel'),toggleBtn=$('toggle-btn');
 var panelOpen=true;
@@ -831,23 +842,39 @@ function setProgress(pct){
 
 /* ── 預報時步控制 ─────────────────────────── */
 var currentHour=0;
-var modelInitTime=null;   /* 由 JSON 元資料填入，用於計算預報有效時間 */
+var modelInitTime=null;   /* 由 JSON 元資料填入（模式時間為 UTC），用於計算預報有效時間 */
 
-/* 依預報時步組出標籤：+XXXh（＋若已載入則附上有效時間） */
+/* 將模式起始時間字串一律「以 UTC 牆上時間」解析（模式時間為 UTC，忽略字串內任何時區標記），
+   後續再 +8h 換算為台灣本地時間。支援 -、/、空白、T 等分隔與帶 +08:00／Z 的格式 */
+function parseModelInitUTC(s){
+  if(!s) return null;
+  var m=String(s).match(/(\d{4})\D?(\d{1,2})\D?(\d{1,2})(?:[T\s]?(\d{1,2})\D?(\d{1,2})?\D?(\d{1,2})?)?/);
+  if(!m){ var d=new Date(s); return isNaN(d)?null:d; }
+  return new Date(Date.UTC(+m[1], +m[2]-1, +m[3], +(m[4]||0), +(m[5]||0), +(m[6]||0)));
+}
+/* 依台灣時間(UTC+8)格式化：YYYY/MM/DD HH:mm */
+function fmtTWDateTime(msUTC){
+  var tw=new Date(msUTC+8*3600000);
+  return tw.getUTCFullYear()+'/'+String(tw.getUTCMonth()+1).padStart(2,'0')+'/'+
+    String(tw.getUTCDate()).padStart(2,'0')+' '+String(tw.getUTCHours()).padStart(2,'0')+':'+
+    String(tw.getUTCMinutes()).padStart(2,'0');
+}
+/* 由模式起始(UTC) + 預報時距 算出台灣本地有效時間字串：M/D（週）HH:mm */
+function fcstValidTW(hour){
+  var d=parseModelInitUTC(modelInitTime);
+  if(!d) return null;
+  var tw=new Date(d.getTime()+hour*3600000+8*3600000);
+  var wk=['日','一','二','三','四','五','六'][tw.getUTCDay()];
+  return (tw.getUTCMonth()+1)+'/'+tw.getUTCDate()+'（'+wk+'）'+
+    String(tw.getUTCHours()).padStart(2,'0')+':'+String(tw.getUTCMinutes()).padStart(2,'0');
+}
+
+/* 依預報時步組出標籤：+XXXh（＋若已載入則附上台灣本地有效時間 LST） */
 function fcstHourLabel(hour){
   var h=String(hour).padStart(3,'0');
   var base=(hour===0?'分析場':'預報')+' +'+h+'h';
-  if(modelInitTime){
-    var d=new Date(modelInitTime);
-    if(!isNaN(d)){
-      d.setHours(d.getHours()+hour);
-      var wk=['日','一','二','三','四','五','六'][d.getDay()];
-      var MM=d.getMonth()+1, DD=d.getDate();
-      var HH=String(d.getHours()).padStart(2,'0');
-      var mm=String(d.getMinutes()).padStart(2,'0');
-      base+='｜'+MM+'/'+DD+'（'+wk+'）'+HH+':'+mm;
-    }
-  }
+  var vt=fcstValidTW(hour);
+  if(vt) base+='｜'+vt+' LST';
   return base;
 }
 
@@ -1687,8 +1714,9 @@ function drawContourLines(ctx2, values, grid, key, vMin, vMax, isKelvin, isPa, n
 
 /* ── 氣象風標 (Wind Barb) 繪製與更新 ── */
 function getWindAtLatLng(lat, lon){
-  if(!currentData || !currentData.valsU || !currentData.valsV) return null;
-  var g = currentData.grid;
+  /* 粒子流場使用獨立的「離地10m 風場」(windField)，與當前顯示變數無關 */
+  if(!windField || !windField.valsU || !windField.valsV) return null;
+  var g = windField.grid;
   var col, row;
   if(g.lambert){
     var ij = lambertLatLonToIJ(g, lat, lon);
@@ -1705,8 +1733,8 @@ function getWindAtLatLng(lat, lon){
   }
 
   var idx = row * g.nx + col;
-  var u = currentData.valsU[idx];
-  var v = currentData.valsV[idx];
+  var u = windField.valsU[idx];
+  var v = windField.valsV[idx];
   if(!isFinite(u) || !isFinite(v)) return null;
   return {u: u, v: v};
 }
@@ -1716,6 +1744,8 @@ var windParticles = [];
 var maxParticles = 500;
 var particleAge = 90;      // 粒子壽命 (frames) — 越大尾跡越長
 var animFrameId = null;
+var windField = null;      // {valsU, valsV, grid} — 獨立的離地10m 風場，供粒子疊層使用
+var showParticles = true;  // 風場粒子開關（可疊在任何色階場之上）
 
 function isWindKey(key) {
   return key === 'wind-vector' || key === '0-2-1' || key === '0-2-2' || key === '0-2-3';
@@ -1758,7 +1788,7 @@ function startWindAnimation() {
   initParticles();
 
   function frame() {
-    if(!currentData || !currentData.msg || !isWindKey(currentData.msg.key)) {
+    if(!showParticles || !windField) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       animFrameId = null;
       return;
@@ -1835,7 +1865,7 @@ function updateWindBarbs(){
     initParticles();
   }
   
-  if(!currentData || !currentData.msg || !isWindKey(currentData.msg.key)) {
+  if(!showParticles || !windField) {
     if(animFrameId) {
       cancelAnimationFrame(animFrameId);
       animFrameId = null;
@@ -1844,7 +1874,7 @@ function updateWindBarbs(){
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     return;
   }
-  
+
   if(!animFrameId) {
     startWindAnimation();
   }
@@ -2104,7 +2134,8 @@ function updateLegend(scale,scaleName,msg){
   var mid=((range0+range1)/2);
   $('legend-mid').textContent=mid.toFixed(0)+' '+scale.unit;
   $('legend-max').textContent=range1.toFixed(0)+' '+scale.unit;
-  $('legend-title').textContent=msg.nameTW+' — '+msg.levelStr+(scale.unit?' ('+scale.unit+')':'')+(scale.adaptive?' · 自適應範圍':'');
+  var vtLeg=fcstValidTW(currentHour);
+  $('legend-title').textContent=msg.nameTW+' — '+msg.levelStr+(scale.unit?' ('+scale.unit+')':'')+(scale.adaptive?' · 自適應範圍':'')+(vtLeg?' · 有效 '+vtLeg+' LST':'');
   bar.classList.add('visible');
 }
 
@@ -2369,21 +2400,26 @@ function showJsonMeta(j){
   var info=ds.datasetInfo||{};
   var res=ds.resource||{};
 
-  /* 記錄模式起始時間，供時間軸顯示預報有效時間 */
+  /* 記錄模式起始時間（UTC），供時間軸顯示預報有效時間（換算台灣本地） */
   modelInitTime=info.InitialTime||null;
   $('fcstLabel').textContent=fcstHourLabel(currentHour);
 
+  /* 模式時間為 UTC，元資料一律換算為台灣本地時間（LST，UTC+8）顯示 */
+  var initD=parseModelInitUTC(info.InitialTime);
+  var sentD=parseModelInitUTC(root.sent);
+  var validStr=fcstValidTW(currentHour);
   var cards=[
     {label:'資料 ID',val:root.dataid||'—',cls:'accent'},
     {label:'模式',val:info.Model||'—'},
-    {label:'起始時間',val:info.InitialTime||'—',cls:'green'},
+    {label:'起始時間 (LST)',val:initD?fmtTWDateTime(initD.getTime()):(info.InitialTime||'—'),cls:'green'},
     {label:'預報時步',val:info.ForecastHour!=null?'+'+info.ForecastHour+'h':'—'},
+    {label:'有效時間 (LST)',val:validStr?validStr+' LST':'—',cls:'accent',full:true},
     {label:'解析度',val:info.GridResolution||'—'},
     {label:'格點總數',val:info.GridDimensionData?Number(info.GridDimensionData).toLocaleString():'—'},
     {label:'經度範圍',val:(info.StartPointLongitude||'?')+'° ~ '+(info.EndPointLongitude||'?')+'°',full:true},
     {label:'緯度範圍',val:(info.StartPointLatitude||'?')+'° ~ '+(info.EndPointLatitude||'?')+'°',full:true},
     {label:'資料方向',val:info.DataDirection||'—',full:true},
-    {label:'發送時間',val:root.sent||'—',full:true}
+    {label:'發送時間 (LST)',val:sentD?fmtTWDateTime(sentD.getTime()):(root.sent||'—'),full:true}
   ];
 
   var grid=$('meta-grid');
@@ -2485,6 +2521,23 @@ async function loadForecast(hour,fitView){
 
     /* 6. Build variable list */
     buildVarList(gribMessages);
+
+    /* 6b. 解碼「離地10m 風」作為獨立粒子流場，可疊在任何色階場之上 */
+    windField=null;
+    for(var wi=0; wi<gribMessages.length; wi++){
+      var wm=gribMessages[wi];
+      if(wm.isVirtualWind && wm.levelType===103 && wm.levelVal===10 && wm.msgU && wm.msgV){
+        try{
+          var wU=decodeMessage(gribBuffer, wm.msgU);
+          var wV=decodeMessage(gribBuffer, wm.msgV);
+          if(wU && wV){
+            if(wm.grid && wm.grid.lambert) lambertInit(wm.grid);
+            windField={valsU:wU, valsV:wV, grid:wm.grid};
+          }
+        }catch(e){ console.warn('風場粒子資料解碼失敗', e); }
+        break;
+      }
+    }
 
     /* 7. 自動選取變數：優先沿用上次選定的同一個場，找不到才用預設 */
     var supportedMsgs=gribMessages.filter(function(m){return m.rep&&(m.rep.template===0||m.rep.template===2||m.rep.template===3);});
