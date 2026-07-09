@@ -1,0 +1,2917 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>CWA 數值預報模式 GFS / WRF（OpenData GRIB2）</title>
+<meta name="description" content="中央氣象署 CWA OpenData 全球預報模式 GFS 0.25° GRIB2 資料前端解析視覺化，支援氣溫、氣壓、風場、降水等變數。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+/* ── 全域 ─────────────────────────────────── */
+:root{
+  --bg:#080e1c;
+  --surface:rgba(14,22,42,.92);
+  --surface2:rgba(18,28,52,.88);
+  --border:rgba(56,96,168,.35);
+  --border2:rgba(56,96,168,.18);
+  --txt:#dde8f8;
+  --txt2:#8faac8;
+  --txt3:#5878a0;
+  --accent:#38bdf8;
+  --accent2:#0ea5e9;
+  --green:#34d399;
+  --red:#f87171;
+  --amber:#fbbf24;
+  --glow:rgba(56,189,248,.15);
+  --radius:14px;
+  --radius-sm:9px;
+  --trans:.18s ease;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;font-family:"Inter","Noto Sans TC",sans-serif;background:var(--bg);color:var(--txt)}
+
+/* ── 地圖 ──────────────────────────────────── */
+#map{position:absolute;inset:0}
+
+/* ── 側邊面板 ─────────────────────────────── */
+#panel{
+  position:absolute;top:0;left:0;bottom:0;z-index:1000;
+  width:330px;
+  background:var(--surface);
+  border-right:1px solid var(--border);
+  backdrop-filter:blur(18px) saturate(1.4);
+  display:flex;flex-direction:column;
+  overflow:hidden;
+  transition:transform var(--trans);
+}
+#panel.collapsed{transform:translateX(-100%)}
+
+/* ── 面板 header ──────────────────────────── */
+#panel-header{
+  padding:18px 18px 14px;
+  border-bottom:1px solid var(--border2);
+  flex-shrink:0;
+}
+.logo-row{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.logo-badge{
+  width:36px;height:36px;border-radius:10px;flex-shrink:0;
+  background:linear-gradient(135deg,#7c3aed 0%,#06b6d4 100%);
+  display:flex;align-items:center;justify-content:center;font-size:18px;
+  box-shadow:0 0 14px rgba(124,58,237,.4);
+}
+#panel-title{font-size:15px;font-weight:700;line-height:1.3;color:var(--txt)}
+#panel-sub{font-size:11px;color:var(--txt3);margin-top:2px;line-height:1.4}
+
+/* ── 捲動區域 ─────────────────────────────── */
+#panel-body{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+#panel-body::-webkit-scrollbar{width:4px}
+#panel-body::-webkit-scrollbar-track{background:transparent}
+#panel-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+
+/* ── 區塊標題 ─────────────────────────────── */
+.section-label{
+  font-size:10px;font-weight:600;letter-spacing:.08em;
+  color:var(--txt3);text-transform:uppercase;margin-bottom:6px;
+}
+
+/* ── 控制元素 ─────────────────────────────── */
+select,input[type=password],input[type=text]{
+  width:100%;
+  background:rgba(8,14,28,.7);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  color:var(--txt);
+  padding:8px 10px;
+  font-size:13px;
+  font-family:inherit;
+  outline:none;
+  transition:border-color var(--trans),box-shadow var(--trans);
+  appearance:none;
+}
+select:focus,input:focus{
+  border-color:var(--accent);
+  box-shadow:0 0 0 3px rgba(56,189,248,.15);
+}
+select{
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M0 0l6 8 6-8z' fill='%238faac8'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:right 10px center;
+  padding-right:28px;
+}
+
+/* ── Range slider ─────────────────────────── */
+.slider-row{display:flex;align-items:center;gap:8px}
+.slider-row span{font-size:12px;color:var(--accent);font-weight:600;white-space:nowrap;min-width:36px;text-align:right}
+input[type=range]{
+  flex:1;height:4px;appearance:none;background:var(--border);
+  border-radius:4px;outline:none;border:none;padding:0;cursor:pointer;
+}
+input[type=range]::-webkit-slider-thumb{
+  appearance:none;width:16px;height:16px;border-radius:50%;
+  background:var(--accent);box-shadow:0 0 8px var(--glow);
+  transition:transform var(--trans);
+}
+input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.25)}
+
+/* ── 按鈕 ──────────────────────────────────── */
+.btn{
+  width:100%;padding:9px 12px;
+  border-radius:var(--radius-sm);
+  font-size:13px;font-weight:600;font-family:inherit;
+  cursor:pointer;border:none;
+  transition:opacity var(--trans),transform var(--trans),box-shadow var(--trans);
+  display:flex;align-items:center;justify-content:center;gap:6px;
+}
+.btn:active{transform:scale(.97)}
+.btn-primary{
+  background:linear-gradient(135deg,var(--accent2),var(--accent));
+  color:#04263a;
+  box-shadow:0 4px 14px rgba(14,165,233,.35);
+}
+.btn-primary:hover{box-shadow:0 6px 20px rgba(14,165,233,.5)}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--txt2)}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
+.btn:disabled{opacity:.4;cursor:not-allowed;pointer-events:none}
+
+/* ── 播放列 ───────────────────────────────── */
+.play-row{display:flex;align-items:center;gap:6px}
+.play-row .btn{width:auto;padding:7px 12px;flex-shrink:0}
+.play-row .slider-row{flex:1}
+#fcstLabel{
+  text-align:center;font-size:13px;font-weight:700;color:var(--accent);
+  padding:4px 0;letter-spacing:.02em;
+}
+
+/* ── 狀態卡 ───────────────────────────────── */
+#status-card{
+  background:rgba(8,14,28,.6);
+  border:1px solid var(--border2);
+  border-radius:var(--radius-sm);
+  padding:10px 12px;
+  font-size:12px;
+  color:var(--txt2);
+  line-height:1.6;
+  transition:border-color .3s;
+}
+#status-card.ok{border-color:rgba(52,211,153,.35)}
+#status-card.err{border-color:rgba(248,113,113,.35)}
+
+/* ── 資訊卡片 ─────────────────────────────── */
+.meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.meta-card{
+  background:rgba(8,14,28,.6);
+  border:1px solid var(--border2);
+  border-radius:var(--radius-sm);
+  padding:8px 10px;
+  display:flex;flex-direction:column;gap:2px;
+}
+.meta-card.full{grid-column:1/-1}
+.meta-card .mc-label{font-size:10px;color:var(--txt3);font-weight:500}
+.meta-card .mc-val{font-size:12px;color:var(--txt);font-weight:600;word-break:break-all}
+.meta-card .mc-val.accent{color:var(--accent)}
+.meta-card .mc-val.green{color:var(--green)}
+.mc-badge{
+  display:inline-block;padding:2px 8px;border-radius:20px;
+  font-size:10px;font-weight:700;
+}
+.badge-actual{background:rgba(52,211,153,.15);color:var(--green);border:1px solid rgba(52,211,153,.3)}
+.badge-pub{background:rgba(56,189,248,.12);color:var(--accent);border:1px solid rgba(56,189,248,.25)}
+
+/* ── 變數清單 ─────────────────────────────── */
+#var-list{
+  max-height:340px;overflow-y:auto;
+  background:rgba(4,8,18,.6);
+  border:1px solid var(--border2);
+  border-radius:var(--radius-sm);
+  padding:4px;
+}
+#var-list::-webkit-scrollbar{width:3px}
+#var-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.var-item{
+  padding:5px 8px;border-radius:6px;cursor:pointer;
+  font-size:11px;color:var(--txt2);
+  transition:background .15s,color .15s;
+  display:flex;justify-content:space-between;align-items:center;
+}
+.var-item:hover{background:rgba(56,189,248,.08);color:var(--txt)}
+.var-item.active{background:rgba(56,189,248,.15);color:var(--accent);font-weight:600}
+.var-item .var-level{font-size:10px;color:var(--txt3);font-weight:400}
+
+/* ── 色標圖例 ─────────────────────────────── */
+#legend-bar{
+  position:absolute;bottom:90px;left:50%;transform:translateX(-50%);z-index:900;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  padding:8px 14px 6px;
+  backdrop-filter:blur(12px);
+  display:none;flex-direction:column;align-items:center;gap:4px;
+  min-width:280px;max-width:420px;
+}
+#legend-bar.visible{display:flex}
+#legend-canvas{width:100%;height:14px;border-radius:3px}
+.legend-labels{display:flex;justify-content:space-between;width:100%;font-size:10px;color:var(--txt2)}
+#legend-title{font-size:10px;color:var(--txt3);font-weight:600;letter-spacing:.05em}
+
+/* ── 滑鼠數值提示 ─────────────────────────── */
+#hover-info{
+  position:absolute;top:12px;right:16px;z-index:900;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  padding:10px 14px;font-size:12px;color:var(--txt2);
+  backdrop-filter:blur(12px);
+  pointer-events:none;opacity:0;transition:opacity .2s;
+  min-width:180px;
+}
+#hover-info.visible{opacity:1}
+#hover-info .hv{font-size:18px;font-weight:700;color:var(--accent)}
+#hover-info .hc{font-size:10px;color:var(--txt3);margin-top:2px}
+
+/* ── 進度列 ───────────────────────────────── */
+#progress-bar-wrap{
+  height:3px;background:var(--border2);border-radius:3px;
+  overflow:hidden;margin-bottom:6px;display:none;
+}
+#progress-bar{
+  height:100%;width:0%;
+  background:linear-gradient(90deg,var(--accent2),var(--accent));
+  border-radius:3px;transition:width .4s ease;
+}
+
+/* ── 金鑰 Gate ────────────────────────────── */
+#gate{
+  position:fixed;inset:0;z-index:3000;
+  display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(ellipse 120% 80% at 50% -10%,rgba(14,40,80,.95),rgba(8,14,28,.98));
+}
+.gcard{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:18px;padding:28px;width:min(400px,90vw);
+  box-shadow:0 24px 60px rgba(0,0,0,.6),0 0 0 1px var(--border);
+}
+.gcard h2{font-size:18px;font-weight:700;margin-bottom:4px}
+.gcard .sub{font-size:12px;color:var(--txt2);margin-bottom:18px;line-height:1.5}
+.gcard label{font-size:11px;color:var(--txt3);display:block;margin-bottom:6px;font-weight:500}
+.err-msg{color:var(--red);font-size:11px;margin-top:8px;display:none}
+
+/* ── 切換按鈕（摺疊/展開）─────────────────── */
+#toggle-btn{
+  position:absolute;top:50%;left:330px;z-index:1001;
+  transform:translateY(-50%);
+  width:22px;height:50px;
+  background:var(--surface);border:1px solid var(--border);border-left:none;
+  border-radius:0 8px 8px 0;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--txt2);font-size:12px;
+  transition:left var(--trans),background var(--trans);
+}
+#toggle-btn:hover{background:var(--surface2);color:var(--accent)}
+#panel.collapsed ~ #toggle-btn{left:0}
+
+/* ── 動畫 ──────────────────────────────────── */
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.loading-dot::after{content:" •";animation:pulse 1.2s infinite;color:var(--accent)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;display:inline-block;vertical-align:middle;margin-right:6px}
+
+/* ── 面板 footer ──────────────────────────── */
+#panel-footer{
+  padding:10px 16px;
+  border-top:1px solid var(--border2);
+  flex-shrink:0;
+}
+
+/* ── 折疊區 ───────────────────────────────── */
+.collapsible-header{
+  display:flex;align-items:center;justify-content:space-between;cursor:pointer;
+  padding:6px 0;user-select:none;
+}
+.collapsible-header .section-label{margin-bottom:0}
+.collapse-icon{font-size:10px;color:var(--txt3);transition:transform .2s}
+.collapsible-body{overflow:hidden;transition:max-height .3s ease;max-height:0}
+.collapsible-body.open{max-height:600px}
+
+/* ── 時間控制橫列 ──────────────────────────── */
+#time-bar {
+  position: absolute;
+  bottom: 24px;
+  left: 354px;
+  right: 24px;
+  z-index: 1000;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  backdrop-filter: blur(12px) saturate(1.4);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  transition: left var(--trans);
+}
+#panel.collapsed ~ #time-bar {
+  left: 24px;
+}
+.time-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--txt);
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  transition: var(--trans);
+  flex-shrink: 0;
+}
+.time-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 10px var(--glow);
+}
+.time-slider-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+#fcstSlider {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 6px;
+  margin: 0;
+  border-radius: 3px;
+  background: var(--border2);
+  outline: none;
+  cursor: pointer;
+}
+#fcstSlider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+#fcstSlider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+#fcstLabel {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+  min-width: 140px;
+  text-align: right;
+  letter-spacing: 0.02em;
+}
+.time-ticks {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--txt3);
+  pointer-events: none;
+  user-select: none;
+  padding: 0 4px;
+}
+
+/* ── 時間軸懸停預點選提示 ─────────────────── */
+#slider-tooltip {
+  position: absolute;
+  bottom: 100%;
+  margin-bottom: 12px;
+  transform: translateX(-50%);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 5px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--txt);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .12s;
+  z-index: 1100;
+  box-shadow: 0 4px 14px rgba(0,0,0,.45);
+}
+#slider-tooltip.visible { opacity: 1; }
+#slider-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--surface2);
+}
+#slider-hover-dot {
+  position: absolute;
+  top: 3px;
+  transform: translate(-50%, -50%);
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(56,189,248,.30);
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 8px var(--glow);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .12s;
+  z-index: 1050;
+}
+#slider-hover-dot.visible { opacity: 1; }
+
+/* ── 彈出視窗 ───────────────────────────────── */
+.leaflet-popup-content-wrapper, .leaflet-popup-tip {
+  background: var(--surface) !important;
+  color: var(--txt) !important;
+  border: 1px solid var(--border) !important;
+}
+.leaflet-popup-content {
+  margin: 12px 14px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.pop h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+  border-bottom: 1px solid var(--border2);
+  padding-bottom: 4px;
+  color: var(--txt);
+}
+.pop .row {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 4px;
+}
+.pop .k {
+  color: var(--txt2);
+}
+.pop .big {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--txt);
+}
+</style>
+</head>
+<body>
+<div id="map">
+  <canvas id="windCanvas" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:450;"></canvas>
+</div>
+
+<!-- ====== 側邊面板 ====== -->
+<div id="panel">
+  <div id="panel-header">
+    <div class="logo-row">
+      <div class="logo-badge">&#127760;</div>
+      <div>
+        <div id="panel-title">全球預報模式 GFS</div>
+        <div id="panel-sub">CWA OpenData &#183; GRIB2 前端解析 &#183; M-A0060</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="panel-body">
+
+    <!-- 數值預報模式 -->
+    <div>
+      <div class="section-label">數值預報模式</div>
+      <select id="modelSel">
+        <option value="gfs">全球模式 GFS（M-A0060）</option>
+        <option value="wrf15">區域模式 WRF 15km（M-A0061）</option>
+        <option value="wrf3">區域模式 WRF 3km（M-A0064）</option>
+      </select>
+    </div>
+
+    <!-- 氣象變數 -->
+    <div>
+      <div class="section-label">氣象變數</div>
+      <select id="varSel">
+        <option value="auto">自動偵測（載入後選擇）</option>
+      </select>
+    </div>
+
+    <!-- 變數清單（GRIB2 解析後顯示）-->
+    <div id="var-list-wrap" style="display:none">
+      <div class="section-label">建議選單（常用氣象場）</div>
+      <div id="var-list"></div>
+    </div>
+
+    <!-- 底圖 -->
+    <div>
+      <div class="section-label">底圖樣式</div>
+      <select id="baseSel">
+        <option value="light" selected>簡潔淡色（Positron）</option>
+        <option value="darkclean">簡潔深色（無標籤）</option>
+        <option value="dark">深色（Dark）</option>
+        <option value="osm">街道圖（OSM）</option>
+        <option value="sat">衛星影像（Esri）</option>
+        <option value="topo">地形圖</option>
+      </select>
+    </div>
+
+    <!-- 透明度 -->
+    <div>
+      <div class="section-label">資料圖層透明度</div>
+      <div class="slider-row">
+        <input type="range" id="op" min="0" max="100" value="80">
+        <span id="opV">80%</span>
+      </div>
+    </div>
+
+    <!-- 顯示設定 -->
+    <div>
+      <div class="section-label">顯示設定</div>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:4px;font-size:13px;user-select:none">
+        <input type="checkbox" id="coastChk" checked style="width:14px;height:14px;cursor:pointer">
+        <span>🗺️ 強化海岸線 / 國界（海陸邊界）</span>
+      </label>
+      <label id="contourCheckWrap" style="display:none;align-items:center;gap:8px;cursor:pointer;margin-top:6px;font-size:13px;user-select:none">
+        <input type="checkbox" id="contourCheck" style="width:14px;height:14px;cursor:pointer">
+        <span>顯示氣象等值線 (等高線/等溫線)</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:6px;font-size:13px;user-select:none">
+        <input type="checkbox" id="tyChk" style="width:14px;height:14px;cursor:pointer">
+        <span>🌀 顯示颱風路徑 (W-C0034-005)</span>
+      </label>
+      <div id="tyStat" style="display:none;font-size:11px;color:var(--txt2);background:var(--surface2);border:1px solid var(--border2);padding:6px;border-radius:4px;margin-top:4px;line-height:1.4"></div>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:6px;font-size:13px;user-select:none">
+        <input type="checkbox" id="typChk" style="width:14px;height:14px;cursor:pointer">
+        <span>🎯 顯示颱風侵襲機率 (W-C0034-003)</span>
+      </label>
+      <div id="typStat" style="display:none;font-size:11px;color:var(--txt2);background:var(--surface2);border:1px solid var(--border2);padding:6px;border-radius:4px;margin-top:4px;line-height:1.4"></div>
+      
+      <!-- 流場粒子密度控制 -->
+      <div style="margin-top:8px;border-top:1px solid var(--border2);padding-top:8px">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--txt2);margin-bottom:3px">
+          <span>流場粒子密度</span>
+          <span id="particleCountVal">500</span>
+        </div>
+        <input type="range" id="particleCountSlider" min="100" max="1500" step="50" value="500" style="width:100%;height:4px;cursor:pointer">
+      </div>
+    </div>
+
+    <!-- 載入按鈕 -->
+    <button class="btn btn-primary" id="loadBtn">
+      &#8659; 載入 / 更新預報資料
+    </button>
+
+    <!-- 進度列 -->
+    <div id="progress-bar-wrap">
+      <div id="progress-bar"></div>
+    </div>
+
+    <!-- 狀態 -->
+    <div id="status-card">尚未載入。選擇預報時步後按上方按鈕開始。<br><span style="color:var(--amber)">※ GRIB2 檔案較大（約 30–80 MB），首次載入約需 30–90 秒。</span></div>
+
+    <!-- JSON 元資料 -->
+    <div id="meta-section" style="display:none">
+      <div class="collapsible-header" onclick="toggleCollapse(this)">
+        <div class="section-label">JSON 回應資訊</div>
+        <span class="collapse-icon">▼</span>
+      </div>
+      <div class="collapsible-body open">
+        <div class="meta-grid" id="meta-grid" style="margin-top:6px"></div>
+      </div>
+    </div>
+
+  </div><!-- /panel-body -->
+
+  <div id="panel-footer">
+    <button class="btn btn-ghost" id="keyBtn" style="font-size:12px">&#128273; 更換 API 金鑰</button>
+  </div>
+</div><!-- /panel -->
+
+<div id="toggle-btn" title="收合/展開面板">&#9664;</div>
+
+<!-- ====== 時間控制橫列 ====== -->
+<div id="time-bar">
+  <button id="playBtn" class="time-btn" title="播放/暫停動畫">▶</button>
+  <div class="time-slider-container">
+    <input type="range" id="fcstSlider" min="0" max="384" step="6" value="0">
+    <div id="slider-hover-dot"></div>
+    <div id="slider-tooltip"></div>
+    <div class="time-ticks" id="timeTicks">
+      <span>+00h</span>
+      <span>+24h</span>
+      <span>+48h</span>
+      <span>+72h</span>
+      <span>+96h</span>
+      <span>+120h</span>
+      <span>+144h</span>
+      <span>+168h</span>
+      <span>+192h</span>
+      <span>+216h</span>
+      <span>+240h</span>
+      <span>+264h</span>
+      <span>+288h</span>
+      <span>+312h</span>
+      <span>+336h</span>
+      <span>+360h</span>
+      <span>+384h</span>
+    </div>
+  </div>
+  <div id="fcstLabel">分析場 +000h</div>
+  <span id="fcstVal" style="display:none">000h</span>
+</div>
+
+<!-- ====== 色標圖例 ====== -->
+<div id="legend-bar">
+  <div id="legend-title"></div>
+  <canvas id="legend-canvas" height="14"></canvas>
+  <div class="legend-labels">
+    <span id="legend-min"></span>
+    <span id="legend-mid"></span>
+    <span id="legend-max"></span>
+  </div>
+</div>
+
+<!-- ====== 滑鼠數值提示 ====== -->
+<div id="hover-info">
+  <div class="hv" id="hv-val">—</div>
+  <div class="hc" id="hv-coord">—</div>
+</div>
+
+<!-- ====== 金鑰 Gate ====== -->
+<div id="gate" style="display:none">
+  <div class="gcard">
+    <h2>&#128272; 輸入 CWA API 授權碼</h2>
+    <p class="sub">授權碼儲存於瀏覽器 localStorage，不會上傳至任何伺服器。<br>
+      申請網址：<a href="https://opendata.cwa.gov.tw/index" target="_blank" style="color:var(--accent)">opendata.cwa.gov.tw</a></p>
+    <label for="keyInput">Authorization Key</label>
+    <input type="password" id="keyInput" placeholder="CWA-XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX" autocomplete="off">
+    <div class="err-msg" id="keyErr"></div>
+    <button class="btn btn-primary" id="enterBtn" style="margin-top:14px">進入系統</button>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+/* ═══════════════════════════════════════════════
+   CWA GFS GRIB2 Visualization
+   全球預報模式 0.25° 前端解析
+   ═══════════════════════════════════════════════ */
+
+var $=function(id){return document.getElementById(id);};
+var STORE='cwa_api_key';
+var KEY='';
+
+/* ── 地圖 & 底圖 ──────────────────────────── */
+var BASES={
+  light:     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
+        {maxZoom:19,attribution:'&copy; OSM &copy; CARTO'}),
+  darkclean: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png',
+        {maxZoom:19,attribution:'&copy; OSM &copy; CARTO'}),
+  dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+        {maxZoom:19,attribution:'&copy; OSM &copy; CARTO'}),
+  osm:  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+        {maxZoom:19,attribution:'&copy; OpenStreetMap'}),
+  sat:  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        {maxZoom:19,attribution:'Esri World Imagery'}),
+  topo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+        {maxZoom:17,attribution:'&copy; OpenTopoMap'})
+};
+var worldBounds = L.latLngBounds([[-85, -180], [85, 540]]);
+var map=L.map('map',{
+  zoomControl:false,
+  maxBounds: worldBounds,
+  maxBoundsViscosity: 1.0,
+  minZoom: 2
+}).setView([23.5,180],3);
+L.control.zoom({position:'topleft'}).addTo(map);
+var curBase=BASES.light.addTo(map);
+
+/* 當地圖移動、縮放時更新流場圖層 */
+map.on('move', updateWindBarbs);
+map.on('zoomend', updateWindBarbs);
+/* 平移/縮放開始時清除舊尾跡，避免拖曳時殘影塗抹 */
+map.on('movestart', function(){
+  var c=$('windCanvas');
+  if(c){var cx=c.getContext('2d');cx.clearRect(0,0,c.width,c.height);}
+});
+
+$('baseSel').onchange=function(e){
+  map.removeLayer(curBase);
+  curBase=BASES[e.target.value].addTo(map);
+  curBase.bringToBack();
+};
+
+map.createPane('datapane');
+map.getPane('datapane').style.zIndex=350;
+map.getPane('datapane').style.pointerEvents='none';
+var overlay=null;
+
+/* ── 海岸線 / 國界疊層（讓海陸邊界更明顯）── */
+/* 位於資料色階(350)之上、粒子流場(450)之下，因此邊界永遠清楚可見 */
+map.createPane('coastpane');
+map.getPane('coastpane').style.zIndex=360;
+map.getPane('coastpane').style.pointerEvents='none';
+var coastLayer=L.layerGroup();
+var coastLoaded=false, coastPromise=null;
+var NE_BASE='https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@v5.1.2/geojson/';
+var COAST_OFFSETS=[-360,0,360];   /* 向左右各延伸一圈，涵蓋世界地圖環繞副本 */
+function addCoastGeo(gj,styleObj,offset){
+  L.geoJSON(gj,{pane:'coastpane',interactive:false,
+    coordsToLatLng:function(c){return L.latLng(c[1], c[0]+offset);},
+    style:styleObj}).addTo(coastLayer);
+}
+function loadCoastlines(){
+  if(coastLoaded) return Promise.resolve(true);
+  if(coastPromise) return coastPromise;
+  coastPromise=Promise.all([
+    /* 海岸線：深色描邊 + 亮色主線，任何色階背景上都清楚 */
+    fetch(NE_BASE+'ne_50m_coastline.geojson').then(function(r){return r.json();}).then(function(gj){
+      for(var o=0;o<COAST_OFFSETS.length;o++){
+        addCoastGeo(gj,{color:'#04121f',weight:2.6,opacity:0.55},COAST_OFFSETS[o]);
+        addCoastGeo(gj,{color:'#f2f8ff',weight:1.1,opacity:0.92},COAST_OFFSETS[o]);
+      }
+    }),
+    /* 國界：細白虛線（載入失敗不影響海岸線） */
+    fetch(NE_BASE+'ne_50m_admin_0_boundary_lines_land.geojson').then(function(r){return r.json();}).then(function(gj){
+      for(var o=0;o<COAST_OFFSETS.length;o++){
+        addCoastGeo(gj,{color:'#ffffff',weight:0.7,opacity:0.4,dashArray:'3 3'},COAST_OFFSETS[o]);
+      }
+    }).catch(function(){})
+  ]).then(function(){coastLoaded=true;return true;})
+    .catch(function(e){coastPromise=null;console.warn('海岸線載入失敗',e);return false;});
+  return coastPromise;
+}
+function setCoast(on){
+  if(on){
+    loadCoastlines().then(function(ok){ if(ok && $('coastChk').checked) coastLayer.addTo(map); });
+  }else{
+    map.removeLayer(coastLayer);
+  }
+}
+$('coastChk').onchange=function(e){ setCoast(e.target.checked); };
+setCoast($('coastChk').checked);  /* 預設開啟 */
+
+$('op').oninput=function(e){
+  $('opV').textContent=e.target.value+'%';
+  if(overlay)overlay.setOpacity(e.target.value/100);
+};
+
+$('contourCheck').onchange=function(e){
+  if(currentData && currentData.msg){
+    selectVar(currentData.msg.index);
+  };
+};
+
+$('particleCountSlider').oninput=function(e){
+  maxParticles = parseInt(e.target.value);
+  $('particleCountVal').textContent = maxParticles;
+  initParticles();
+};
+
+/* ── 面板摺疊 ─────────────────────────────── */
+var panelEl=$('panel'),toggleBtn=$('toggle-btn');
+var panelOpen=true;
+toggleBtn.onclick=function(){
+  panelOpen=!panelOpen;
+  if(panelOpen){panelEl.classList.remove('collapsed');}
+  else{panelEl.classList.add('collapsed');}
+  toggleBtn.textContent=panelOpen?'\u25C4':'\u25BA';
+  toggleBtn.style.left=panelOpen?'330px':'0';
+};
+
+/* ── 折疊區域 ─────────────────────────────── */
+function toggleCollapse(header){
+  var body=header.nextElementSibling;
+  var icon=header.querySelector('.collapse-icon');
+  if(body.classList.contains('open')){
+    body.classList.remove('open');
+    icon.style.transform='rotate(-90deg)';
+  }else{
+    body.classList.add('open');
+    icon.style.transform='rotate(0)';
+  }
+}
+/* ── 金鑰管理 ─────────────────────────────── */
+function openGate(msg){
+  $('gate').style.display='flex';
+  if(msg){$('keyErr').textContent=msg;$('keyErr').style.display='block';}
+  if(KEY)$('keyInput').value=KEY;
+  setTimeout(function(){$('keyInput').focus();},60);
+}
+$('enterBtn').onclick=function(){
+  var k=$('keyInput').value.trim();
+  if(!k){$('keyErr').textContent='請輸入授權碼';$('keyErr').style.display='block';return;}
+  KEY=k;try{localStorage.setItem(STORE,k);}catch(e){}
+  $('gate').style.display='none';
+};
+$('keyInput').addEventListener('keydown',function(e){if(e.key==='Enter')$('enterBtn').click();});
+$('keyBtn').onclick=function(){openGate();};
+try{KEY=localStorage.getItem(STORE)||'';}catch(e){}
+if(!KEY)openGate();
+
+/* ── 狀態輸出 ─────────────────────────────── */
+function setStatus(html,cls){
+  cls=cls||'';
+  var el=$('status-card');
+  el.innerHTML=html;
+  el.className=cls;
+}
+function setProgress(pct){
+  var w=$('progress-bar-wrap'),b=$('progress-bar');
+  if(pct===null){w.style.display='none';b.style.width='0%';return;}
+  w.style.display='block';
+  setTimeout(function(){b.style.width=pct+'%';},10);
+}
+
+/* ── 預報時步控制 ─────────────────────────── */
+var currentHour=0;
+var modelInitTime=null;   /* 由 JSON 元資料填入，用於計算預報有效時間 */
+
+/* 依預報時步組出標籤：+XXXh（＋若已載入則附上有效時間） */
+function fcstHourLabel(hour){
+  var h=String(hour).padStart(3,'0');
+  var base=(hour===0?'分析場':'預報')+' +'+h+'h';
+  if(modelInitTime){
+    var d=new Date(modelInitTime);
+    if(!isNaN(d)){
+      d.setHours(d.getHours()+hour);
+      var wk=['日','一','二','三','四','五','六'][d.getDay()];
+      var MM=d.getMonth()+1, DD=d.getDate();
+      var HH=String(d.getHours()).padStart(2,'0');
+      var mm=String(d.getMinutes()).padStart(2,'0');
+      base+='｜'+MM+'/'+DD+'（'+wk+'）'+HH+':'+mm;
+    }
+  }
+  return base;
+}
+
+$('fcstSlider').oninput=function(e){
+  currentHour=parseInt(e.target.value);
+  var h=String(currentHour).padStart(3,'0');
+  $('fcstVal').textContent=h+'h';
+  $('fcstLabel').textContent=fcstHourLabel(currentHour);
+};
+
+/* 直接點選 / 放開時間軸後，自動載入 / 更新該預報時步（不重設地圖視野）*/
+$('fcstSlider').addEventListener('change',function(e){
+  var hour=parseInt(e.target.value);
+  if(isNaN(hour)) return;
+  if(isPlaying) stopAnim();
+  loadForecast(hour,false);
+});
+
+/* ── 數值預報模式設定表 ─────────────────────── */
+/* maxHour / step / tickStep 為 WRF 常見值，若與實際不符，改此處即可 */
+var MODELS={
+  gfs:  {id:'M-A0060', name:'全球預報模式 GFS', maxHour:384, step:6, tickStep:24, view:[23.5,180,3]},
+  wrf15:{id:'M-A0061', name:'區域模式 WRF 15km', maxHour:84,  step:6, tickStep:12, view:[23.5,121,6]},
+  wrf3: {id:'M-A0064', name:'區域模式 WRF 3km',  maxHour:84,  step:6, tickStep:12, view:[23.7,121,7]}
+};
+var curModel='gfs';
+
+/* 依模式重建時間軸刻度標示 */
+function buildTimeTicks(maxHour,tickStep){
+  var el=$('timeTicks'); if(!el) return;
+  var html='';
+  for(var h=0;h<=maxHour;h+=tickStep){
+    var s=String(h); if(s.length<2) s='0'+s;
+    html+='<span>+'+s+'h</span>';
+  }
+  if(maxHour%tickStep!==0) html+='<span>+'+maxHour+'h</span>';
+  el.innerHTML=html;
+}
+
+/* 套用模式：重設資料ID(透過 curModel)、時間軸、視野、標題 */
+function applyModel(key){
+  var m=MODELS[key]; if(!m) return;
+  curModel=key;
+  $('panel-title').textContent=m.name;
+  $('panel-sub').innerHTML='CWA OpenData &#183; GRIB2 前端解析 &#183; '+m.id;
+  var sl=$('fcstSlider');
+  sl.max=m.maxHour; sl.step=m.step; sl.value=0;
+  currentHour=0; modelInitTime=null;
+  $('fcstVal').textContent='000h';
+  $('fcstLabel').textContent=fcstHourLabel(0);
+  buildTimeTicks(m.maxHour,m.tickStep);
+  map.setView([m.view[0],m.view[1]],m.view[2]);
+}
+
+$('modelSel').onchange=function(e){
+  if(isPlaying) stopAnim();
+  lastSel=null;                 /* 換模式不沿用舊變數，回到該模式預設場 */
+  applyModel(e.target.value);
+  loadForecast(0,false);
+};
+
+/* 初始化為預設模式（讓刻度/視野與設定一致）*/
+applyModel(curModel);
+
+/* ── 時間軸懸停：預點選指示點＋預報時間提示 ── */
+(function(){
+  var slider=$('fcstSlider'), tip=$('slider-tooltip'), dot=$('slider-hover-dot');
+  if(!slider||!tip||!dot) return;
+  var THUMB=16;  /* 需與 #fcstSlider::-webkit-slider-thumb 及 #slider-hover-dot 寬度一致 */
+  function place(clientX){
+    var rect=slider.getBoundingClientRect();
+    var min=+slider.min, max=+slider.max, step=+slider.step||6;
+    var ratio=(clientX-rect.left)/rect.width;
+    ratio=Math.max(0,Math.min(1,ratio));
+    var val=Math.round((min+ratio*(max-min))/step)*step;
+    val=Math.max(min,Math.min(max,val));
+    /* 原生滑桿鈕中心會內縮半個鈕寬，需用相同公式才能與拖曳鈕重疊 */
+    var frac=(val-min)/(max-min);
+    var px=THUMB/2 + frac*(rect.width - THUMB);
+    tip.style.left=px+'px';
+    dot.style.left=px+'px';
+    tip.textContent=fcstHourLabel(val);
+  }
+  slider.addEventListener('mousemove',function(e){
+    place(e.clientX);
+    tip.classList.add('visible');
+    dot.classList.add('visible');
+  });
+  slider.addEventListener('mouseleave',function(){
+    tip.classList.remove('visible');
+    dot.classList.remove('visible');
+  });
+})();
+
+/* ── 動畫播放 ─────────────────────────────── */
+var animTimer=null;
+var isPlaying=false;
+$('playBtn').onclick=function(){
+  if(isPlaying){
+    stopAnim();
+  }else{
+    startAnim();
+  }
+};
+function startAnim(){
+  isPlaying=true;
+  $('playBtn').textContent='⏸';
+  animStep();
+}
+function stopAnim(){
+  isPlaying=false;
+  $('playBtn').textContent='▶';
+  if(animTimer){clearTimeout(animTimer);animTimer=null;}
+}
+function animStep(){
+  if(!isPlaying)return;
+  var sl=$('fcstSlider');
+  var stepH=parseInt(sl.step)||6, maxH=parseInt(sl.max)||384;
+  var next=currentHour+stepH;
+  if(next>maxH) next=0;
+  $('fcstSlider').value=next;
+  $('fcstSlider').dispatchEvent(new Event('input'));
+  loadForecast(next,false).then(function(){
+    if(isPlaying) animTimer=setTimeout(animStep,1500);
+  }).catch(function(){
+    stopAnim();
+  });
+}
+
+/* ═══════════════════════════════════════════════
+   GRIB2 Parser
+   ═══════════════════════════════════════════════ */
+
+/* ── 讀取工具 (GRIB2 uses sign-and-magnitude) ──── */
+function readUint8(buf,off){return buf[off];}
+function readUint16(buf,off){return (buf[off]<<8)|buf[off+1];}
+function readUint32(buf,off){return ((buf[off]<<24)|(buf[off+1]<<16)|(buf[off+2]<<8)|buf[off+3])>>>0;}
+function readInt16(buf,off){var v=readUint16(buf,off);return (v&0x8000)?-(v&0x7FFF):v;}
+function readInt32(buf,off){var v=readUint32(buf,off);return (v&0x80000000)?-(v&0x7FFFFFFF):v;}
+
+/* 讀取 N byte sign-and-magnitude (spatial diff extra descriptors - big-endian) */
+function readIntN(buf,off,n){
+  if(n<=0) return 0;
+  var val=0;
+  for(var i=0;i<n;i++) val=(val*256)+buf[off+i];
+  var signBit=Math.pow(2,n*8-1);
+  if(val>=signBit) return -(val-signBit);
+  return val;
+}
+
+/* 使用 DataView 讀取 IEEE 754 float32 */
+function readIEEE32(buf,off){
+  var ab=buf.buffer;
+  var bo=buf.byteOffset+off;
+  try{return new DataView(ab,bo,4).getFloat32(0,false);}
+  catch(e){
+    var b0=buf[off],b1=buf[off+1],b2=buf[off+2],b3=buf[off+3];
+    var sign=(b0>>7)?-1:1;
+    var exp=((b0&0x7F)<<1)|(b1>>7);
+    var mant=((b1&0x7F)<<16)|(b2<<8)|b3;
+    if(exp===0&&mant===0) return 0;
+    if(exp===0xFF) return mant?NaN:(sign*Infinity);
+    if(exp===0) return sign*Math.pow(2,-126)*(mant/0x800000);
+    return sign*Math.pow(2,exp-127)*(1+mant/0x800000);
+  }
+}
+
+/* ── Bit Reader (standalone) ──────────────── */
+function createBitReader(buf,startByte){return {buf:buf,bytePos:startByte,bitOff:0};}
+function readBits(br,n){
+  if(n===0) return 0;
+  var val=0,left=n;
+  while(left>0){
+    var avail=8-br.bitOff,take=Math.min(avail,left);
+    val=(val<<take)|((br.buf[br.bytePos]>>>(avail-take))&((1<<take)-1));
+    left-=take;br.bitOff+=take;
+    if(br.bitOff>=8){br.bitOff=0;br.bytePos++;}
+  }
+  return val;
+}
+function alignByte(br){if(br.bitOff>0){br.bitOff=0;br.bytePos++;}}
+
+/* ── GRIB2 表 4.2 參數名稱 ────────────────── */
+var PARAM_NAMES={
+  '0-0-0':'Temperature','0-0-2':'Potential Temp','0-0-4':'Max Temp','0-0-5':'Min Temp',
+  '0-0-6':'Dew Point Temp','0-0-7':'Dew Point Depression',
+  '0-1-0':'Specific Humidity','0-1-1':'Relative Humidity','0-1-3':'Precipitable Water',
+  '0-1-7':'Precipitation Rate','0-1-8':'Total Precipitation','0-1-13':'Snow Depth',
+  '0-2-0':'Wind Direction','0-2-1':'Wind Speed','0-2-2':'U-Wind','0-2-3':'V-Wind','wind-vector':'Wind Speed/Direction',
+  '0-2-8':'Vertical Vel (Pa/s)','0-2-10':'Abs Vorticity','0-2-22':'Gust',
+  '0-3-0':'Pressure','0-3-1':'MSLP','0-3-5':'Geopotential Height','0-3-9':'GPH Anomaly',
+  '0-4-7':'SW Rad Down','0-5-3':'LW Rad Down',
+  '0-6-1':'Total Cloud','0-6-3':'Low Cloud','0-6-4':'Mid Cloud','0-6-5':'High Cloud',
+  '0-7-6':'CAPE','0-7-7':'CIN','0-7-8':'Helicity',
+  '0-14-0':'Total Ozone','0-19-0':'Visibility',
+  '2-0-0':'Land Cover','10-0-3':'Sig Wave Height'
+};
+var PARAM_NAMES_TW={
+  '0-0-0':'氣溫','0-0-6':'露點溫度','0-0-7':'露點溫度差',
+  '0-1-0':'比濕','0-1-1':'相對濕度','0-1-3':'可降水量',
+  '0-1-7':'瞬間降水率','0-1-8':'累積降水量',
+  '0-2-2':'緯向風速 (U)','0-2-3':'經向風速 (V)','wind-vector':'風速/風向 (向量)','0-2-8':'垂直速度 (Pa/s)','0-2-10':'絕對渦度',
+  '0-2-22':'瞬間陣風',
+  '0-3-0':'氣壓','0-3-1':'海平面氣壓','0-3-5':'重力位高度',
+  '0-6-1':'總雲量','0-7-6':'對流可用位能 (CAPE)','0-7-7':'對流抑制能 (CIN)'
+};
+var LEVEL_TYPES={
+  1:'地面',100:'等壓面',101:'海平面',103:'地面以上固定高度',
+  104:'sigma',105:'hybrid',106:'地下深度',108:'等壓面間',200:'大氣全層',10:'對流層頂'
+};
+
+/* ── Section 3: Grid Definition ──────────── */
+function parseSec3Grid(buf,off,len){
+  var tmpl=readUint16(buf,off+12);
+  if(tmpl===0){
+    return {template:tmpl,
+      nx:readUint32(buf,off+30), ny:readUint32(buf,off+34),
+      lat1:readInt32(buf,off+46)/1e6, lon1:readInt32(buf,off+50)/1e6,
+      lat2:readInt32(buf,off+55)/1e6, lon2:readInt32(buf,off+59)/1e6,
+      dx:readUint32(buf,off+63)/1e6,  dy:readUint32(buf,off+67)/1e6,
+      scan:readUint8(buf,off+71)};
+  }
+  if(tmpl===30){
+    /* Lambert Conformal（GRIB2 GDT 3.30，八位元組以段落起點為基準）*/
+    var shape=readUint8(buf,off+14);
+    var Re=(shape===0)?6367470:6371229;   /* 6=球體 6371229；0=6367470 */
+    var g={template:30, lambert:true,
+      nx:readUint32(buf,off+30), ny:readUint32(buf,off+34),
+      la1:readInt32(buf,off+38)/1e6, lo1:readInt32(buf,off+42)/1e6,
+      laD:readInt32(buf,off+47)/1e6, loV:readInt32(buf,off+51)/1e6,
+      dx:readUint32(buf,off+55)/1e3,  dy:readUint32(buf,off+59)/1e3,   /* 10^-3 m → m */
+      scan:readUint8(buf,off+64),
+      latin1:readInt32(buf,off+65)/1e6, latin2:readInt32(buf,off+69)/1e6,
+      Re:Re};
+    /* 相容欄位：讓其他程式的 grid.lat1 等不致 undefined */
+    g.lat1=g.la1; g.lon1=g.lo1;
+    return g;
+  }
+  return {template:tmpl,nx:0,ny:0};
+}
+
+/* ── Lambert Conformal 投影工具 ─────────────── */
+function lambertInit(g){
+  if(g._lam) return;
+  var d2r=Math.PI/180, R=g.Re||6371229;
+  var f1=g.latin1*d2r, f2=g.latin2*d2r, f0=(g.laD||g.latin1)*d2r, l0=g.loV*d2r;
+  var n;
+  if(Math.abs(g.latin1-g.latin2)<1e-9) n=Math.sin(f1);
+  else n=Math.log(Math.cos(f1)/Math.cos(f2))/
+         Math.log(Math.tan(Math.PI/4+f2/2)/Math.tan(Math.PI/4+f1/2));
+  var F=Math.cos(f1)*Math.pow(Math.tan(Math.PI/4+f1/2),n)/n;
+  var rho0=R*F/Math.pow(Math.tan(Math.PI/4+f0/2),n);
+  var fp=g.la1*d2r, lp=g.lo1*d2r;
+  var rho1=R*F/Math.pow(Math.tan(Math.PI/4+fp/2),n);
+  var dl1=lp-l0; if(dl1>Math.PI)dl1-=2*Math.PI; if(dl1<-Math.PI)dl1+=2*Math.PI;
+  var th1=n*dl1;
+  var x1=rho1*Math.sin(th1), y1=rho0-rho1*Math.cos(th1);
+  var jNorth=(g.scan&0x40)!==0;   /* bit: +j 向北 */
+  g._lam={R:R,n:n,F:F,rho0:rho0,l0:l0,x1:x1,y1:y1,jNorth:jNorth};
+  console.log('[Lambert] n='+n.toFixed(5)+' Re='+R+' latin1='+g.latin1+' latin2='+g.latin2+
+    ' laD='+g.laD+' loV='+g.loV+' la1='+g.la1+' lo1='+g.lo1+' dx='+g.dx+'m nx='+g.nx+' ny='+g.ny+' jNorth='+jNorth);
+}
+function lambertLatLonToIJ(g,lat,lon){
+  var L=g._lam,d2r=Math.PI/180;
+  var f=lat*d2r;
+  var rho=L.R*L.F/Math.pow(Math.tan(Math.PI/4+f/2),L.n);
+  var dl=lon*d2r-L.l0; if(dl>Math.PI)dl-=2*Math.PI; if(dl<-Math.PI)dl+=2*Math.PI;
+  var th=L.n*dl;
+  var x=rho*Math.sin(th), y=L.rho0-rho*Math.cos(th);
+  var i=(x-L.x1)/g.dx;
+  var j=L.jNorth?((y-L.y1)/g.dy):((L.y1-y)/g.dy);
+  return [i,j];
+}
+function lambertIJToLatLon(g,i,j){
+  var L=g._lam,r2d=180/Math.PI;
+  var x=L.x1+i*g.dx;
+  var y=L.jNorth?(L.y1+j*g.dy):(L.y1-j*g.dy);
+  var rho=Math.sqrt(x*x+(L.rho0-y)*(L.rho0-y)); if(L.n<0)rho=-rho;
+  var th=Math.atan2(x,(L.rho0-y));
+  var lon=(L.l0+th/L.n)*r2d;
+  var lat=(2*Math.atan(Math.pow(L.R*L.F/rho,1/L.n))-Math.PI/2)*r2d;
+  return [lat,lon];
+}
+
+/* ── Section 4: Product Definition ───────── */
+function parseSec4Product(buf,off,len){
+  var template=readUint16(buf,off+7);
+  var p={template:template,
+    category:readUint8(buf,off+9), paramNum:readUint8(buf,off+10),
+    genProc:readUint8(buf,off+11),
+    levelType:readUint8(buf,off+22), levelScaleFactor:readUint8(buf,off+23),
+    levelVal:readUint32(buf,off+24),
+    fcstUnit:readUint8(buf,off+17), fcstTime:readUint32(buf,off+18)};
+  if(template===8||template===9){
+    p.statProcessType=readUint8(buf,off+46);
+    p.timeRangeUnit=readUint8(buf,off+48);
+    p.timeRangeLength=readUint32(buf,off+49);
+  }
+  return p;
+}
+
+/* ── Section 5: Data Representation ──────── */
+function parseSec5DataRep(buf,off,len){
+  var npts=readUint32(buf,off+5);
+  var tmpl=readUint16(buf,off+9);
+  if(tmpl===0){
+    return {npoints:npts,template:0,
+      R:readIEEE32(buf,off+11),E:readInt16(buf,off+15),D:readInt16(buf,off+17),
+      nbits:readUint8(buf,off+19)};
+  }
+  if(tmpl===2||tmpl===3){
+    var r={npoints:npts,template:tmpl,
+      R:readIEEE32(buf,off+11),E:readInt16(buf,off+15),D:readInt16(buf,off+17),
+      nbits:readUint8(buf,off+19),
+      groupSplit:readUint8(buf,off+21),missingMgmt:readUint8(buf,off+22),
+      missingVal1:readUint32(buf,off+23),missingVal2:readUint32(buf,off+27),
+      nGroups:readUint32(buf,off+31),
+      refGroupWidth:readUint8(buf,off+35),bitsGroupWidth:readUint8(buf,off+36),
+      refGroupLen:readUint32(buf,off+37),lenIncr:readUint8(buf,off+41),
+      lastLen:readUint32(buf,off+42),bitsLen:readUint8(buf,off+46)};
+    if(tmpl===3&&len>=49){
+      r.spatialOrder=readUint8(buf,off+47);
+      r.extraDescOctets=readUint8(buf,off+48);
+    }
+    return r;
+  }
+  if(tmpl===40||tmpl===40000){
+    return {npoints:npts,template:tmpl,
+      R:readIEEE32(buf,off+11),E:readInt16(buf,off+15),D:readInt16(buf,off+17),
+      nbits:readUint8(buf,off+19),isJPEG2000:true};
+  }
+  return {npoints:npts,template:tmpl};
+}
+
+/* ── Simple Packing 解碼 (Template 7.0) ──── */
+function decodeSimple(buf,off,len,rep,npts){
+  var R=rep.R,E=rep.E,D=rep.D,nb=rep.nbits;
+  var vals=new Float32Array(npts);
+  var two_e=Math.pow(2,E),ten_d=Math.pow(10,D);
+  if(nb===0){var v0=R/ten_d;for(var i=0;i<npts;i++) vals[i]=v0;return vals;}
+  var br=createBitReader(buf,off+5);
+  for(var i=0;i<npts;i++) vals[i]=(R+readBits(br,nb)*two_e)/ten_d;
+  return vals;
+}
+
+/* ── Complex Packing 解碼 → raw 整數 (Template 7.2) ── */
+function decodeComplexRaw(buf,rep,npts,dataOff){
+  var nb=rep.nbits,nG=rep.nGroups;
+  if(!nG) return new Float64Array(npts);
+  var br=createBitReader(buf,dataOff);
+  /* group refs */
+  var gR=new Uint32Array(nG);
+  for(var g=0;g<nG;g++) gR[g]=readBits(br,nb);
+  alignByte(br);
+  /* group widths */
+  var gW=new Uint8Array(nG);
+  for(var g=0;g<nG;g++) gW[g]=rep.refGroupWidth+readBits(br,rep.bitsGroupWidth);
+  alignByte(br);
+  /* group lengths */
+  var gL=new Uint32Array(nG);
+  for(var g=0;g<nG;g++) gL[g]=rep.refGroupLen+readBits(br,rep.bitsLen)*rep.lenIncr;
+  gL[nG-1]=rep.lastLen;
+  alignByte(br);
+  /* unpack */
+  var raw=new Float64Array(npts);
+  var idx=0;
+  for(var g=0;g<nG;g++){
+    var w=gW[g],r=gR[g],L=gL[g];
+    for(var k=0;k<L&&idx<npts;k++) raw[idx++]=r+(w>0?readBits(br,w):0);
+  }
+  return raw;
+}
+
+/* ── 掃描 GRIB2 檔案 ──────────────────────── */
+function scanGrib2(buf){
+  var u8=new Uint8Array(buf);
+  var msgs=[],pos=0,len=u8.length;
+  var tplStats={};
+  while(pos<len-4){
+    if(u8[pos]!==0x47||u8[pos+1]!==0x52||u8[pos+2]!==0x49||u8[pos+3]!==0x42){pos++;continue;}
+    var disc=u8[pos+6],ed=u8[pos+7];
+    if(ed!==2){pos+=4;continue;}
+    var tot=readUint32(u8,pos+12);
+    if(tot===0||tot>len-pos){pos+=4;continue;}
+    var end=pos+tot,sp=pos+16,curG=null,ents=[];
+    while(sp<end-4){
+      if(u8[sp]===0x37&&u8[sp+1]===0x37&&u8[sp+2]===0x37&&u8[sp+3]===0x37) break;
+      var sl=readUint32(u8,sp),sn=u8[sp+4];
+      if(sl<5||sl>(end-sp)) break;
+      if(sn===3) curG=parseSec3Grid(u8,sp,sl);
+      else if(sn===4){var p=parseSec4Product(u8,sp,sl);p.discipline=disc;ents.push({prod:p,grid:curG});}
+      else if(sn===5){var e=ents[ents.length-1];if(e){e.rep=parseSec5DataRep(u8,sp,sl);}}
+      else if(sn===6){var e=ents[ents.length-1];if(e){e.sec6off=sp;e.bitmapFlag=u8[sp+5];}}
+      else if(sn===7){var e=ents[ents.length-1];if(e){e.sec7off=sp;e.sec7len=sl;}}
+      sp+=sl;
+    }
+    for(var i=0;i<ents.length;i++){
+      var e=ents[i],key=e.prod.discipline+'-'+e.prod.category+'-'+e.prod.paramNum;
+      var ltype=e.prod.levelType,lval=e.prod.levelVal,lsc=e.prod.levelScaleFactor||0;
+      var aLev=lsc>0?lval/Math.pow(10,lsc):lval;
+      var levS=LEVEL_TYPES[ltype]||(ltype+'');
+      if(ltype===100) levS=(aLev/100)+' hPa';
+      else if(ltype===103) levS='離地 ' + aLev + ' 公尺';
+      var tk=e.rep?e.rep.template:'?';tplStats[tk]=(tplStats[tk]||0)+1;
+
+      var nameTW=PARAM_NAMES_TW[key]||PARAM_NAMES[key]||('P'+key);
+      if(key==='0-1-8' && e.prod.timeRangeLength!==undefined){
+        var length=e.prod.timeRangeLength;
+        if(length > 0){
+          if(length === 6){
+            nameTW="累積降水量 (前 6 小時)";
+          } else {
+            nameTW="累積降水量 (總累積 " + length + " 小時)";
+          }
+        } else {
+          /* hour 000 case */
+          if(e.rep && e.rep.template === 3){
+            nameTW="累積降水量 (前 6 小時)";
+          } else {
+            nameTW="累積降水量 (總累積)";
+          }
+        }
+      }
+
+      msgs.push({index:msgs.length,key:key,
+        name:PARAM_NAMES[key]||('P'+key),nameTW:nameTW,
+        levelStr:levS,levelType:ltype,levelVal:lval,
+        grid:e.grid,rep:e.rep,prod:e.prod,
+        sec7off:e.sec7off,sec7len:e.sec7len,
+        bitmapFlag:e.bitmapFlag,sec6off:e.sec6off});
+    }
+    pos=end;
+  }
+  console.log('[GRIB2] 掃描完成:',msgs.length,'訊息, 模板統計:',tplStats);
+  if(msgs.length>0){var m=msgs[0];
+    console.log('[GRIB2] 第1筆:',m.nameTW,m.levelStr,'tpl='+
+      (m.rep?m.rep.template:'?'),'R='+
+      (m.rep?m.rep.R:'?'),'E='+(m.rep?m.rep.E:'?'),'D='+(m.rep?m.rep.D:'?'),
+      'bits='+(m.rep?m.rep.nbits:'?'),'grid='+(m.grid?m.grid.nx+'x'+m.grid.ny+' lon1='+m.grid.lon1+' lon2='+m.grid.lon2+' dx='+m.grid.dx:'?'));
+    if(m.rep&&m.rep.template===3)
+      console.log('[GRIB2] spatial: order='+m.rep.spatialOrder+' iosp='+m.rep.extraDescOctets);
+  }
+
+  /* ── 尋找同高度層的 U/V 風分量並合併為虛擬的風速向量變數 ── */
+  var uComponents={};
+  var vComponents={};
+  for(var i=0;i<msgs.length;i++){
+    var m=msgs[i];
+    var levKey=m.levelType + '-' + m.levelVal;
+    if(m.key==='0-2-2'){ uComponents[levKey]=m; }
+    else if(m.key==='0-2-3'){ vComponents[levKey]=m; }
+  }
+
+  var virtualIndex=msgs.length;
+  for(var levKey in uComponents){
+    if(vComponents[levKey]){
+      var msgU=uComponents[levKey];
+      var msgV=vComponents[levKey];
+      msgs.push({
+        index:virtualIndex++,
+        isVirtualWind:true,
+        key:'wind-vector',
+        name:'Wind Vector',
+        nameTW:'風速/風向 (向量)',
+        levelStr:msgU.levelStr,
+        levelType:msgU.levelType,
+        levelVal:msgU.levelVal,
+        grid:msgU.grid,
+        rep:msgU.rep,
+        msgU:msgU,
+        msgV:msgV
+      });
+    }
+  }
+
+  return msgs;
+}
+
+/* ── 解碼指定訊息資料 ─────────────────────── */
+function decodeMessage(buf,msg){
+  var u8=new Uint8Array(buf),rep=msg.rep,grid=msg.grid;
+  if(!rep||!grid) return null;
+  var N=grid.nx*grid.ny;
+  /* bitmap */
+  var bm=null;
+  if(msg.bitmapFlag===0&&msg.sec6off){
+    bm=new Uint8Array(N);
+    var bo=msg.sec6off+6;
+    for(var i=0;i<N;i++) bm[i]=(u8[bo+(i>>3)]>>(7-(i&7)))&1;
+  }
+  var cnt=N;
+  if(bm){cnt=0;for(var i=0;i<N;i++) if(bm[i]) cnt++;}
+
+  var vals=null;
+  if(rep.template===0){
+    vals=decodeSimple(u8,msg.sec7off,msg.sec7len,rep,cnt);
+  }else if(rep.template===2){
+    var ri=decodeComplexRaw(u8,rep,cnt,msg.sec7off+5);
+    var R=rep.R,te=Math.pow(2,rep.E),td=Math.pow(10,rep.D);
+    vals=new Float32Array(cnt);
+    for(var i=0;i<cnt;i++) vals[i]=(R+ri[i]*te)/td;
+  }else if(rep.template===3){
+    var order=rep.spatialOrder||2;
+    var iosp=rep.extraDescOctets||4;
+    var doff=msg.sec7off+5;
+    /* read extra descriptors */
+    var iv=[];
+    for(var o=0;o<order;o++){iv.push(readIntN(u8,doff,iosp));doff+=iosp;}
+    var imin=readIntN(u8,doff,iosp);doff+=iosp;
+    console.log('[GRIB2] SpatialDiff: order='+order+' iosp='+iosp+' ivals='+JSON.stringify(iv)+' imin='+imin);
+    
+    /* decode groups (packed values are cnt) */
+    var packedVals=decodeComplexRaw(u8,rep,cnt,doff);
+    
+    /* reconstruct raw integers array */
+    var ri=new Float64Array(cnt);
+    for(var i=0;i<cnt;i++) ri[i]=packedVals[i]+imin;
+    for(var o=0;o<order;o++) ri[o]=iv[o];
+    
+    /* reverse spatial differencing */
+    if(order===1){
+      for(var i=1;i<cnt;i++) ri[i]=ri[i]+ri[i-1];
+    }else if(order===2){
+      for(var i=2;i<cnt;i++) ri[i]=ri[i]+2*ri[i-1]-ri[i-2];
+    }
+    
+    /* apply formula */
+    var R=rep.R,te=Math.pow(2,rep.E),td=Math.pow(10,rep.D);
+    vals=new Float32Array(cnt);
+    for(var i=0;i<cnt;i++) vals[i]=(R+ri[i]*te)/td;
+    console.log('[GRIB2] Sample(0..4):',Array.from(vals.subarray(0,Math.min(5,cnt))));
+  }
+  if(!vals) return null;
+  if(bm){
+    var out=new Float32Array(N);var j=0;
+    for(var i=0;i<N;i++) out[i]=bm[i]?vals[j++]:NaN;
+    return out;
+  }
+  return vals;
+}
+
+/* ═══════════════════════════════════════════════
+   Color Scales
+   ═══════════════════════════════════════════════ */
+
+var COLOR_SCALES={
+  temperature:{ /* °C: -40~50 */
+    stops:[
+      [-40,'#2b0a5e'],[-30,'#3b1899'],[-20,'#1e40af'],[-10,'#0369a1'],
+      [0,'#0891b2'],[5,'#059669'],[10,'#16a34a'],[15,'#65a30d'],
+      [20,'#ca8a04'],[25,'#ea580c'],[30,'#dc2626'],[35,'#be123c'],
+      [40,'#9f1239'],[50,'#581c87']
+    ],
+    unit:'°C',title:'氣溫 (°C)',range:[-40,50]
+  },
+  pressure:{ /* hPa: 960~1050 */
+    stops:[
+      [960,'#7c3aed'],[970,'#2563eb'],[980,'#0891b2'],[990,'#059669'],
+      [1000,'#16a34a'],[1010,'#84cc16'],[1020,'#eab308'],[1030,'#f97316'],
+      [1040,'#ef4444'],[1050,'#be123c']
+    ],
+    unit:'hPa',title:'海平面氣壓 (hPa)',range:[960,1050]
+  },
+  wind:{ /* m/s: 0~50 */
+    stops:[
+      [0,'#1e3a5f'],[2,'#0e7490'],[5,'#059669'],[10,'#16a34a'],
+      [15,'#65a30d'],[20,'#ca8a04'],[25,'#ea580c'],[30,'#dc2626'],
+      [40,'#9f1239'],[50,'#581c87']
+    ],
+    unit:'m/s',title:'風速 (m/s)',range:[0,50]
+  },
+  precipitation:{ /* mm: 0~100 */
+    stops:[
+      [0,'#1a1a2e'],[0.5,'#16537e'],[2,'#0ea5e9'],[5,'#06b6d4'],
+      [10,'#14b8a6'],[20,'#22c55e'],[30,'#eab308'],[50,'#f97316'],
+      [80,'#ef4444'],[100,'#be123c']
+    ],
+    unit:'mm',title:'累積降水量 (mm)',range:[0,100]
+  },
+  humidity:{ /* %: 0~100 */
+    stops:[
+      [0,'#92400e'],[10,'#b45309'],[20,'#ca8a04'],[30,'#a3e635'],
+      [40,'#4ade80'],[50,'#22d3ee'],[60,'#38bdf8'],[70,'#3b82f6'],
+      [80,'#6366f1'],[90,'#8b5cf6'],[100,'#a855f7']
+    ],
+    unit:'%',title:'相對濕度 (%)',range:[0,100]
+  },
+  height:{ /* gpm: 0~16000 */
+    stops:[
+      [0,'#1e3a5f'],[1000,'#0e7490'],[3000,'#059669'],[5000,'#16a34a'],
+      [5500,'#65a30d'],[5700,'#ca8a04'],[5900,'#ea580c'],[7000,'#dc2626'],
+      [10000,'#9f1239'],[16000,'#581c87']
+    ],
+    unit:'gpm',title:'重力位高度 (gpm)',range:[0,16000]
+  },
+  generic:{ /* generic: auto-scaled */
+    stops:[
+      [0,'#1e3a5f'],[0.1,'#0e7490'],[0.2,'#059669'],[0.3,'#16a34a'],
+      [0.4,'#65a30d'],[0.5,'#ca8a04'],[0.6,'#ea580c'],[0.7,'#dc2626'],
+      [0.8,'#9f1239'],[1.0,'#581c87']
+    ],
+    unit:''
+  }
+};
+
+function getColorScale(msg){
+  var k=msg.key;
+  if(k==='0-0-0'||k==='0-0-4'||k==='0-0-5'||k==='0-0-6') return 'temperature';
+  if(k==='0-3-0'||k==='0-3-1') return 'pressure';
+  if(k==='0-2-2'||k==='0-2-3'||k==='0-2-1'||k==='0-2-22'||k==='wind-vector') return 'wind';
+  if(k==='0-1-8'||k==='0-1-10') return 'precipitation';
+  if(k==='0-1-1'||k==='0-1-0') return 'humidity';
+  if(k==='0-3-5') return 'height';
+  return 'generic';
+}
+
+function interpolateColor(val,scale){
+  var stops=scale.stops;
+  if(val<=stops[0][0]) return stops[0][1];
+  if(val>=stops[stops.length-1][0]) return stops[stops.length-1][1];
+  for(var i=1;i<stops.length;i++){
+    if(val<=stops[i][0]){
+      var t=(val-stops[i-1][0])/(stops[i][0]-stops[i-1][0]);
+      return lerpColor(stops[i-1][1],stops[i][1],t);
+    }
+  }
+  return stops[stops.length-1][1];
+}
+
+function lerpColor(c1,c2,t){
+  var r1=parseInt(c1.slice(1,3),16),g1=parseInt(c1.slice(3,5),16),b1=parseInt(c1.slice(5,7),16);
+  var r2=parseInt(c2.slice(1,3),16),g2=parseInt(c2.slice(3,5),16),b2=parseInt(c2.slice(5,7),16);
+  var r=Math.round(r1+(r2-r1)*t),g=Math.round(g1+(g2-g1)*t),b=Math.round(b1+(b2-b1)*t);
+  return 'rgb('+r+','+g+','+b+')';
+}
+
+function hexToRGB(hex){
+  return [parseInt(hex.slice(1,3),16),parseInt(hex.slice(3,5),16),parseInt(hex.slice(5,7),16)];
+}
+
+function getColorRGB(val,scale){
+  var stops=scale.stops;
+  if(val<=stops[0][0]) return hexToRGB(stops[0][1]);
+  if(val>=stops[stops.length-1][0]) return hexToRGB(stops[stops.length-1][1]);
+  for(var i=1;i<stops.length;i++){
+    if(val<=stops[i][0]){
+      var t=(val-stops[i-1][0])/(stops[i][0]-stops[i-1][0]);
+      var a=hexToRGB(stops[i-1][1]),b=hexToRGB(stops[i][1]);
+      return [Math.round(a[0]+(b[0]-a[0])*t),Math.round(a[1]+(b[1]-a[1])*t),Math.round(a[2]+(b[2]-a[2])*t)];
+    }
+  }
+  return hexToRGB(stops[stops.length-1][1]);
+}
+
+/* ═══════════════════════════════════════════════
+   Rendering
+   ═══════════════════════════════════════════════ */
+
+/* ── 網格平滑化濾波器 (2D Binomial Filter) ── */
+function smoothGrid(values, nx, ny, passes){
+  var temp = new Float32Array(values.length);
+  var current = values;
+  
+  for(var p=0; p<passes; p++){
+    var next = p % 2 === 0 ? temp : values;
+    var src = p % 2 === 0 ? values : temp;
+    
+    for(var j=0; j<ny; j++){
+      var j_minus = j === 0 ? 0 : j - 1;
+      var j_plus = j === ny - 1 ? ny - 1 : j + 1;
+      var row = j * nx;
+      var row_minus = j_minus * nx;
+      var row_plus = j_plus * nx;
+      
+      for(var i=0; i<nx; i++){
+        var i_minus = i === 0 ? 0 : i - 1;
+        var i_plus = i === nx - 1 ? nx - 1 : i + 1;
+        
+        var v00 = src[row_minus + i_minus];
+        var v01 = src[row_minus + i];
+        var v02 = src[row_minus + i_plus];
+        var v10 = src[row + i_minus];
+        var v11 = src[row + i];
+        var v12 = src[row + i_plus];
+        var v20 = src[row_plus + i_minus];
+        var v21 = src[row_plus + i];
+        var v22 = src[row_plus + i_plus];
+        
+        if(!isFinite(v11)){
+          next[row + i] = NaN;
+          continue;
+        }
+        
+        var sum = 4 * v11;
+        var weight = 4;
+        
+        if(isFinite(v01)) { sum += 2 * v01; weight += 2; }
+        if(isFinite(v10)) { sum += 2 * v10; weight += 2; }
+        if(isFinite(v12)) { sum += 2 * v12; weight += 2; }
+        if(isFinite(v21)) { sum += 2 * v21; weight += 2; }
+        
+        if(isFinite(v00)) { sum += v00; weight += 1; }
+        if(isFinite(v02)) { sum += v02; weight += 1; }
+        if(isFinite(v20)) { sum += v20; weight += 1; }
+        if(isFinite(v22)) { sum += v22; weight += 1; }
+        
+        next[row + i] = sum / weight;
+      }
+    }
+    current = next;
+  }
+  return current;
+}
+
+/* ── 等值線繪製 (Marching Squares) ── */
+function drawContourLines(ctx2, values, grid, key, vMin, vMax, isKelvin, isPa, nx, ny){
+  var step = 0;
+  var color = 'rgba(255,255,255,0.45)';
+  var lineWidth = 1.0;
+  var smoothPasses = 5; // 平滑次數 (GFS 原生網格會有高頻雜訊，必須平滑後等值線才圓滑)
+  
+  if(key === '0-3-5'){ // 重力位高度
+    step = 60; // 60 gpm
+    color = 'rgba(255,255,255,0.55)';
+    lineWidth = 1.0;
+    smoothPasses = 6;
+  } else if(key === '0-0-0'){ // 氣溫
+    step = 4; // 4 °C
+    color = 'rgba(255,255,255,0.35)';
+    lineWidth = 0.8;
+    smoothPasses = 5;
+  } else {
+    return;
+  }
+  
+  var levels = [];
+  var start = Math.ceil(vMin / step) * step;
+  for(var val = start; val <= vMax; val += step){
+    levels.push(val);
+  }
+  
+  ctx2.strokeStyle = color;
+  ctx2.lineWidth = lineWidth;
+  ctx2.lineJoin = 'round';
+  ctx2.lineCap = 'round';
+  
+  /* 複製數值並進行平滑 */
+  var smoothed = new Float32Array(values.length);
+  for(var i=0; i<values.length; i++) smoothed[i] = values[i];
+  smoothed = smoothGrid(smoothed, nx, ny, smoothPasses);
+  
+  function getGridValue(col, row){
+    var wrappedCol = col;
+    while(wrappedCol < 0) wrappedCol += nx;
+    while(wrappedCol >= nx) wrappedCol -= nx;
+    
+    var idx = row * nx + wrappedCol;
+    var v = smoothed[idx];
+    if(!isFinite(v)) return NaN;
+    if(isKelvin) v -= 273.15;
+    if(isPa) v /= 100;
+    return v;
+  }
+  
+  function gridToCanvas(col, row){
+    var x = col + nx / 2;
+    var lat = grid.lat1 - row * grid.dy;
+    var sinLat = Math.sin(lat * Math.PI / 180.0);
+    sinLat = Math.max(-0.9999, Math.min(0.9999, sinLat));
+    var y_merc = 0.5 * Math.log((1.0 + sinLat) / (1.0 - sinLat)) / Math.PI;
+    var y = ny * (1.0 - y_merc) / 2.0;
+    return [x, y];
+  }
+  
+  var caseTable = [
+    [], [3, 0], [0, 1], [3, 1],
+    [1, 2], [3, 0, 1, 2], [0, 2], [3, 2],
+    [2, 3], [2, 0], [0, 3, 1, 2], [2, 1],
+    [1, 3], [1, 0], [3, 0], []
+  ];
+  
+  var startCol = -nx / 2;
+  var endCol = nx + nx / 2;
+  
+  for(var lIdx=0; lIdx<levels.length; lIdx++){
+    var L = levels[lIdx];
+    ctx2.beginPath();
+    for(var j=0; j<ny-1; j++){
+      for(var i=startCol; i<endCol-1; i++){
+        var v0 = getGridValue(i, j);
+        var v1 = getGridValue(i+1, j);
+        var v2 = getGridValue(i+1, j+1);
+        var v3 = getGridValue(i, j+1);
+        
+        if(isNaN(v0) || isNaN(v1) || isNaN(v2) || isNaN(v3)) continue;
+        
+        var b0 = v0 >= L ? 1 : 0;
+        var b1 = v1 >= L ? 1 : 0;
+        var b2 = v2 >= L ? 1 : 0;
+        var b3 = v3 >= L ? 1 : 0;
+        
+        var caseIdx = (b3 << 3) | (b2 << 2) | (b1 << 1) | b0;
+        if(caseIdx === 0 || caseIdx === 15) continue;
+        
+        var edges = caseTable[caseIdx];
+        
+        function getEdgePt(edgeIdx){
+          var t = 0;
+          if(edgeIdx === 0){
+            t = (L - v0) / (v1 - v0);
+            return gridToCanvas(i + t, j);
+          } else if(edgeIdx === 1){
+            t = (L - v1) / (v2 - v1);
+            return gridToCanvas(i + 1, j + t);
+          } else if(edgeIdx === 2){
+            t = (L - v2) / (v3 - v2);
+            return gridToCanvas(i + 1 - t, j + 1);
+          } else {
+            t = (L - v3) / (v0 - v3);
+            return gridToCanvas(i, j + 1 - t);
+          }
+        }
+        
+        for(var k=0; k<edges.length; k+=2){
+          var pA = getEdgePt(edges[k]);
+          var pB = getEdgePt(edges[k+1]);
+          if(Math.abs(pA[0] - pB[0]) < nx / 2){
+            ctx2.moveTo(pA[0], pA[1]);
+            ctx2.lineTo(pB[0], pB[1]);
+          }
+        }
+      }
+    }
+    ctx2.stroke();
+  }
+}
+
+/* ── 氣象風標 (Wind Barb) 繪製與更新 ── */
+function getWindAtLatLng(lat, lon){
+  if(!currentData || !currentData.valsU || !currentData.valsV) return null;
+  var g = currentData.grid;
+  var col, row;
+  if(g.lambert){
+    var ij = lambertLatLonToIJ(g, lat, lon);
+    col = Math.round(ij[0]); row = Math.round(ij[1]);
+    if(col < 0 || col >= g.nx || row < 0 || row >= g.ny) return null;
+  }else{
+    var gridLon = lon;
+    while(gridLon < 0) gridLon += 360;
+    while(gridLon >= 360) gridLon -= 360;
+    col = Math.round(gridLon / g.dx);
+    col = Math.max(0, Math.min(g.nx - 1, col));
+    row = Math.round((g.lat1 - lat) / g.dy);
+    row = Math.max(0, Math.min(g.ny - 1, row));
+  }
+
+  var idx = row * g.nx + col;
+  var u = currentData.valsU[idx];
+  var v = currentData.valsV[idx];
+  if(!isFinite(u) || !isFinite(v)) return null;
+  return {u: u, v: v};
+}
+
+/* ── 流場動畫 (Particle Flow) ── */
+var windParticles = [];
+var maxParticles = 500;
+var particleAge = 90;      // 粒子壽命 (frames) — 越大尾跡越長
+var animFrameId = null;
+
+function isWindKey(key) {
+  return key === 'wind-vector' || key === '0-2-1' || key === '0-2-2' || key === '0-2-3';
+}
+
+function initParticles() {
+  windParticles = [];
+  var canvas = $('windCanvas');
+  if(!canvas) return;
+  for(var i = 0; i < maxParticles; i++) {
+    windParticles.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      age: Math.floor(Math.random() * particleAge)
+    });
+  }
+}
+
+/* 粒子配色：低速偏白 → 高速偏暖紅，且高速更亮 */
+function getWindColor(speed) {
+  if (speed < 3.0) return 'rgba(200, 224, 250, 0.55)';  // 近白淡藍
+  if (speed < 8.0) return 'rgba(125, 211, 252, 0.75)';  // 亮青
+  if (speed < 15.0) return 'rgba(74, 222, 128, 0.85)';  // 翠綠
+  if (speed < 25.0) return 'rgba(250, 204, 21, 0.92)';  // 琥珀
+  if (speed < 35.0) return 'rgba(251, 146, 60, 0.95)';  // 橘
+  return 'rgba(248, 113, 113, 1.0)';                     // 珊瑚紅
+}
+
+function startWindAnimation() {
+  if(animFrameId) {
+    cancelAnimationFrame(animFrameId);
+    animFrameId = null;
+  }
+  
+  var canvas = $('windCanvas');
+  if(!canvas) return;
+  var ctx = canvas.getContext('2d');
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  initParticles();
+
+  function frame() {
+    if(!currentData || !currentData.msg || !isWindKey(currentData.msg.key)) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      animFrameId = null;
+      return;
+    }
+
+    // 尾跡淡出：以 destination-out 逐幀擦除，數值越小尾跡越長
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.10)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.globalCompositeOperation = 'source-over';
+
+    var zoom = map.getZoom();
+    // 位移量隨縮放調整，讓各縮放層級的流速觀感一致
+    var speedScale = 0.06 * Math.pow(1.12, zoom);
+
+    for(var i = 0; i < windParticles.length; i++) {
+      var p = windParticles[i];
+      p.age++;
+      if(p.age > particleAge || p.x < 0 || p.x > canvas.width || p.y < 0 || p.y > canvas.height) {
+        p.x = Math.random() * canvas.width;
+        p.y = Math.random() * canvas.height;
+        p.age = 0;
+      }
+
+      var latlng = map.containerPointToLatLng([p.x, p.y]);
+      var wind = getWindAtLatLng(latlng.lat, latlng.lng);
+      if(!wind) {
+        p.x = Math.random() * canvas.width;
+        p.y = Math.random() * canvas.height;
+        p.age = 0;
+        continue;
+      }
+
+      var speed = Math.sqrt(wind.u*wind.u + wind.v*wind.v);
+      if(speed < 0.5) {
+        p.x = Math.random() * canvas.width;
+        p.y = Math.random() * canvas.height;
+        p.age = 0;
+        continue;
+      }
+
+      var dx = wind.u * speedScale;
+      var dy = -wind.v * speedScale; // 螢幕 Y 軸方向與地理相反
+
+      var nextX = p.x + dx;
+      var nextY = p.y + dy;
+
+      ctx.strokeStyle = getWindColor(speed);
+      ctx.lineWidth = speed > 25 ? 2.0 : (speed > 12 ? 1.5 : 1.1);
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(nextX, nextY);
+      ctx.stroke();
+
+      p.x = nextX;
+      p.y = nextY;
+    }
+
+    animFrameId = requestAnimationFrame(frame);
+  }
+
+  animFrameId = requestAnimationFrame(frame);
+}
+
+function updateWindBarbs(){
+  var canvas = $('windCanvas');
+  if(!canvas) return;
+  var mapEl = $('map');
+  if(!mapEl) return;
+  
+  if(canvas.width !== mapEl.clientWidth || canvas.height !== mapEl.clientHeight) {
+    canvas.width = mapEl.clientWidth;
+    canvas.height = mapEl.clientHeight;
+    initParticles();
+  }
+  
+  if(!currentData || !currentData.msg || !isWindKey(currentData.msg.key)) {
+    if(animFrameId) {
+      cancelAnimationFrame(animFrameId);
+      animFrameId = null;
+    }
+    var ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    return;
+  }
+  
+  if(!animFrameId) {
+    startWindAnimation();
+  }
+}
+
+var currentData=null;  /* {values, grid, msg, scaleName} */
+var gribBuffer=null;   /* cached ArrayBuffer */
+var gribMessages=null; /* cached message inventory */
+var loadedHour=null;
+var lastSel=null;      /* 記住上次選定的變數，換時間載入後沿用同一個場 */
+
+/* ── 渲染格點到 Canvas → ImageOverlay ────── */
+function renderGrid(values,grid,scaleName,msg){
+  var nx=grid.nx, ny=grid.ny;
+  var scale=COLOR_SCALES[scaleName];
+  var vMin=Infinity, vMax=-Infinity, validCount=0;
+
+  /* 計算實際範圍（for generic scale）並統計有效格點數 */
+  for(var i=0;i<values.length;i++){
+    var v=values[i];
+    if(!isFinite(v)) continue;
+    validCount++;
+    if(v<vMin) vMin=v;
+    if(v>vMax) vMax=v;
+  }
+
+  /* 溫度可能是 K，轉 °C */
+  var isKelvin=false;
+  if(scaleName==='temperature'&&vMin>100){
+    isKelvin=true;
+    vMin-=273.15;vMax-=273.15;
+  }
+
+  /* 氣壓可能是 Pa，轉 hPa */
+  var isPa=false;
+  if(scaleName==='pressure'&&vMin>10000){
+    isPa=true;
+    vMin/=100;vMax/=100;
+  }
+
+  /* generic scale: adjust stops */
+  if(scaleName==='generic'){
+    scale=JSON.parse(JSON.stringify(scale));
+    scale.range=[vMin,vMax];
+    for(var i=0;i<scale.stops.length;i++){
+      scale.stops[i][0]=vMin+scale.stops[i][0]*(vMax-vMin);
+    }
+    scale.unit='';
+    scale.title=msg.nameTW+' ('+vMin.toFixed(1)+'~'+vMax.toFixed(1)+')';
+  }
+  /* 高層資料超出固定色階範圍時（如高空溫度、重力位高度），
+     自動改用依實際資料範圍線性縮放的色階，避免整片被夾到端點色 */
+  else if(scaleName==='temperature'||scaleName==='height'||scaleName==='pressure'){
+    var rr=scale.range||[scale.stops[0][0],scale.stops[scale.stops.length-1][0]];
+    var pad=(rr[1]-rr[0])*0.02;
+    if(isFinite(vMin)&&isFinite(vMax)&&vMax>vMin&&(vMin<rr[0]-pad||vMax>rr[1]+pad)){
+      scale=JSON.parse(JSON.stringify(scale));
+      var st=scale.stops, a=st[0][0], b=st[st.length-1][0];
+      for(var s=0;s<st.length;s++){
+        var tt=(st[s][0]-a)/(b-a);
+        st[s][0]=vMin+tt*(vMax-vMin);
+      }
+      scale.range=[vMin,vMax];
+      scale.adaptive=true;
+    }
+  }
+
+  /* ── Lambert Conformal 網格：重新投影成經緯度影像疊圖 ── */
+  if(grid.lambert){
+    lambertInit(grid);
+    /* 由四角推算經緯度外框 */
+    var cs=[lambertIJToLatLon(grid,0,0),lambertIJToLatLon(grid,grid.nx-1,0),
+            lambertIJToLatLon(grid,0,grid.ny-1),lambertIJToLatLon(grid,grid.nx-1,grid.ny-1)];
+    var LN=-90,LS=90,LW=180,LE=-180;
+    for(var c=0;c<4;c++){var la=cs[c][0],lo=cs[c][1];
+      if(la>LN)LN=la; if(la<LS)LS=la; if(lo<LW)LW=lo; if(lo>LE)LE=lo;}
+    var tw=grid.nx, th=grid.ny;
+    var lcv=document.createElement('canvas'); lcv.width=tw; lcv.height=th;
+    var lctx=lcv.getContext('2d');
+    var limg=lctx.createImageData(tw,th), ld=limg.data;
+    for(var py=0;py<th;py++){
+      var lat=LN-(py+0.5)/th*(LN-LS);
+      for(var px=0;px<tw;px++){
+        var lon=LW+(px+0.5)/tw*(LE-LW);
+        var ij=lambertLatLonToIJ(grid,lat,lon);
+        var gi=Math.round(ij[0]), gj=Math.round(ij[1]);
+        var pp=(py*tw+px)*4;
+        if(gi<0||gi>=grid.nx||gj<0||gj>=grid.ny){ld[pp+3]=0;continue;}
+        var vv=values[gj*grid.nx+gi];
+        if(!isFinite(vv)){ld[pp+3]=0;continue;}
+        if(isKelvin) vv-=273.15;
+        if(isPa) vv/=100;
+        var rgb2=getColorRGB(vv,scale);
+        ld[pp]=rgb2[0];ld[pp+1]=rgb2[1];ld[pp+2]=rgb2[2];ld[pp+3]=220;
+      }
+    }
+    lctx.putImageData(limg,0,0);
+    if(overlay){map.removeLayer(overlay);overlay=null;}
+    var lb=[[Math.max(LS,-85.0511),LW],[Math.min(LN,85.0511),LE]];
+    overlay=L.imageOverlay(lcv.toDataURL('image/png'),lb,
+      {opacity:+$('op').value/100,pane:'datapane',interactive:false}).addTo(map);
+    currentData={values:values,grid:grid,msg:msg,scaleName:scaleName,
+      isKelvin:isKelvin,isPa:isPa,scale:scale,vMin:vMin,vMax:vMax,
+      valsU:values.valsU||null,valsV:values.valsV||null};
+    updateWindBarbs();
+    updateLegend(scale,scaleName,msg);
+    return {vMin:vMin,vMax:vMax,validCount:validCount,adaptive:!!scale.adaptive};
+  }
+
+  /* 建立 canvas */
+  var canvas=document.createElement('canvas');
+  canvas.width=nx;canvas.height=ny;
+  var ctx=canvas.getContext('2d');
+  var imgData=ctx.createImageData(nx,ny);
+  var data=imgData.data;
+
+  /* scan mode: bit 7 of scan byte */
+  var scanNtoS=true; /* default: data is N→S (row 0 = north) */
+  if(grid.scan!==undefined){
+    scanNtoS=!(grid.scan&0x40); /* bit 6: 0=N→S, 1=S→N */
+  }
+
+  for(var j=0;j<ny;j++){
+    for(var i=0;i<nx;i++){
+      var srcRow=scanNtoS?j:(ny-1-j);
+      var idx=srcRow*nx+i;
+      var v=values[idx];
+      if(!isFinite(v)){
+        var p=(j*nx+i)*4;
+        data[p+3]=0;
+        continue;
+      }
+      if(isKelvin) v-=273.15;
+      if(isPa) v/=100;
+      var rgb=getColorRGB(v,scale);
+      var p=(j*nx+i)*4;
+      data[p]=rgb[0];data[p+1]=rgb[1];data[p+2]=rgb[2];data[p+3]=220;
+    }
+  }
+  ctx.putImageData(imgData,0,0);
+
+  /* 計算地理邊界 */
+  var lat1=grid.lat1, lon1=grid.lon1;
+  var lat2=grid.lat2, lon2=grid.lon2;
+  /* Ensure correct order and clamp latitudes to Web Mercator limits (-85.0511 to 85.0511) to avoid Leaflet projection bugs */
+  var latN=Math.min(Math.max(lat1,lat2), 85.0511);
+  var latS=Math.max(Math.min(lat1,lat2), -85.0511);
+  var lonW=lon1, lonE=lon2;
+  /* Handle wrapping: if lonW > lonE */
+  if(lonW>180) lonW-=360;
+  if(lonE>180) lonE-=360;
+  if(lonE<=lonW) lonE+=360;
+  /* For global data: 0 to 359.25 → -180 to 180 mapping needed? */
+  /* Actually for imageOverlay we keep as 0→360 but shift to -180→180 */
+
+  /* Remove old overlay */
+  if(overlay){map.removeLayer(overlay);overlay=null;}
+
+  /* Use -90 to 90, -180 to 180 for a standard wrap */
+  /* 判斷是否為全球格點，是的話動態重投影至 Web Mercator (EPSG:3857) */
+  var isGlobal = (lonW>=0 && lonE>180);
+  var bounds;
+
+  if(isGlobal){
+    var latN_limit = 85.051128;
+    var latS_limit = -85.051128;
+    var canvas2=document.createElement('canvas');
+    canvas2.width=2*nx;canvas2.height=ny;
+    var ctx2=canvas2.getContext('2d');
+    var imgData2=ctx2.createImageData(2*nx,ny);
+    var data2=imgData2.data;
+
+    for(var j=0;j<ny;j++){
+      /* Web Mercator 逆向公式計算該像素列對應的地理緯度 */
+      var y_merc = 1.0 - 2.0 * j / ny;
+      var lat = (2.0 * Math.atan(Math.exp(y_merc * Math.PI)) - Math.PI / 2.0) * (180.0 / Math.PI);
+      
+      /* 將此緯度對應到 GRIB2 等經緯的資料列 */
+      var srcRow = (grid.lat1 - lat) / grid.dy;
+      var row = Math.round(srcRow);
+      row = Math.max(0, Math.min(ny - 1, row));
+      
+      for(var i=0;i<2*nx;i++){
+        /* 將像素行對應到 [-180, 540] 經度 */
+        var lon = -180.0 + (i / nx) * 360.0;
+        var gridLon = lon;
+        while(gridLon < 0) gridLon += 360.0;
+        while(gridLon >= 360.0) gridLon -= 360.0;
+        var col = Math.round(gridLon / grid.dx);
+        col = Math.max(0, Math.min(nx - 1, col));
+        
+        var idx = row * nx + col;
+        var v = values[idx];
+        var p = (j * (2 * nx) + i) * 4;
+        
+        if(!isFinite(v)){
+          data2[p+3]=0;
+          continue;
+        }
+        if(isKelvin) v-=273.15;
+        if(isPa) v/=100;
+        var rgb=getColorRGB(v,scale);
+        data2[p]=rgb[0];data2[p+1]=rgb[1];data2[p+2]=rgb[2];data2[p+3]=220;
+      }
+    }
+    ctx2.putImageData(imgData2,0,0);
+    if($('contourCheck').checked){
+      drawContourLines(ctx2, values, grid, msg.key, vMin, vMax, isKelvin, isPa, nx, ny);
+    }
+    bounds = [[latS_limit, -180], [latN_limit, 540]];
+    overlay=L.imageOverlay(canvas2.toDataURL('image/png'),bounds,
+      {opacity:+$('op').value/100,pane:'datapane',interactive:false}).addTo(map);
+  }else{
+    ctx.putImageData(imgData,0,0);
+    if($('contourCheck').checked){
+      drawContourLines(ctx, values, grid, msg.key, vMin, vMax, isKelvin, isPa, nx, ny);
+    }
+    bounds=[[latS,lonW],[latN,lonE]];
+    overlay=L.imageOverlay(canvas.toDataURL('image/png'),bounds,
+      {opacity:+$('op').value/100,pane:'datapane',interactive:false}).addTo(map);
+  }
+
+  /* 儲存當前資料（for hover） */
+  currentData={values:values,grid:grid,msg:msg,scaleName:scaleName,
+    isKelvin:isKelvin,isPa:isPa,scale:scale,vMin:vMin,vMax:vMax,
+    valsU:values.valsU||null,valsV:values.valsV||null};
+
+  /* 更新風標 */
+  updateWindBarbs();
+
+  /* 更新色標 */
+  updateLegend(scale,scaleName,msg);
+
+  return {vMin:vMin,vMax:vMax,validCount:validCount,adaptive:!!scale.adaptive};
+}
+
+/* ── 色標圖例 ─────────────────────────────── */
+function updateLegend(scale,scaleName,msg){
+  var bar=$('legend-bar');
+  bar.classList.add('visible');   /* 先顯示，clientWidth 才量得到（否則寬度為 0 → 無漸層色）*/
+  var canvas=$('legend-canvas');
+  var ctx=canvas.getContext('2d');
+  var cw=canvas.clientWidth||bar.clientWidth||280;
+  var w=canvas.width=Math.max(2, cw*2);
+  canvas.height=28;
+  var grad=ctx.createLinearGradient(0,0,w,0);
+  var stops=scale.stops;
+  var range0=stops[0][0],range1=stops[stops.length-1][0];
+  for(var i=0;i<stops.length;i++){
+    var t=(stops[i][0]-range0)/(range1-range0);
+    grad.addColorStop(t,stops[i][1]);
+  }
+  ctx.fillStyle=grad;
+  ctx.fillRect(0,0,w,28);
+
+  $('legend-min').textContent=range0.toFixed(0)+' '+scale.unit;
+  var mid=((range0+range1)/2);
+  $('legend-mid').textContent=mid.toFixed(0)+' '+scale.unit;
+  $('legend-max').textContent=range1.toFixed(0)+' '+scale.unit;
+  $('legend-title').textContent=msg.nameTW+' — '+msg.levelStr+(scale.unit?' ('+scale.unit+')':'')+(scale.adaptive?' · 自適應範圍':'');
+  bar.classList.add('visible');
+}
+
+/* ── 滑鼠懸停數值 ─────────────────────────── */
+map.on('mousemove',function(e){
+  if(!currentData){$('hover-info').classList.remove('visible');return;}
+  var lat=e.latlng.lat, lon=e.latlng.lng;
+  var d=currentData, g=d.grid;
+
+  var col,row;
+  if(g.lambert){
+    var ij=lambertLatLonToIJ(g,lat,lon);
+    col=Math.round(ij[0]); row=Math.round(ij[1]);
+  }else{
+    /* Adjust lon for grid coordinate system */
+    var gridLon=lon;
+    if(g.lon1>=0&&g.lon2>180){
+      /* Grid is 0→360 */
+      while(gridLon<0) gridLon+=360;
+      while(gridLon>=360) gridLon-=360;
+    }
+    col=Math.round((gridLon-g.lon1)/g.dx);
+    if(g.lat1>g.lat2){
+      row=Math.round((g.lat1-lat)/g.dy);
+    }else{
+      row=Math.round((lat-g.lat1)/g.dy);
+    }
+  }
+
+  if(col<0||col>=g.nx||row<0||row>=g.ny){
+    $('hover-info').classList.remove('visible');return;
+  }
+
+  var idx=row*g.nx+col;
+  var v=d.values[idx];
+  if(!isFinite(v)){$('hover-info').classList.remove('visible');return;}
+  if(d.isKelvin) v-=273.15;
+  if(d.isPa) v/=100;
+
+  var unit=d.scale.unit;
+  if(d.valsU && d.valsV){
+    var u=d.valsU[idx];
+    var vComp=d.valsV[idx];
+    if(isFinite(u)&&isFinite(vComp)){
+      var speed=Math.sqrt(u*u+vComp*vComp);
+      var dir=(270.0 - Math.atan2(vComp, u) * 180.0 / Math.PI) % 360.0;
+      if(dir<0) dir+=360.0;
+      var compass = ["北","北北東","東北","東北東","東","東南東","東南","南南東","南","南南西","西南","西南西","西","西北西","西北","北北西"];
+      var compassIdx = Math.round(dir / 22.5) % 16;
+      var compassText = compass[compassIdx];
+      $('hv-val').innerHTML=speed.toFixed(2)+' m/s<br><span style="font-size:0.85em;color:var(--text-muted)">風向：'+compassText+'風 ('+Math.round(dir)+'°)<br>U: '+u.toFixed(1)+' m/s, V: '+vComp.toFixed(1)+' m/s</span>';
+    } else {
+      $('hv-val').textContent='—';
+    }
+  } else {
+    $('hv-val').textContent=v.toFixed(2)+' '+unit;
+  }
+  $('hv-coord').textContent='Lat '+lat.toFixed(2)+'° Lon '+lon.toFixed(2)+'° ['+col+','+row+']';
+  $('hover-info').classList.add('visible');
+});
+map.on('mouseout',function(){$('hover-info').classList.remove('visible');});
+
+/* ═══════════════════════════════════════════════
+   Main Loading Flow
+   ═══════════════════════════════════════════════ */
+
+/* 預設氣象變數（優先選擇地面變數） */
+var PREFERRED_KEYS=['0-0-0','0-3-1','0-2-2','0-1-8','0-1-1','0-3-5','0-6-1'];
+var PREFERRED_LEVELS=[103,1,101]; /* AGL, surface, MSL */
+
+function pickDefaultMsg(msgs){
+  /* 優先找 2m 氣溫 */
+  for(var i=0;i<msgs.length;i++){
+    if(msgs[i].key==='0-0-0'&&msgs[i].levelType===103&&msgs[i].levelVal===2) return msgs[i];
+  }
+  /* 其次找海平面氣壓 */
+  for(var i=0;i<msgs.length;i++){
+    if(msgs[i].key==='0-3-1') return msgs[i];
+  }
+  /* 再找地面溫度 */
+  for(var i=0;i<msgs.length;i++){
+    if(msgs[i].key==='0-0-0'&&(msgs[i].levelType===1||msgs[i].levelType===103)) return msgs[i];
+  }
+  /* 找任何地面/AGL 變數 */
+  for(var j=0;j<PREFERRED_LEVELS.length;j++){
+    for(var i=0;i<msgs.length;i++){
+      if(msgs[i].levelType===PREFERRED_LEVELS[j]) return msgs[i];
+    }
+  }
+  return msgs[0];
+}
+
+/* ── 建立變數清單 UI ──────────────────────── */
+function buildVarList(msgs){
+  /* Group by key */
+  var groups={};
+  var order=[];
+  for(var i=0;i<msgs.length;i++){
+    var m=msgs[i];
+    if(!groups[m.key]){groups[m.key]=[];order.push(m.key);}
+    groups[m.key].push(m);
+  }
+
+  /* Build select */
+  var sel=$('varSel');
+  sel.innerHTML='';
+  for(var j=0;j<order.length;j++){
+    var k=order[j];
+    var arr=groups[k];
+    var optGroup=document.createElement('optgroup');
+    optGroup.label=arr[0].nameTW+' ('+arr[0].name+')';
+    for(var i=0;i<arr.length;i++){
+      var opt=document.createElement('option');
+      opt.value=arr[i].index;
+      opt.textContent=arr[i].nameTW+' — '+arr[i].levelStr;
+      if(arr[i].rep&&(arr[i].rep.template===40||arr[i].rep.template===40000||arr[i].rep.isJPEG2000)){
+        opt.textContent+=' ⚠️ JPEG2000';
+        opt.disabled=true;
+      }
+      if(!arr[i].rep){
+        opt.textContent+=' ⚠️ 無法解碼';
+        opt.disabled=true;
+      }
+      sel.appendChild(opt);
+    }
+  }
+
+  /* Build 建議選單（常用氣象場）— 依固定順序列出，缺項顯示為「無資料」 */
+  var SUGGESTED=[
+    {label:'氣溫',       sub:'離地 2 公尺',  key:'0-0-0',       lstr:'離地 2 公尺'},
+    {label:'氣壓',       sub:'海平面',       keys:['0-3-0','0-3-1'], lstr:'海平面'},
+    {label:'風速/風向',  sub:'離地 10 公尺', key:'wind-vector', lstr:'離地 10 公尺'},
+    {label:'累積降水',   sub:'前 6 小時',    key:'0-1-8',       precip6:true},
+    {label:'相對濕度',   sub:'離地 2 公尺',  key:'0-1-1',       lstr:'離地 2 公尺'},
+    {label:'氣溫',       sub:'850 hPa',      key:'0-0-0',       lstr:'850 hPa'},
+    {label:'風速/風向',  sub:'850 hPa',      key:'wind-vector', lstr:'850 hPa'},
+    {label:'重力位高度', sub:'500 hPa',      key:'0-3-5',       lstr:'500 hPa'},
+    {label:'重力位高度', sub:'200 hPa',      key:'0-3-5',       lstr:'200 hPa'},
+    {label:'風速/風向',  sub:'200 hPa',      key:'wind-vector', lstr:'200 hPa'}
+  ];
+  function findSuggested(spec){
+    var keys=spec.keys||[spec.key];   /* 依優先序比對多個參數代碼 */
+    for(var kIdx=0;kIdx<keys.length;kIdx++){
+      for(var i=0;i<msgs.length;i++){
+        var m=msgs[i];
+        if(m.key!==keys[kIdx]) continue;
+        if(spec.precip6){
+          if((m.prod&&m.prod.timeRangeLength===6)||/前\s*6\s*小時/.test(m.nameTW||'')) return m;
+          continue;
+        }
+        if(m.levelStr===spec.lstr) return m;
+      }
+    }
+    return null;
+  }
+
+  var list=$('var-list');
+  list.innerHTML='';
+  for(var s=0;s<SUGGESTED.length;s++){
+    var spec=SUGGESTED[s];
+    var m=findSuggested(spec);
+    var supported=m&&m.rep&&(m.rep.template===0||m.rep.template===2||m.rep.template===3);
+    var div=document.createElement('div');
+    div.className='var-item';
+    if(m){
+      div.setAttribute('data-idx',m.index);
+      div.innerHTML='<span>'+(s+1)+'. '+spec.label+'</span><span class="var-level">'+spec.sub+
+        (supported?'':'<span style="color:var(--amber)"> ⚠</span>')+'</span>';
+      if(!supported) div.style.opacity='0.4';
+      div.onclick=(function(idx,supp){return function(){
+        if(!supp) return;
+        selectVar(idx);
+      };})(m.index,supported);
+    }else{
+      div.innerHTML='<span style="color:var(--txt3)">'+(s+1)+'. '+spec.label+'</span>'+
+        '<span class="var-level" style="color:var(--txt3)">'+spec.sub+' · 無資料</span>';
+      div.style.opacity='0.5';
+      div.style.cursor='default';
+    }
+    list.appendChild(div);
+  }
+  $('var-list-wrap').style.display='block';
+}
+
+function selectVar(idx){
+  var msg=gribMessages[idx];
+  if(!msg) return;
+  lastSel={key:msg.key,levelType:msg.levelType,levelVal:msg.levelVal};
+  $('varSel').value=idx;
+
+  /* Highlight in list */
+  var items=$('var-list').querySelectorAll('.var-item');
+  items.forEach(function(el){el.classList.remove('active');});
+  var target=$('var-list').querySelector('[data-idx="'+idx+'"]');
+  if(target){target.classList.add('active');target.scrollIntoView({block:'nearest'});}
+
+  setStatus('<span class="spinner"></span>解碼變數：'+msg.nameTW+' — '+msg.levelStr+'…');
+
+  setTimeout(function(){
+    try{
+      var values;
+      var isWind = msg.key === 'wind-vector' || msg.key === '0-2-1' || msg.key === '0-2-2' || msg.key === '0-2-3';
+      if(isWind){
+        // Find U and V messages for the same height level
+        var msgU = null, msgV = null;
+        for(var i = 0; i < gribMessages.length; i++){
+          var m = gribMessages[i];
+          if(m.levelType === msg.levelType && m.levelVal === msg.levelVal){
+            if(m.key === '0-2-2') msgU = m;
+            else if(m.key === '0-2-3') msgV = m;
+          }
+        }
+        var valsU = msgU ? decodeMessage(gribBuffer, msgU) : null;
+        var valsV = msgV ? decodeMessage(gribBuffer, msgV) : null;
+
+        if(msg.key === 'wind-vector'){
+          if(!valsU||!valsV) throw new Error('無法解碼 U/V 風分量');
+          var len=valsU.length;
+          values=new Float32Array(len);
+          for(var i=0;i<len;i++){
+            var u=valsU[i],v=valsV[i];
+            values[i]=(isFinite(u)&&isFinite(v))?Math.sqrt(u*u+v*v):NaN;
+          }
+        } else {
+          values=decodeMessage(gribBuffer,msg);
+        }
+        if(valsU && valsV){
+          values.valsU=valsU;
+          values.valsV=valsV;
+        }
+      } else {
+        values=decodeMessage(gribBuffer,msg);
+        if(!values) throw new Error('不支援此壓縮格式 (Template '+msg.rep.template+')');
+      }
+      var scaleName=getColorScale(msg);
+      var result=renderGrid(values,msg.grid,scaleName,msg);
+      if(result.validCount===0){
+        setStatus(
+          '<span style="color:var(--amber)">⚠️ 此欄位所有格點皆為缺測值（空欄位），無資料可繪製。</span><br>'+
+          '<span style="color:var(--txt3)">'+msg.nameTW+' — '+msg.levelStr+
+          '｜此高度層在原始 GRIB2 檔中未提供有效資料，請改選其他變數或高度層。</span>',
+          'err');
+      }else{
+        setStatus(
+          '<span style="color:var(--green)">✅ 渲染完成</span> · '+msg.nameTW+' — '+msg.levelStr+
+          (result.adaptive?' <span style="color:var(--amber)">（色階自適應）</span>':'')+'<br>'+
+          '格點 '+msg.grid.nx+'×'+msg.grid.ny+' (lon1='+msg.grid.lon1+'°, lon2='+msg.grid.lon2+'°, dx='+msg.grid.dx+'°)<br>'+
+          '範圍 '+result.vMin.toFixed(2)+' ~ '+result.vMax.toFixed(2)+' '+COLOR_SCALES[scaleName].unit,
+          'ok');
+      }
+    }catch(e){
+      setStatus('<span style="color:var(--red)">⚠️ 解碼失敗：'+e.message+'</span>','err');
+      console.error(e);
+    }
+  },30);
+}
+
+/* ── 顯示 JSON 元資料 ─────────────────────── */
+function showJsonMeta(j){
+  var root=j.cwaopendata||j;
+  var ds=root.dataset||{};
+  var info=ds.datasetInfo||{};
+  var res=ds.resource||{};
+
+  /* 記錄模式起始時間，供時間軸顯示預報有效時間 */
+  modelInitTime=info.InitialTime||null;
+  $('fcstLabel').textContent=fcstHourLabel(currentHour);
+
+  var cards=[
+    {label:'資料 ID',val:root.dataid||'—',cls:'accent'},
+    {label:'模式',val:info.Model||'—'},
+    {label:'起始時間',val:info.InitialTime||'—',cls:'green'},
+    {label:'預報時步',val:info.ForecastHour!=null?'+'+info.ForecastHour+'h':'—'},
+    {label:'解析度',val:info.GridResolution||'—'},
+    {label:'格點總數',val:info.GridDimensionData?Number(info.GridDimensionData).toLocaleString():'—'},
+    {label:'經度範圍',val:(info.StartPointLongitude||'?')+'° ~ '+(info.EndPointLongitude||'?')+'°',full:true},
+    {label:'緯度範圍',val:(info.StartPointLatitude||'?')+'° ~ '+(info.EndPointLatitude||'?')+'°',full:true},
+    {label:'資料方向',val:info.DataDirection||'—',full:true},
+    {label:'發送時間',val:root.sent||'—',full:true}
+  ];
+
+  var grid=$('meta-grid');
+  grid.innerHTML=cards.map(function(c){
+    return '<div class="meta-card'+(c.full?' full':'')+'">'+
+      '<div class="mc-label">'+c.label+'</div>'+
+      '<div class="mc-val'+(c.cls?' '+c.cls:'')+'">'+c.val+'</div>'+
+      '</div>';
+  }).join('');
+  $('meta-section').style.display='block';
+}
+
+/* ── 主要載入流程 ─────────────────────────── */
+async function loadForecast(hour,fitView){
+  if(!KEY){openGate();return;}
+  var h=String(hour).padStart(3,'0');
+  var dataId=MODELS[curModel].id+'-'+h;
+
+  $('loadBtn').disabled=true;
+  $('varSel').disabled=true;
+  setProgress(3);
+  setStatus('<span class="spinner"></span>讀取 JSON API（'+dataId+'）…');
+
+  try{
+    /* 1. JSON API */
+    var jurl='https://opendata.cwa.gov.tw/fileapi/v1/opendataapi/'+dataId
+      +'?Authorization='+encodeURIComponent(KEY)+'&downloadType=WEB&format=JSON&_t='+Date.now();
+    var jr=await fetch(jurl);
+    if(!jr.ok) throw new Error('JSON API HTTP '+jr.status+(jr.status===401?' (金鑰無效)':''));
+    var j=await jr.json();
+    setProgress(10);
+
+    /* 2. Show JSON meta */
+    showJsonMeta(j);
+
+    /* 3. Get GRIB2 URL */
+    var root=j.cwaopendata||j;
+    var ds=root.dataset||{};
+    var res=ds.resource||{};
+    var gribUrl=res.uri||'';
+    if(!gribUrl){
+      gribUrl='https://cwaopendata.s3.ap-northeast-1.amazonaws.com/Model/'+dataId+'.grb2';
+    }
+
+    /* 4. Download GRIB2 */
+    setStatus('<span class="spinner"></span>下載 GRIB2 檔案…<br><span style="color:var(--txt3)">'+gribUrl.split('/').pop()+'</span>');
+    setProgress(15);
+
+    var response=await fetch(gribUrl);
+    if(!response.ok) throw new Error('GRIB2 下載失敗 HTTP '+response.status);
+
+    /* Read with progress */
+    var contentLength=response.headers.get('content-length');
+    var total=contentLength?parseInt(contentLength):0;
+    var reader=response.body.getReader();
+    var chunks=[];
+    var received=0;
+
+    while(true){
+      var result=await reader.read();
+      if(result.done) break;
+      chunks.push(result.value);
+      received+=result.value.length;
+      if(total>0){
+        var pct=15+Math.round(received/total*50);
+        setProgress(pct);
+        var mb=(received/1048576).toFixed(1);
+        var totalMb=(total/1048576).toFixed(1);
+        setStatus('<span class="spinner"></span>下載 GRIB2：'+mb+' / '+totalMb+' MB ('+Math.round(received/total*100)+'%)<br><span style="color:var(--txt3)">'+gribUrl.split('/').pop()+'</span>');
+      }else{
+        setStatus('<span class="spinner"></span>下載 GRIB2：'+(received/1048576).toFixed(1)+' MB…');
+      }
+    }
+
+    /* Concatenate chunks */
+    var buf=new Uint8Array(received);
+    var pos=0;
+    for(var i=0;i<chunks.length;i++){
+      buf.set(chunks[i],pos);
+      pos+=chunks[i].length;
+    }
+    gribBuffer=buf.buffer;
+    setProgress(70);
+
+    /* 5. Parse GRIB2 inventory */
+    setStatus('<span class="spinner"></span>解析 GRIB2 檔案結構 ('+(received/1048576).toFixed(1)+' MB)…');
+    await new Promise(function(r){setTimeout(r,30);});
+
+    gribMessages=scanGrib2(gribBuffer);
+    loadedHour=hour;
+    setProgress(80);
+
+    if(gribMessages.length===0){
+      throw new Error('未在 GRIB2 檔案中找到任何訊息。檔案可能損壞或格式不支援。');
+    }
+
+    setStatus('<span style="color:var(--green)">✅</span> 找到 <b>'+gribMessages.length+'</b> 個 GRIB2 訊息<br>'+
+      '<span style="color:var(--txt3)">可支援解碼：'+gribMessages.filter(function(m){return m.rep&&(m.rep.template===0||m.rep.template===2||m.rep.template===3);}).length+' 個</span>');
+
+    /* 6. Build variable list */
+    buildVarList(gribMessages);
+
+    /* 7. 自動選取變數：優先沿用上次選定的同一個場，找不到才用預設 */
+    var supportedMsgs=gribMessages.filter(function(m){return m.rep&&(m.rep.template===0||m.rep.template===2||m.rep.template===3);});
+    if(supportedMsgs.length>0){
+      var chosen=null;
+      if(lastSel){
+        for(var si=0;si<supportedMsgs.length;si++){
+          var sm=supportedMsgs[si];
+          if(sm.key===lastSel.key&&sm.levelType===lastSel.levelType&&sm.levelVal===lastSel.levelVal){chosen=sm;break;}
+        }
+      }
+      if(!chosen) chosen=pickDefaultMsg(supportedMsgs);
+      selectVar(chosen.index);
+    }
+
+    setProgress(100);
+    await new Promise(function(r){setTimeout(r,400);});
+    setProgress(null);
+
+  }catch(e){
+    setProgress(null);
+    setStatus('<span style="color:var(--red)">⚠️ 載入失敗：'+e.message+'</span><br>'+
+      '<span style="color:var(--txt3)">請檢查網路連線或 API 金鑰是否正確。</span>','err');
+    console.error(e);
+  }
+
+  $('loadBtn').disabled=false;
+  $('varSel').disabled=false;
+}
+
+/* ── 事件綁定 ─────────────────────────────── */
+$('loadBtn').onclick=function(){
+  var hour=parseInt($('fcstSlider').value);
+  loadForecast(hour,true);
+};
+
+$('varSel').onchange=function(e){
+  var idx=parseInt(e.target.value);
+  if(!isNaN(idx)&&gribMessages){
+    selectVar(idx);
+  }
+};
+
+/* ── 颱風消息與侵襲機率事件綁定 ── */
+$('tyChk').onchange=function(e){
+  loadTyphoon(e.target.checked, true);
+};
+$('typChk').onchange=function(e){
+  loadTyProb(e.target.checked);
+};
+
+/* ── 颱風消息與侵襲機率 (W-C0034-005 & W-C0034-003) ── */
+var TY_ID="W-C0034-005";
+var TYP_ID="W-C0034-003";
+var TAIWAN = [23.5, 121.0];
+var tyLayer=L.layerGroup();
+var typLayer=L.layerGroup();
+var tyCache=null;
+var typCache=null;
+
+function fileApi(id){
+  return "https://opendata.cwa.gov.tw/fileapi/v1/opendataapi/"+id
+    +"?Authorization="+encodeURIComponent(KEY)+"&downloadType=WEB&format=JSON&_t="+Date.now();
+}
+function fileApiKMZ(id){
+  return "https://opendata.cwa.gov.tw/fileapi/v1/opendataapi/"+id
+    +"?Authorization="+encodeURIComponent(KEY)+"&downloadType=WEB&format=KMZ&_t="+Date.now();
+}
+function dataApi(id){
+  return "https://opendata.cwa.gov.tw/api/v1/rest/datastore/"+id
+    +"?Authorization="+encodeURIComponent(KEY)+"&format=JSON&_t="+Date.now();
+}
+
+const tyK=(o,re)=>{
+  if(!o||typeof o!=="object")return undefined;
+  for(const k of Object.keys(o)){if(re.test(k))return o[k];}
+  return undefined;
+};
+const tyNum=v=>{const n=parseFloat(v);return isFinite(n)?n:null;};
+
+function tyLL(fix){
+  const c=tyK(fix,/^coordinates?$/i);
+  let lat=null,lon=null;
+  if(typeof c==="string"){
+    const p=c.split(",").map(parseFloat);
+    if(p.length>=2&&isFinite(p[0])&&isFinite(p[1])){
+      if(p[0]>60){lon=p[0];lat=p[1];}else{lat=p[0];lon=p[1];}
+    }
+  }else if(c&&typeof c==="object"){
+    lat=tyNum(tyK(c,/lat/i));lon=tyNum(tyK(c,/lon/i));
+  }else{
+    lat=tyNum(tyK(fix,/latitude/i));lon=tyNum(tyK(fix,/longitude/i));
+  }
+  return(lat!=null&&lon!=null)?[lat, lon < 0 ? lon + 360 : lon]:null;
+}
+
+function tyRad(fix,re){
+  const c=tyK(fix,re);
+  if(c==null)return null;
+  if(typeof c==="object"){const r=tyK(c,/^radius$/i);return r!=null?tyNum(r):tyNum(tyK(c,/radius/i));}
+  return tyNum(c);
+}
+
+function tyCat(ws){
+  if(ws==null)return{name:"—",color:"#9fb0c8"};
+  if(ws<17.2)return{name:"熱帶性低氣壓",color:"#29c5e0"};
+  if(ws<32.7)return{name:"輕度颱風",color:"#a3c832"};
+  if(ws<51.0)return{name:"中度颱風",color:"#ffa726"};
+  return{name:"強烈颱風",color:"#f0507a"};
+}
+
+function tyIconSVG(col,size){
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}">
+    <path d="M12 1.6 C6.6 1.6 2.9 5.4 2.9 10.6 C4.6 7.4 8 5.9 12 5.9 Z" fill="${col}" stroke="#0b1220" stroke-width="0.6"/>
+    <path d="M12 22.4 C17.4 22.4 21.1 18.6 21.1 13.4 C19.4 16.6 16 18.1 12 18.1 Z" fill="${col}" stroke="#0b1220" stroke-width="0.6"/>
+    <circle cx="12" cy="12" r="5.2" fill="${col}" stroke="#0b1220" stroke-width="0.8"/>
+    <circle cx="12" cy="12" r="2" fill="#0b1220"/>
+  </svg>`;
+}
+
+function tyTime(s){
+  if(!s)return"—";
+  const d=new Date(s);
+  return isNaN(d)?String(s):d.toLocaleString("zh-TW");
+}
+
+function tyParseData(j){
+  let list=j?.records?.tropicalCyclones?.tropicalCyclone
+        ||tyK(tyK(j?.records||{},/tropical_?cyclones/i)||{},/tropical_?cyclone$/i)||[];
+  if(list&&!Array.isArray(list))list=[list];
+  const cyclones=[];
+  (list||[]).forEach(tc=>{
+    const name=tyK(tc,/^typhoon_?name$/i),cname=tyK(tc,/cwa_?typhoon_?name/i);
+    const tyNo=tyK(tc,/cwa_?ty_?no/i),tdNo=tyK(tc,/cwa_?td_?no/i);
+    const norm=x=>{let f=x?(tyK(x,/^fix(es)?$/i)||[]):[];if(f&&!Array.isArray(f))f=[f];return f||[];};
+    const past=norm(tyK(tc,/analysis_?data/i)).map(f=>({
+      raw:f,ll:tyLL(f),ws:tyNum(tyK(f,/max_?wind/i)),
+      r15:tyRad(f,/15\s*ms|of_?15/i),r25:tyRad(f,/25\s*ms|of_?25/i),
+      time:tyK(f,/fix_?time|^date_?time$/i)
+    })).filter(f=>f.ll);
+    past.sort((a,b)=>new Date(a.time||0)-new Date(b.time||0));
+    const fcst=norm(tyK(tc,/forecast_?data/i)).map(f=>({
+      raw:f,ll:tyLL(f),ws:tyNum(tyK(f,/max_?wind/i)),
+      tau:tyNum(tyK(f,/^tau$|forecast_?hour/i)),
+      r70:tyRad(f,/70\s*percent|probability/i)
+    })).filter(f=>f.ll);
+    fcst.sort((a,b)=>(a.tau??0)-(b.tau??0));
+    if(past.length||fcst.length) cyclones.push({name,cname,tyNo,tdNo,past,fcst});
+  });
+  return cyclones;
+}
+
+function tyPopup(cy,f,kind){
+  const fix=f.raw;
+  const ws=tyNum(tyK(fix,/max_?wind/i)),gs=tyNum(tyK(fix,/max_?gust/i)),pr=tyNum(tyK(fix,/pressure/i));
+  const cat=tyCat(ws);
+  const row=(k,v)=>`<div class="row" style="display:flex;justify-content:space-between;gap:18px"><span class="k" style="color:var(--txt2)">${k}</span><span style="color:var(--txt)">${v}</span></div>`;
+  const name=(cy.cname?cy.cname+" ":"")+(cy.name||"");
+  let html=`<div class="pop"><h3>🌀 ${name||"熱帶氣旋"} <small style="color:var(--txt3)">${kind==="fcst"?"預報位置":kind==="now"?"目前位置":"過去位置"}</small></h3>`;
+  html+=`<div class="row" style="display:flex;justify-content:space-between;gap:18px"><span class="k" style="color:var(--txt2)">強度分類</span><span class="big" style="color:${cat.color};font-weight:bold">${cat.name}</span></div>`;
+  if(kind==="fcst"){
+    html+=row("預報時距",f.tau!=null?"+"+f.tau+" 小時":"—")
+      +row("初始時間",tyTime(tyK(fix,/init(ial)?_?time/i)));
+  }else{
+    html+=row("定位時間",tyTime(tyK(fix,/fix_?time|^date_?time$/i)));
+  }
+  html+=row("近中心最大風速",ws!=null?ws+" m/s":"—")
+    +row("最大陣風",gs!=null?gs+" m/s":"—")
+    +row("中心氣壓",pr!=null?pr+" hPa":"—");
+  const r15=tyRad(fix,/15\s*ms|of_?15/i),r25=tyRad(fix,/25\s*ms|of_?25/i);
+  if(r15!=null)html+=row("七級風暴風半徑",r15+" km");
+  if(r25!=null)html+=row("十級風暴風半徑",r25+" km");
+  if(kind==="fcst"&&f.r70!=null)html+=row("70% 侵襲機率圓半徑",f.r70+" km");
+  if(kind==="now"){
+    const mv=tyK(fix,/^movement$/i)||fix;
+    const spd=tyNum(tyK(mv,/moving_speed|^speed$/i)),dir=tyK(mv,/moving_direction/i);
+    if(spd!=null||dir)html+=row("移向 / 移速",(dir||"—")+" / "+(spd!=null?spd+" km/h":"—"));
+  }
+  html+=`<div style="color:var(--txt3);font-size:11px;margin-top:4px">颱風消息與警報-熱帶氣旋路徑 (W-C0034-005)</div></div>`;
+  return html;
+}
+
+function tyDraw(){
+  tyLayer.clearLayers();
+  const allPts=[];
+  tyCache.cyclones.forEach(cy=>{
+    const past=cy.past,fc=cy.fcst;
+    if(past.length>1) L.polyline(past.map(f=>f.ll),{color:"#e6edf6",weight:2,opacity:.75}).addTo(tyLayer);
+    past.forEach((f,i)=>{
+      if(i<past.length-1){
+        L.circleMarker(f.ll,{radius:3.5,fillColor:tyCat(f.ws).color,color:"#0b1220",weight:1,fillOpacity:.95})
+          .bindPopup(()=>tyPopup(cy,f,"past")).addTo(tyLayer);
+      }
+      allPts.push(f.ll);
+    });
+    const cur=past[past.length-1];
+    if(cur){
+      if(cur.r15) L.circle(cur.ll,{radius:cur.r15*1000,color:"#ff8fb0",weight:1.5,fillColor:"#ff8fb0",fillOpacity:.18}).addTo(tyLayer);
+      if(cur.r25) L.circle(cur.ll,{radius:cur.r25*1000,color:"#e8447a",weight:1.5,fillColor:"#e8447a",fillOpacity:.15}).addTo(tyLayer);
+      const cat=tyCat(cur.ws);
+      const ic=L.divIcon({className:"windarrow tyicon",iconSize:[34,34],iconAnchor:[17,17],
+        html:tyIconSVG(cat.color,34)});
+      L.marker(cur.ll,{icon:ic}).bindPopup(()=>tyPopup(cy,cur,"now")).addTo(tyLayer);
+    }
+    if(fc.length){
+      const fLL=(cur?[cur.ll]:[]).concat(fc.map(f=>f.ll));
+      if(fLL.length>1) L.polyline(fLL,{color:"#e6edf6",weight:2,dashArray:"6 5",opacity:.85}).addTo(tyLayer);
+      fc.forEach(f=>{
+        if(f.r70) L.circle(f.ll,{radius:f.r70*1000,color:"#e8d44d",weight:1.2,dashArray:"3 4",fillColor:"#f5e97a",fillOpacity:.10}).addTo(tyLayer);
+        L.circleMarker(f.ll,{radius:5,fillColor:"#ffffff",color:tyCat(f.ws).color,weight:2.5,fillOpacity:1})
+          .bindPopup(()=>tyPopup(cy,f,"fcst")).addTo(tyLayer);
+        if(f.tau!=null){
+          L.marker(f.ll,{icon:L.divIcon({className:"windarrow",iconSize:[40,14],iconAnchor:[-7,7],
+            html:`<div style="font-size:10px;font-weight:700;color:#e6edf6;text-shadow:0 0 3px #000;white-space:nowrap">+${f.tau}h</div>`})}).addTo(tyLayer);
+        }
+        allPts.push(f.ll);
+      });
+    }
+  });
+  return allPts;
+}
+
+async function loadTyphoon(on,fit){
+  if(!on){map.removeLayer(tyLayer);tyStatUI();return;}
+  if(!KEY){$('tyChk').checked=false;openGate();return;}
+  const st=$('tyStat');
+  if(!tyCache){
+    st.style.display="block";
+    st.textContent="⏳ 載入颱風路徑（W-C0034-005）…";
+    try{
+      const j=await fetch(dataApi(TY_ID)).then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json();});
+      if(j&&j.success==="false")throw new Error("API 回應失敗，請確認金鑰");
+      tyCache={cyclones:tyParseData(j)};
+    }catch(e){
+      $('tyChk').checked=false;
+      st.textContent="⚠️ 颱風路徑載入失敗："+e.message;
+      return;
+    }
+  }
+  if(!$('tyChk').checked)return;
+  const pts=tyDraw();
+  tyLayer.addTo(map);
+  tyStatUI();
+  if(fit&&pts.length){
+    const bb=L.latLngBounds(pts);bb.extend(TAIWAN);
+    map.fitBounds(bb,{padding:[30,30]});
+  }
+}
+
+function tyStatUI(){
+  const el=$('tyStat');
+  if(!$('tyChk').checked||!tyCache){el.style.display="none";el.textContent="";return;}
+  el.style.display="block";
+  const cys=tyCache.cyclones;
+  if(!cys.length){el.textContent="🌀 目前西北太平洋及南海無活動中之熱帶氣旋";return;}
+  el.innerHTML=cys.map(cy=>{
+    const cur=cy.past[cy.past.length-1];
+    const cat=tyCat(cur?cur.ws:null);
+    return "🌀 "+(cy.cname?cy.cname+" ":"")+(cy.name||"")
+      +"（<b style='color:"+cat.color+"'>"+cat.name+"</b>）"
+      +(cur&&cur.time?"｜🕒 "+tyTime(cur.time):"");
+  }).join("<br>")
+  +"<br>　點色=強度：<b style='color:#29c5e0'>低壓</b>｜<b style='color:#a3c832'>輕颱</b>｜<b style='color:#ffa726'>中颱</b>｜<b style='color:#f0507a'>強颱</b>"
+  +"<br>　白虛線+白點=預報路徑｜粉紅圈=七級風暴風區｜黃虛圓=70%路徑潛勢";
+}
+
+function typColor(p){
+  if(p==null)return"#7a8aa3";
+  if(p<10)return"#0f5f1e";
+  if(p<20)return"#1a7a24";
+  if(p<40)return"#58b32d";
+  if(p<60)return"#f7d708";
+  if(p<80)return"#ff8c00";
+  return"#e60000";
+}
+
+function kmlColor(s){
+  if(!s)return null;
+  s=String(s).trim();
+  if(s.length!==8)return null;
+  const a=parseInt(s.slice(0,2),16),b=parseInt(s.slice(2,4),16),
+        g=parseInt(s.slice(4,6),16),r=parseInt(s.slice(6,8),16);
+  if(![a,b,g,r].every(isFinite))return null;
+  return{css:`rgb(${r},${g},${b})`,op:a/255};
+}
+
+function typCoords(txt){
+  return txt.trim().split(/\s+/).map(p=>{
+    const c=p.split(",");
+    const lo=parseFloat(c[0]),la=parseFloat(c[1]);
+    return(isFinite(la)&&isFinite(lo))?[la, lo < 0 ? lo + 360 : lo]:null;
+  }).filter(Boolean);
+}
+
+function typParse(text){
+  const doc=new DOMParser().parseFromString(text,"text/xml");
+  if(doc.getElementsByTagName("parsererror").length)throw new Error("KML 解析失敗");
+  const styles={};
+  Array.from(doc.getElementsByTagName("Style")).forEach(st=>{
+    const id=st.getAttribute("id");if(!id)return;
+    const pick=t=>{const el=st.getElementsByTagName(t)[0];
+      return el?kmlColor(el.getElementsByTagName("color")[0]?.textContent):null;};
+    styles["#"+id]={poly:pick("PolyStyle"),line:pick("LineStyle")};
+  });
+  Array.from(doc.getElementsByTagName("StyleMap")).forEach(sm=>{
+    const id=sm.getAttribute("id");if(!id)return;
+    const su=sm.getElementsByTagName("styleUrl")[0]?.textContent.trim();
+    if(su&&styles[su])styles["#"+id]=styles[su];
+  });
+  const items=[];
+  Array.from(doc.getElementsByTagName("Placemark")).forEach(pm=>{
+    const g=t=>{const el=pm.getElementsByTagName(t)[0];return el?el.textContent.trim():"";};
+    const nm=g("name"),desc=g("description");
+    const mp=(nm+" "+desc).match(/(\d+(?:\.\d+)?)\s*%/);
+    let prob=mp?parseFloat(mp[1]):null;
+    if(prob==null&&/^\d+(\.\d+)?$/.test(nm))prob=parseFloat(nm);
+    const stl=styles[g("styleUrl")]||null;
+    const inPoly=pm.getElementsByTagName("PolyStyle")[0];
+    const inColor=inPoly?kmlColor(inPoly.getElementsByTagName("color")[0]?.textContent):null;
+    const polys=Array.from(pm.getElementsByTagName("Polygon")).map(pg=>{
+      const outer=pg.getElementsByTagName("outerBoundaryIs")[0]||pg;
+      const co=outer.getElementsByTagName("coordinates")[0];
+      return co?typCoords(co.textContent):null;
+    }).filter(x=>x&&x.length>2);
+    const lines=Array.from(pm.getElementsByTagName("LineString")).map(ls=>{
+      const co=ls.getElementsByTagName("coordinates")[0];
+      return co?typCoords(co.textContent):null;
+    }).filter(x=>x&&x.length>1);
+    const pts=[];
+    Array.from(pm.getElementsByTagName("Point")).forEach(pt=>{
+      const co=pt.getElementsByTagName("coordinates")[0];
+      if(co){const c=typCoords(co.textContent);if(c.length)pts.push(c[0]);}
+    });
+    if(polys.length||lines.length||pts.length)
+      items.push({nm,desc,prob,polys,lines,pts,color:inColor||(stl&&stl.poly)||null});
+  });
+  const overlays=[];
+  Array.from(doc.getElementsByTagName("GroundOverlay")).forEach(go=>{
+    const href=go.getElementsByTagName("href")[0]?.textContent.trim();
+    const box=go.getElementsByTagName("LatLonBox")[0];
+    if(!href||!box)return;
+    const gv=t=>parseFloat(box.getElementsByTagName(t)[0]?.textContent);
+    const n=gv("north"),s=gv("south"),e=gv("east"),w=gv("west");
+    if([n,s,e,w].every(isFinite)) {
+      overlays.push({href,bounds:[[s, w < 0 ? w + 360 : w],[n, e < 0 ? e + 360 : e]]});
+    }
+  });
+  const tm=text.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(Z|[+-]\d{2}:?\d{2})?/);
+  return{items,overlays,time:tm?tm[0]:null};
+}
+
+async function loadTyProb(on){
+  if(!on){map.removeLayer(typLayer);typStatUI();return;}
+  if(!KEY){$('typChk').checked=false;openGate();return;}
+  const st=$('typStat');
+  if(!typCache){
+    st.style.display="block";
+    st.textContent="⏳ 載入颱風侵襲機率（W-C0034-003 KMZ）…";
+    try{
+      const r=await fetch(fileApiKMZ(TYP_ID));
+      if(!r.ok)throw new Error("HTTP "+r.status);
+      const buf=await r.arrayBuffer();
+      if(!buf.byteLength)throw new Error("回傳內容為空（可能目前無警報）");
+      const head=new Uint8Array(buf,0,Math.min(2,buf.byteLength));
+      let text,zip=null;
+      if(head[0]===0x50&&head[1]===0x4B){
+        if(typeof JSZip==="undefined")throw new Error("JSZip 程式庫未載入");
+        zip=await JSZip.loadAsync(buf);
+        const name=Object.keys(zip.files).find(n=>/\.kml$/i.test(n));
+        if(!name)throw new Error("KMZ 內找不到 KML 檔");
+        text=await zip.files[name].async("string");
+      }else{
+        text=new TextDecoder("utf-8").decode(buf);
+      }
+      const parsed=typParse(text);
+      for(const ov of parsed.overlays){
+        let zf=zip&&(zip.files[ov.href]
+          ||zip.files[Object.keys(zip.files).find(n=>n.endsWith(ov.href))||""]);
+        if(zf){const b=await zf.async("blob");ov.url=URL.createObjectURL(b);}
+        else if(/^https?:/i.test(ov.href))ov.url=ov.href;
+      }
+      typCache=parsed;
+    }catch(e){
+      $('typChk').checked=false;
+      st.textContent="⚠️ 颱風侵襲機率載入失敗："+e.message;
+      return;
+    }
+  }
+  if(!$('typChk').checked)return;
+  typLayer.clearLayers();
+  typCache.overlays.forEach(ov=>{
+    if(ov.url)L.imageOverlay(ov.url,ov.bounds,{opacity:.65,interactive:false}).addTo(typLayer);
+  });
+  [...typCache.items].sort((a,b)=>(a.prob??-1)-(b.prob??-1)).forEach(it=>{
+    const col=it.prob!=null?typColor(it.prob):((it.color&&it.color.css)||"#7a8aa3");
+    const fop=it.prob!=null?.35:(it.color?Math.max(.15,Math.min(.5,it.color.op)):.3);
+    const pop=()=>{
+      let h=`<div class="pop"><h3>🎯 ${it.nm||"颱風侵襲機率"}</h3>`;
+      if(it.prob!=null)h+=`<div class="row" style="display:flex;justify-content:space-between;gap:18px"><span class="k" style="color:var(--txt2)">侵襲機率</span><span class="big" style="color:${typColor(it.prob)};font-weight:bold">${it.prob}%</span></div>`;
+      const d=(it.desc||"").replace(/<[^>]*>/g," ").replace(/\s+/g," ").trim();
+      if(d)h+=`<div style="margin-top:5px;font-size:12px">${d.slice(0,400)}</div>`;
+      h+=`<div style="color:var(--txt3);font-size:11px;margin-top:5px">颱風侵襲機率 (W-C0034-003)</div></div>`;
+      return h;
+    };
+    it.polys.forEach(pg=>L.polygon(pg,{color:col,weight:1.2,fillColor:col,fillOpacity:fop}).bindPopup(pop).addTo(typLayer));
+    it.lines.forEach(ln=>L.polyline(ln,{color:col,weight:2}).bindPopup(pop).addTo(typLayer));
+    it.pts.forEach(p0=>L.circleMarker(p0,{radius:6,fillColor:col,color:"#fff",weight:1,fillOpacity:.9}).bindPopup(pop).addTo(typLayer));
+  });
+  typLayer.addTo(map);
+  typStatUI();
+}
+
+function typStatUI(){
+  const el=$('typStat');
+  if(!$('typChk').checked||!typCache){el.style.display="none";el.textContent="";return;}
+  el.style.display="block";
+  const n=typCache.items.length+typCache.overlays.length;
+  if(!n){el.textContent="🎯 目前無颱風侵襲機率資料（無警報期間）";return;}
+  const withP=typCache.items.filter(i=>i.prob!=null).length;
+  el.innerHTML="🎯 颱風侵襲機率："+typCache.items.length+" 區"
+    +(withP?"（含機率值 "+withP+" 區）":"")
+    +(typCache.overlays.length?"＋"+typCache.overlays.length+" 疊圖":"")
+    +(typCache.time?"｜🕒 "+new Date(typCache.time).toLocaleString("zh-TW"):"")
+    +"<br>　機率分級（CWA 標準）："
+    +"<b style='color:#1a7a24'>10-20</b>｜<b style='color:#58b32d'>20-40</b>｜"
+    +"<b style='color:#f7d708'>40-60</b>｜<b style='color:#ff8c00'>60-80</b>｜<b style='color:#e60000'>80+ %</b>";
+}
+</script>
+</body>
+</html>
