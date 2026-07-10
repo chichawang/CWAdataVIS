@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>地球物理觀測監控儀表板｜地磁 · 地電 · 電離層 · 地下水</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{--bg:#0b1220;--card:#16213a;--line:#2a3a57;--txt:#e6edf6;--muted:#9fb0c8;--accent:#8b5cf6;--chip:#1e293b}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:"Segoe UI","Microsoft JhengHei",system-ui,sans-serif;
+    background:var(--bg);color:var(--txt);font-size:14px;overflow:hidden}
+  body{display:flex;flex-direction:column;height:100vh;height:100dvh}
+
+  /* ===== 頂部工具列 ===== */
+  #topbar{flex:0 0 auto;z-index:1500;display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;
+    padding:8px 14px;background:rgba(16,24,42,.97);border-bottom:1px solid var(--line)}
+  #topbar h1{font-size:15px;margin:0;white-space:nowrap}
+  #topbar .sub{color:var(--muted);font-size:11px;white-space:nowrap}
+  #topbar .sp{flex:1}
+  #topbar select{padding:6px 8px;background:#0d1526;color:var(--txt);border:1px solid var(--line);border-radius:7px;font-size:12px;max-width:230px}
+  #topbar button{padding:7px 10px;background:var(--accent);color:#fff;border:none;border-radius:7px;font-size:12px;cursor:pointer;font-weight:600}
+  #topbar button.ghost{background:transparent;border:1px solid var(--line);color:var(--txt)}
+  #topbar button:hover{filter:brightness(1.12)}
+  #obsTime{color:var(--muted);font-size:11px;white-space:nowrap}
+
+  /* ===== 資料集切換頁籤 ===== */
+  #dsTabs{flex:0 0 auto;display:flex;gap:6px;padding:8px 14px;background:rgba(13,20,36,.9);border-bottom:1px solid var(--line);overflow-x:auto}
+  .ds-tab{flex:0 0 auto;display:flex;align-items:center;gap:6px;padding:7px 13px;background:rgba(22,33,58,.6);border:1px solid var(--line);
+    border-radius:9px;font-size:12.5px;cursor:pointer;color:var(--muted);transition:all .2s;white-space:nowrap;font-weight:600}
+  .ds-tab .em{font-size:15px}
+  .ds-tab:hover{background:rgba(22,33,58,.95);color:var(--txt)}
+  .ds-tab.active{background:rgba(139,92,246,.18);border-color:var(--accent);color:#fff;box-shadow:0 0 10px rgba(139,92,246,.3)}
+  .ds-tab .cnt{font-size:10.5px;background:rgba(255,255,255,.08);padding:1px 6px;border-radius:10px}
+
+  /* ===== 左右分割 ===== */
+  #wrap{flex:1;min-height:0;display:flex}
+  #mapPane{flex:1 1 50%;position:relative;min-width:0}
+  #map{position:absolute;inset:0;background:#0b1220}
+  #side{flex:1 1 50%;min-width:0;overflow-y:auto;-webkit-overflow-scrolling:touch;border-left:1px solid var(--line);
+    background:linear-gradient(180deg,#0d1626,#0b1220);padding:14px 16px 30px}
+
+  .top-actions-group{display:flex;align-items:center;gap:10px}
+  .top-buttons{display:flex;align-items:center;gap:6px}
+  .top-times{display:flex;align-items:center;gap:10px;white-space:nowrap}
+
+  /* ===== 手機／窄螢幕 ===== */
+  @media(max-width:860px){
+    #topbar{padding:6px 10px}
+    #topbar h1{font-size:13.5px}
+    #topbar .sub,#topbar .sp{display:none}
+    #topbar select{flex:1 1 130px;min-width:0;max-width:none}
+    .top-actions-group{width:100%;display:flex;flex-direction:column;align-items:stretch;gap:6px;
+      border-top:1px solid rgba(255,255,255,0.06);padding-top:6px;margin-top:4px}
+    .top-buttons{display:flex;width:100%;gap:6px}
+    .top-buttons button{flex:1}
+    #reload{flex:2}
+    .top-times{display:flex;width:100%;justify-content:space-between;align-items:center}
+    #obsTime{white-space:nowrap;font-size:11px}
+    #wrap{flex-direction:column;overflow-y:auto;-webkit-overflow-scrolling:touch}
+    #mapPane{flex:0 0 auto;height:280px;position:relative}
+    #map{position:absolute;inset:0;height:280px}
+    #side{flex:0 0 auto;overflow-y:visible;height:auto;border-left:none;border-top:1px solid var(--line);padding:10px 10px 24px}
+    .legend{width:150px;padding:8px 10px}
+    #stCard{padding:11px 12px}
+    #stCard h2{font-size:15px}
+    .chartbox{padding:10px 10px 6px;margin-bottom:10px}
+    .chartbox .cwrap{height:165px}
+  }
+
+  /* ===== 地圖圖例 ===== */
+  .legend{position:absolute;bottom:18px;left:12px;z-index:1000;background:rgba(16,24,42,.94);
+    border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:210px;
+    transition:width .2s,padding .2s,left .2s,right .2s}
+  .legend.minimized{width:110px;padding:8px 10px}
+  .legend.minimized #legContent{display:none}
+  .legend.pos-right{left:auto;right:12px}
+  .legend .title{font-size:11px;font-weight:700}
+  .bar{height:12px;border-radius:4px;border:1px solid var(--line)}
+  .ticks{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:3px}
+
+  /* 測站標記 */
+  .stnicon{background:none;border:none}
+  .stnicon .m{position:relative;display:flex;align-items:center;justify-content:center;transition:all .15s;
+    border-radius:50%;border:2px solid #fff;box-shadow:0 0 4px rgba(0,0,0,.5);font-size:11px;font-weight:700;color:#fff;text-shadow:0 0 2px #000}
+  .stnicon .m.sel{outline:3px solid #ffd166;box-shadow:0 0 10px #ffd166}
+  .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--card);color:var(--txt);border:1px solid var(--line)}
+  .leaflet-popup-content{margin:10px 12px;font-size:12px;line-height:1.5}
+
+  /* ===== KPI 健康指標卡 ===== */
+  #kpiPane{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+  .kpi-card{background:rgba(22,33,58,.6);border:1px solid var(--line);border-radius:12px;padding:10px 4px;
+    text-align:center;cursor:pointer;transition:all .25s cubic-bezier(.4,0,.2,1);position:relative;overflow:hidden}
+  .kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:transparent}
+  .kpi-card.normal::before{background:#10b981}
+  .kpi-card.warning::before{background:#f59e0b}
+  .kpi-card.offline::before{background:#ef4444}
+  .kpi-card.alert-kpi::before{background:#ec4899}
+  .kpi-card:hover{transform:translateY(-2px);background:rgba(22,33,58,.95);border-color:var(--accent)}
+  .kpi-card.active{background:rgba(30,41,59,.9);border-color:var(--accent);box-shadow:0 0 12px rgba(139,92,246,.35)}
+  .kpi-card .num{font-size:20px;font-weight:700;margin-top:2px;line-height:1.2}
+  .kpi-card .lbl{font-size:11px;color:var(--muted);margin-top:2px}
+  .kpi-card.normal .num{color:#10b981}
+  .kpi-card.warning .num{color:#f59e0b}
+  .kpi-card.offline .num{color:#ef4444}
+  .kpi-card.alert-kpi .num{color:#ec4899}
+
+  /* ===== 警報日誌 ===== */
+  #alertLogBox{background:rgba(236,72,153,.06);border:1px solid rgba(236,72,153,.25);border-radius:12px;
+    padding:10px 14px;margin-bottom:14px;display:none}
+  #alertLogBox h3{margin:0 0 8px;font-size:12px;color:#f9a8d4;display:flex;align-items:center;justify-content:space-between}
+  #alertLogBox .list{max-height:110px;overflow-y:auto;font-size:11.5px;line-height:1.5}
+  .alert-item{display:flex;justify-content:space-between;margin-bottom:5px;padding:4px 6px;
+    background:rgba(236,72,153,.08);border-radius:6px;cursor:pointer;transition:background .15s}
+  .alert-item:hover{background:rgba(236,72,153,.16)}
+  .alert-item .time{color:var(--muted);font-size:10px;margin-right:6px;font-family:monospace}
+
+  @keyframes pulse-pink{0%{box-shadow:0 0 0 0 rgba(236,72,153,.75)}70%{box-shadow:0 0 0 11px rgba(236,72,153,0)}100%{box-shadow:0 0 0 0 rgba(236,72,153,0)}}
+  .stnicon .m.pulse-alert{animation:pulse-pink 1.6s infinite;border:2px solid #ec4899!important}
+
+  /* ===== 右側：測站卡片 ===== */
+  #stCard{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px}
+  #stCard h2{margin:0 0 2px;font-size:17px}
+  #stCard h2 small{color:var(--muted);font-weight:400;font-size:12px}
+  #stCard .meta{color:var(--muted);font-size:11.5px;margin-bottom:9px}
+  .chips{display:flex;flex-wrap:wrap;gap:7px}
+  .chip{background:var(--chip);border:1px solid var(--line);border-radius:8px;padding:5px 9px;font-size:11px;color:var(--muted)}
+  .chip b{display:block;font-size:14px;color:var(--txt);margin-top:1px}
+  .tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;margin-left:8px;vertical-align:2px;
+    background:rgba(139,92,246,.2);color:#c4b5fd}
+
+  /* ===== 圖表 ===== */
+  .chartbox{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px 8px;margin-bottom:14px}
+  .chartbox .ct{font-size:12.5px;font-weight:700;margin-bottom:6px}
+  .chartbox .cwrap{position:relative;height:200px}
+  #emptyMsg{color:var(--muted);text-align:center;padding:60px 20px;font-size:13px}
+  #loader{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(11,18,32,.75);z-index:2500;color:var(--muted);font-size:15px}
+
+  /* ===== API 金鑰畫面 ===== */
+  #gate{position:fixed;inset:0;z-index:3000;display:none;align-items:center;justify-content:center;
+    background:radial-gradient(1200px 600px at 50% -10%,#1c1440,#0b1220)}
+  #gate .box{width:min(430px,calc(100% - 32px));background:var(--card);border:1px solid var(--line);
+    border-radius:16px;padding:26px 24px;box-shadow:0 20px 60px rgba(0,0,0,.45)}
+  #gate h1{margin:0 0 4px;font-size:19px}
+  #gate .sub{color:var(--muted);font-size:12px;margin-bottom:16px;line-height:1.5}
+  #gate label{display:block;margin-top:10px;font-size:12px;color:var(--muted)}
+  #gate .keyrow{display:flex;gap:8px}
+  #gate .keyrow input{flex:1;padding:8px 9px;background:#0d1526;color:var(--txt);border:1px solid var(--line);
+    border-radius:7px;font-size:12px;font-family:ui-monospace,Menlo,Consolas,monospace}
+  #gate .toggle{flex:0 0 auto;width:44px;padding:7px;background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:7px;cursor:pointer}
+  #gate .remember{display:flex;align-items:center;gap:7px;margin-top:12px;font-size:12px;color:var(--muted);cursor:pointer}
+  #gate .remember input{width:auto}
+  #gate .go{width:100%;margin-top:16px;padding:11px;font-size:14px;background:var(--accent);color:#fff;
+    border:none;border-radius:8px;cursor:pointer;font-weight:700}
+  #gate .err{color:#fca5a5;font-size:12px;margin-top:10px;display:none}
+  #gate .hint{color:var(--muted);font-size:11px;margin-top:14px;line-height:1.5}
+  #gate a{color:var(--accent)}
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="box">
+    <h1>🌐 地球物理觀測監控儀表板</h1>
+    <div class="sub">本儀表板使用中央氣象署（CWA）開放資料之地球物理觀測資料集（地磁、地電、電離層、地下水）。請先輸入您的 API 授權碼以載入資料。</div>
+    <label for="keyInput">CWA API 授權碼</label>
+    <div class="keyrow">
+      <input id="keyInput" type="password" placeholder="CWA-XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX" autocomplete="off" spellcheck="false">
+      <button type="button" class="toggle" id="keyToggle" title="顯示 / 隱藏">👁</button>
+    </div>
+    <label class="remember"><input type="checkbox" id="rememberKey"> 記住金鑰（儲存在此瀏覽器）</label>
+    <button class="go" id="enterBtn">進入儀表板 →</button>
+    <div class="err" id="keyErr"></div>
+    <div class="hint">尚無金鑰？可至
+      <a href="https://opendata.cwa.gov.tw/user/authkey" target="_blank" rel="noopener">氣象署開放資料平臺</a>
+      免費申請會員並取得授權碼。金鑰僅在您的瀏覽器中使用，不會上傳。</div>
+  </div>
+</div>
+
+<div id="topbar">
+  <h1>🌐 地球物理觀測監控儀表板</h1>
+  <span class="sub" id="dsSub">O-B0065 系列 · 自動更新</span>
+  <span class="sp"></span>
+  <select id="mapVarSel" title="地圖著色變數"></select>
+  <select id="stSel" title="選擇測站"><option value="">— 選擇測站 —</option></select>
+  <select id="baseSel" title="選擇底圖">
+    <option value="dark" selected>深色底圖</option>
+    <option value="sat">衛星影像</option>
+    <option value="osm">街道圖 (OSM)</option>
+    <option value="topo">地形圖</option>
+    <option value="light">淺色底圖</option>
+  </select>
+  <div class="top-actions-group">
+    <div class="top-buttons">
+      <button id="reload">↻ 重新整理</button>
+      <button class="ghost" id="changeKey">🔑</button>
+      <button class="ghost" id="diagBtn" title="診斷：顯示資料結構">🐞</button>
+      <button class="ghost" onclick="location.href='index.html'" title="切換至氣象站觀測地圖">🌦️</button>
+    </div>
+    <div class="top-times">
+      <span id="countdownTimer" style="font-size:11.5px;color:var(--accent);font-weight:600">⏱️ 更新中...</span>
+      <span id="obsTime">—</span>
+    </div>
+  </div>
+</div>
+
+<div id="dsTabs"></div>
+
+<div id="wrap">
+  <div id="mapPane">
+    <div id="map"></div>
+    <div class="legend" id="legendBox">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:8px">
+        <span class="title" id="legTitle" style="margin:0;font-size:11px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1">—</span>
+        <div style="display:flex;gap:4px;flex-shrink:0">
+          <button id="legPosBtn" title="切換靠左/靠右" style="background:rgba(255,255,255,0.08);border:none;color:var(--muted);cursor:pointer;padding:2px 4px;font-size:10px;line-height:1;border-radius:4px">⇄</button>
+          <button id="legToggleBtn" title="收合圖例" style="background:rgba(255,255,255,0.08);border:none;color:var(--muted);cursor:pointer;padding:2px 4px;font-size:10px;line-height:1;border-radius:4px">−</button>
+        </div>
+      </div>
+      <div id="legContent">
+        <div class="bar" id="legBar"></div>
+        <div class="ticks" id="legTicks"></div>
+        <div id="legNote" style="color:var(--muted);font-size:10px;margin-top:7px"></div>
+      </div>
+    </div>
+  </div>
+  <div id="side">
+    <div id="kpiPane">
+      <div class="kpi-card normal" id="kpi-normal" onclick="setFilter('normal')">
+        <div class="num" id="count-normal">0</div><div class="lbl">🟢 正常</div>
+      </div>
+      <div class="kpi-card warning" id="kpi-warning" onclick="setFilter('warning')">
+        <div class="num" id="count-warning">0</div><div class="lbl">🟡 延遲</div>
+      </div>
+      <div class="kpi-card offline" id="kpi-offline" onclick="setFilter('offline')">
+        <div class="num" id="count-offline">0</div><div class="lbl">🔴 離線</div>
+      </div>
+      <div class="kpi-card alert-kpi" id="kpi-alert" onclick="setFilter('alert')">
+        <div class="num" id="count-alert">0</div><div class="lbl">⚠️ 異常值</div>
+      </div>
+    </div>
+
+    <div id="alertLogBox">
+      <h3>⚠️ 數值異常測站</h3>
+      <div class="list" id="alertLogList"></div>
+    </div>
+
+    <div id="emptyMsg">⬅ 點選地圖測站（或上方下拉選單），右側顯示觀測時序圖</div>
+    <div id="stCard" style="display:none"></div>
+    <div id="charts"></div>
+  </div>
+</div>
+
+<div id="loader">⏳ 載入地球物理觀測資料中…</div>
+
+<div id="diagModal" style="position:fixed;inset:0;z-index:3200;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.6)">
+  <div style="width:min(720px,calc(100% - 32px));max-height:82vh;display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 18px 16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <b style="font-size:14px">🐞 資料結構診斷（<span id="diagCode"></span>）</b>
+      <button class="ghost" id="diagClose" style="padding:4px 10px">✕ 關閉</button>
+    </div>
+    <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px">下面是目前資料集回傳 JSON 的結構骨架（值已截斷）。請整段複製給我，我就能精準對應解析。</div>
+    <textarea id="diagText" readonly style="flex:1;min-height:320px;width:100%;background:#0d1526;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:10px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;white-space:pre;resize:vertical"></textarea>
+    <button class="go" id="diagCopy" style="margin-top:10px;padding:9px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:700">📋 複製到剪貼簿</button>
+  </div>
+</div>
+
+<script>
+/* ===================== 基本工具 ===================== */
+const $=id=>document.getElementById(id);
+const STORE="cwa_geophys_key";
+let KEY="";
+/* fileapi + S3 備援（marine 相同做法） */
+const urlFile=(code,k)=>"https://opendata.cwa.gov.tw/fileapi/v1/opendataapi/"+code+"?Authorization="+encodeURIComponent(k)+"&downloadType=WEB&format=JSON";
+const urlS3=code=>"https://cwaopendata.s3.ap-northeast-1.amazonaws.com/Observation/"+code+".json";
+
+const NA=v=>v===null||v===undefined||v===""||v==="None"||v==="-"||v==="X"||v==="NaN";
+const num=v=>{if(NA(v))return null;const f=parseFloat(v);return isNaN(f)?null:f;};
+const txt=v=>NA(v)?null:String(v);
+const arr=x=>x==null?[]:(Array.isArray(x)?x:[x]);
+const fmtT=t=>{if(!t)return"—";const d=new Date(t);if(isNaN(d))return"—";
+  return String(d.getMonth()+1).padStart(2,"0")+"/"+String(d.getDate()).padStart(2,"0")
+    +" "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");};
+const fmtFull=t=>{if(!t)return"—";const d=new Date(t);return isNaN(d)?"—":d.toLocaleString("zh-TW");};
+function hex2rgb(h){return[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];}
+
+/* 依資料集時區解析 DateTime（容錯：處理多種格式，UTC 資料集補 Z，+08 資料集補 +08:00） */
+function tzOffsetMin(tz){return tz==="UTC"?0:(/^([+-])(\d\d):?(\d\d)$/.test(tz)?(tz[0]==="-"?-1:1)*(+RegExp.$2*60+ +RegExp.$3):0);}
+function parseDT(s,tz){
+  if(s==null)return null;
+  if(typeof s==="object"){ // 可能為 {value:"..."} 之類巢狀
+    s=s.value||s.$t||s["#text"]||s.text||s.DateTime||"";
+  }
+  if(typeof s!=="string"){const d=new Date(s);return isNaN(d)?null:d;}
+  s=s.trim();if(!s)return null;
+  let str=s.replace(" ","T");
+  if(!/([+-]\d\d:?\d\d|Z)$/.test(str)){
+    str+=(tz==="UTC")?"Z":(/^[+-]\d\d:?\d\d$/.test(tz)?tz:"");
+  }
+  let d=new Date(str);
+  if(!isNaN(d))return d;
+  // 正規表示式備援解析
+  const m=s.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?:[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+  if(m){
+    const off=tzOffsetMin(tz);
+    d=new Date(Date.UTC(+m[1],+m[2]-1,+m[3],+(m[4]||0),+(m[5]||0),+(m[6]||0))-off*60000);
+    if(!isNaN(d))return d;
+  }
+  return null;
+}
+
+/* ===================== 連續色階（coolwarm） ===================== */
+const PALETTE=['#3b4cc0','#5977e3','#7b9ff9','#9ebeff','#c5d6f2','#e2e2e2','#f2cab5','#f6a385','#e8765c','#cf4a3c','#b40426'];
+function rampColor(t){
+  if(t==null||isNaN(t))return"#7a8aa3";
+  const n=PALETTE.length-1;const x=Math.max(0,Math.min(1,t))*n;const i=Math.floor(x);const f=x-i;
+  const a=hex2rgb(PALETTE[i]),b=hex2rgb(PALETTE[Math.min(i+1,n)]);
+  return`rgb(${a.map((c,j)=>Math.round(c+(b[j]-c)*f)).join(",")})`;
+}
+function gradientCSS(){return"linear-gradient(90deg,"+PALETTE.join(",")+")";}
+
+/* ===================== 資料集定義 ===================== */
+const DATASETS={
+  mag:{code:"O-B0065-002",name:"地球磁場",em:"🧲",color:"#a78bfa",tz:"UTC",
+    fields:[
+      {key:"MagneticField-X",label:"地磁 X",unit:"nT",valid:v=>v>-90000&&v<90000&&v!==0},
+      {key:"MagneticField-Y",label:"地磁 Y",unit:"nT",valid:v=>v>-90000&&v<90000},
+      {key:"MagneticField-Z",label:"地磁 Z",unit:"nT",valid:v=>v>-90000&&v<90000&&v!==0}
+    ],
+    charts:[{title:"🧲 三軸地磁場 (nT)",series:["MagneticField-X","MagneticField-Y","MagneticField-Z"],yTitle:"nT"}]},
+  elec:{code:"O-B0065-003",name:"大地電場",em:"⚡",color:"#f59e0b",tz:"+08:00",
+    fields:[
+      {key:"GeoelectricField-NS",label:"地電 南北向",unit:"mV/km",valid:v=>Math.abs(v)<50000},
+      {key:"GeoelectricField-EW",label:"地電 東西向",unit:"mV/km",valid:v=>Math.abs(v)<50000}
+    ],
+    charts:[{title:"⚡ 大地電場（南北 / 東西向）",series:["GeoelectricField-NS","GeoelectricField-EW"],yTitle:"mV/km"}]},
+  iono:{code:"O-B0065-004",name:"電離層 TEC",em:"📡",color:"#22d3ee",tz:"UTC",single:true,
+    fields:[
+      {key:"TotalElectronContent",label:"全電子含量",unit:"TECU",valid:v=>v>=0&&v<300}
+    ],
+    charts:[{title:"📡 電離層全電子含量 (TECU)",series:["TotalElectronContent"],yTitle:"TECU"}]},
+  water:{code:"O-B0065-001",name:"地下水",em:"💧",color:"#38bdf8",tz:"+08:00",zeroMissing:true,
+    fields:[
+      {key:"GroundwaterLevel",label:"地下水位",unit:"cm",valid:v=>v>-10000&&v<10000},
+      {key:"AirPressure",label:"氣壓",unit:"hPa",valid:v=>v>800&&v<1100}
+    ],
+    charts:[
+      {title:"💧 地下水位 (cm)",series:["GroundwaterLevel"],yTitle:"cm"},
+      {title:"🔵 氣壓 (hPa)",series:["AirPressure"],yTitle:"hPa"}
+    ]}
+};
+let curDS="mag";
+const CACHE={}; // code -> {stations, fetchedAt}
+const RAW={};   // code -> 原始 JSON（供診斷）
+
+/* 產生 JSON 結構骨架（值截斷），供回報實際結構 */
+function skeleton(o,ind,depth){
+  ind=ind||"";depth=depth||0;
+  if(depth>8)return "…";
+  if(o===null)return "null";
+  if(Array.isArray(o)){
+    if(!o.length)return "[]";
+    return "[ (共 "+o.length+" 筆)\n"+ind+"  "+skeleton(o[0],ind+"  ",depth+1)+"\n"+ind+"]";
+  }
+  if(typeof o==="object"){
+    const ks=Object.keys(o);
+    return "{\n"+ks.slice(0,60).map(k=>ind+"  "+k+": "+skeleton(o[k],ind+"  ",depth+1)).join("\n")
+      +(ks.length>60?"\n"+ind+"  …("+ks.length+" keys)":"")+"\n"+ind+"}";
+  }
+  if(typeof o==="string")return JSON.stringify(o.length>60?o.slice(0,60)+"…":o);
+  return String(o);
+}
+
+/* ===================== 解析（深度遍歷，容錯） ===================== */
+function findCoord(o,kind){
+  // kind: 'lat' | 'lon'
+  const re=kind==="lat"?/lat/i:/(lon|lng)/i;
+  for(const k in o){
+    if(re.test(k)&&typeof o[k]!=="object"){const f=parseFloat(o[k]);if(isFinite(f)&&Math.abs(f)<=180)return f;}
+  }
+  // 常見巢狀
+  const nest=o.Coordinate||o.coordinate||o.StationCoordinate||o.GeoInfo||o.Station||o.station;
+  if(nest&&typeof nest==="object"){
+    for(const k in nest){
+      if(re.test(k)&&typeof nest[k]!=="object"){const f=parseFloat(nest[k]);if(isFinite(f)&&Math.abs(f)<=180)return f;}
+    }
+  }
+  return null;
+}
+function stationInfo(o){
+  let sid=o.StationID||o.stationId||o.StationId||o.stationID||
+    (o.Station&&(o.Station.StationID||o.Station.stationId));
+  let sname=o.LocationName||o.locationName||o.StationName||o.stationName||
+    (o.Station&&(o.Station.StationName||o.Station.locationName));
+  if(Array.isArray(sid)||Array.isArray(sname))return null; // 欄位式（平行陣列）結構，交由診斷回報
+  if(!sid&&!sname)return null;
+  return{id:String(sid||sname),name:sname?String(sname):String(sid),lat:findCoord(o,"lat"),lon:findCoord(o,"lon")};
+}
+function getDT(o){return o.DateTime||o.dateTime||o.ObsTime||o.obsTime||o.Time||o.DataTime||o.dataTime;}
+/* 量測值可能直接位於紀錄物件上，或巢狀於 WeatherElements 等容器內 */
+function getField(o,key){
+  if(o[key]!=null&&o[key]!=="")return o[key];
+  const conts=[o.WeatherElements,o.weatherElements,o.GeophysicalElements,o.geophysicalElements,o.Elements,o.elements];
+  for(const c of conts){if(c&&typeof c==="object"&&c[key]!=null&&c[key]!=="")return c[key];}
+  return undefined;
+}
+
+/* ⚠ 參考點座標：資料本身不含經緯度，以下僅為「依測站所在地名之約略參考位置」，
+   用於地圖示意，非真實測站精確位置，故介面不顯示經緯度數值。 */
+const GEO_COORDS={ // 依 StationID
+  LYN:[24.42,120.76],  CSG:[23.122,121.215], HCN:[21.999,120.744], YHG:[24.66,121.37],
+  CNU:[23.951,120.931],KMA:[24.436,118.317], NCG:[24.735,121.665], MTU:[26.160,119.951],
+  LNU:[22.043,121.539],XCG:[24.128,121.602], ZBN:[22.706,121.060],
+  HUAL:[24.82,121.35], HWA:[23.976,121.604]
+};
+/* 依中文地名之參考座標（縣市 + 常見鄉鎮 / 地球物理測站所在地） */
+const GAZETTEER={
+  "花蓮":[23.976,121.604],"台東":[22.758,121.144],"宜蘭":[24.757,121.753],"台北":[25.047,121.517],
+  "新北":[25.012,121.465],"桃園":[24.994,121.301],"新竹":[24.804,120.972],"苗栗":[24.560,120.821],
+  "台中":[24.147,120.673],"彰化":[24.081,120.539],"南投":[23.910,120.686],"雲林":[23.709,120.431],
+  "嘉義":[23.480,120.449],"台南":[22.999,120.227],"高雄":[22.627,120.301],"屏東":[22.669,120.488],
+  "基隆":[25.128,121.742],"金門":[24.436,118.317],"澎湖":[23.566,119.587],"馬祖":[26.160,119.951],"連江":[26.160,119.951],
+  "鯉魚潭":[24.42,120.76],"池上":[23.122,121.215],"恆春":[21.999,120.744],"爺亨":[24.66,121.37],
+  "暨南":[23.951,120.931],"內城":[24.735,121.665],"蘭嶼":[22.043,121.539],"新城":[24.128,121.602],
+  "知本":[22.706,121.060],"復興":[24.82,121.35],"玉里":[23.337,121.315],"瑞穗":[23.497,121.377],
+  "光復":[23.669,121.422],"鳳林":[23.745,121.452],"富里":[23.180,121.246],"卓溪":[23.344,121.303],
+  "六甲":[23.234,120.377],"關山":[23.045,121.161],"成功":[23.099,121.375],"大武":[22.356,120.897],
+  "太麻里":[22.615,120.964],"鹿野":[22.968,121.140],"竹北":[24.839,121.004],"頭份":[24.688,120.895],
+  "卓蘭":[24.312,120.826],"東勢":[24.258,120.827],"埔里":[23.965,120.965],"名間":[23.838,120.700],
+  "竹山":[23.757,120.681],"大湖":[24.423,120.867],"三義":[24.350,120.760],"通霄":[24.489,120.677],
+  "礁溪":[24.827,121.774],"蘇澳":[24.594,121.842],"南澳":[24.464,121.800],"和平":[24.303,121.756],
+  "秀林":[24.100,121.620],"豐濱":[23.598,121.517],"壽豐":[23.870,121.509],"吉安":[23.970,121.570],
+  "萬榮":[23.716,121.408],"卓蘭鎮":[24.312,120.826]
+};
+const normCity=s=>String(s||"").replace(/臺/g,"台").trim();
+function coordFor(id,name){
+  const byId=GEO_COORDS[String(id).trim()];
+  if(byId)return{lat:byId[0],lon:byId[1]};
+  if(name){
+    const parts=String(name).split(/[,，/、]/).map(normCity).filter(Boolean);
+    for(const p of parts)if(GAZETTEER[p])return{lat:GAZETTEER[p][0],lon:GAZETTEER[p][1]};
+    for(const key in GAZETTEER)for(const p of parts)
+      if(p.length>=2&&(p.includes(key)||key.includes(p)))return{lat:GAZETTEER[key][0],lon:GAZETTEER[key][1]};
+  }
+  return{lat:null,lon:null};
+}
+
+const asArr=x=>Array.isArray(x)?x:(x==null?[]:[x]);
+function findTimeArrayKey(o){
+  for(const k of["DateTime","dateTime","DataTime","dataTime","ObsTime","obsTime","Time","time"])if(Array.isArray(o[k]))return k;
+  for(const k in o)if(/date.?time|obstime|^time$/i.test(k)&&Array.isArray(o[k]))return k;
+  return null;
+}
+/* 尋找欄位式（平行陣列）資料物件 */
+function findColumnar(root,ds){
+  let hit=null;
+  (function walk(o){
+    if(hit||!o||typeof o!=="object")return;
+    if(Array.isArray(o)){o.forEach(walk);return;}
+    const tk=findTimeArrayKey(o);
+    if(tk&&ds.fields.some(f=>Array.isArray(o[f.key]))){hit={obj:o,timeKey:tk};return;}
+    for(const k in o)walk(o[k]);
+  })(root);
+  return hit;
+}
+function parseColumnar(o,timeKey,ds){
+  const stations={};
+  const times=o[timeKey],N=times.length;
+  const ids=asArr(o.StationID||o.stationId||o.StationID||o.LocationID||o.locationId);
+  const names=asArr(o.LocationName||o.locationName||o.StationName||o.stationName);
+  const latArr=asArr(o.StationLatitude||o.Latitude||o.latitude||o.lat);
+  const lonArr=asArr(o.StationLongitude||o.Longitude||o.longitude||o.lon);
+  const fa={};ds.fields.forEach(f=>fa[f.key]=asArr(o[f.key]));
+  const nS=ids.length;
+  function mk(id,name,i){
+    const c=coordFor(id,name);
+    let lat=c.lat,lon=c.lon;
+    if(lat==null&&latArr[i]!=null){const a=parseFloat(latArr[i]),b=parseFloat(lonArr[i]);if(isFinite(a)&&isFinite(b)){lat=a;lon=b;}}
+    return{id:String(id),name:name?String(name):String(id),lat,lon,obs:[]};
+  }
+  function push(st,i){
+    const d=parseDT(times[i],ds.tz);if(!d||isNaN(d.getTime()))return;
+    const rec={t:d.toISOString()};
+    ds.fields.forEach(f=>{let v=num(fa[f.key][i]);if(ds.zeroMissing&&v===0)v=null;rec[f.key]=v;});
+    st.obs.push(rec);
+  }
+  if(nS<=1){
+    const st=mk(ids[0]||"__single",names[0]||ds.name,0);
+    for(let i=0;i<N;i++)push(st,i);stations[st.id]=st;
+  }else if(N%nS===0){
+    const block=N/nS;
+    const timeMajor=N>1&&String(times[0])===String(times[1]); // 時間優先（各時刻11站交錯）vs 測站優先（整段連續）
+    for(let k=0;k<nS;k++){
+      const st=mk(ids[k],names[k],k);
+      if(timeMajor){for(let j=0;j<block;j++)push(st,j*nS+k);}
+      else{for(let j=0;j<block;j++)push(st,k*block+j);}
+      stations[st.id]=st;
+    }
+  }else{
+    const st=mk("__all",ds.name,0);for(let i=0;i<N;i++)push(st,i);stations[st.id]=st;
+  }
+  return stations;
+}
+
+/* 巢狀（一站一物件）備援解析 */
+function parseNested(root,ds){
+  const stations={};
+  function ensure(info){
+    if(!stations[info.id])stations[info.id]={id:info.id,name:info.name,lat:info.lat,lon:info.lon,obs:[]};
+    else{const s=stations[info.id];if(s.lat==null&&info.lat!=null){s.lat=info.lat;s.lon=info.lon;}
+      if((!s.name||s.name===s.id)&&info.name)s.name=info.name;}
+    return stations[info.id];
+  }
+  function measured(o){return ds.fields.some(f=>getField(o,f.key)!=null);}
+  function visit(o,ctx){
+    if(!o||typeof o!=="object")return;
+    if(Array.isArray(o)){o.forEach(x=>visit(x,ctx));return;}
+    let cur=ctx;const info=stationInfo(o);if(info){cur=ensure(info);if(cur.lat==null){const c=coordFor(cur.id,cur.name);if(c.lat!=null){cur.lat=c.lat;cur.lon=c.lon;}}}
+    const dt=getDT(o);
+    if(dt&&measured(o)){
+      const d=parseDT(dt,ds.tz);
+      if(d&&!isNaN(d.getTime())){
+        const rec={t:d.toISOString()};
+        ds.fields.forEach(f=>{let v=num(getField(o,f.key));if(ds.zeroMissing&&v===0)v=null;rec[f.key]=v;});
+        const st=cur||ensure({id:"__single",name:ds.name,lat:null,lon:null});st.obs.push(rec);
+      }
+    }
+    for(const k in o)visit(o[k],cur);
+  }
+  visit(root,null);
+  return stations;
+}
+
+function finalizeStations(stations,ds){
+  Object.values(stations).forEach(st=>{
+    st.obs.sort((a,b)=>new Date(a.t)-new Date(b.t));
+    st.latest={};st.latestT=st.obs.length?st.obs[st.obs.length-1].t:null;
+    ds.fields.forEach(f=>{for(let i=st.obs.length-1;i>=0;i--){if(st.obs[i][f.key]!=null){st.latest[f.key]=st.obs[i][f.key];break;}}});
+    st.status=checkStatus(st,ds);
+  });
+  return stations;
+}
+
+function parseDataset(root,ds){
+  const col=findColumnar(root,ds);
+  let stations=col?parseColumnar(col.obj,col.timeKey,ds):parseNested(root,ds);
+  if(!Object.keys(stations).length)stations=parseNested(root,ds); // 保險
+  return finalizeStations(stations,ds);
+}
+
+function checkStatus(st,ds){
+  let hasData=ds.fields.some(f=>st.latest[f.key]!=null);
+  let health="normal",ageHrs=null;
+  if(st.latestT){ageHrs=(Date.now()-new Date(st.latestT))/3600000;}
+  if(!st.latestT||!hasData)health="offline";
+  else if(ageHrs>=12)health="offline";
+  else if(ageHrs>=3)health="warning";
+  // 異常值偵測
+  let alert=false;const msgs=[];
+  ds.fields.forEach(f=>{
+    const v=st.latest[f.key];
+    if(v!=null&&f.valid&&!f.valid(v)){alert=true;msgs.push(`${f.label} 異常 (${v} ${f.unit})`);}
+  });
+  return{health,ageHrs,alert,msgs,hasData};
+}
+
+/* ===================== 地圖 ===================== */
+const map=L.map("map",{zoomControl:true});
+map.setView([23.7,121.0],7);
+const BASES={
+  dark:L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",{maxZoom:20,attribution:"© CARTO © OpenStreetMap ‧ 資料：中央氣象署"}),
+  osm:L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap ‧ 資料：中央氣象署"}),
+  sat:L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:19,attribution:"Esri World Imagery ‧ 資料：中央氣象署"}),
+  topo:L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",{maxZoom:17,attribution:"© OpenTopoMap ‧ 資料：中央氣象署"}),
+  light:L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",{maxZoom:20,attribution:"© CARTO © OpenStreetMap ‧ 資料：中央氣象署"})
+};
+let curBase=BASES.dark.addTo(map);
+const layerG=L.layerGroup().addTo(map);
+let markers={},selectedId=null;
+
+function stationsOf(){return CACHE[DATASETS[curDS].code]?CACHE[DATASETS[curDS].code].stations:{};}
+function curMapVar(){
+  const ds=DATASETS[curDS];
+  const opts=[{key:"__type",label:"測站分布"}].concat(ds.fields);
+  return opts.find(v=>v.key===$("mapVarSel").value)||opts[0];
+}
+function fieldDomain(fkey){
+  const vals=Object.values(stationsOf()).map(s=>s.latest[fkey]).filter(v=>v!=null);
+  if(!vals.length)return null;
+  let mn=Math.min(...vals),mx=Math.max(...vals);
+  if(mn===mx){mn-=1;mx+=1;}
+  return[mn,mx];
+}
+
+function makeIcon(st,color,sel,alert){
+  const ds=DATASETS[curDS];
+  const mobile=window.innerWidth<=860;
+  const s=sel?(mobile?30:26):(mobile?22:20);
+  return L.divIcon({className:"stnicon",iconSize:[s+6,s+6],iconAnchor:[(s+6)/2,(s+6)/2],
+    html:`<div class="m ${sel?'sel':''} ${alert?'pulse-alert':''}" style="width:${s}px;height:${s}px;background:${color}">${ds.em}</div>`});
+}
+
+let currentFilter="all";
+function setFilter(f){
+  currentFilter=(currentFilter===f)?"all":f;
+  document.querySelectorAll(".kpi-card").forEach(c=>c.classList.remove("active"));
+  if(currentFilter!=="all"){const a=$("kpi-"+currentFilter);if(a)a.classList.add("active");}
+  renderMap(false);fillStationSel();
+}
+function passFilter(st){
+  const s=st.status;
+  if(currentFilter==="normal")return s.health==="normal"&&!s.alert;
+  if(currentFilter==="warning")return s.health==="warning";
+  if(currentFilter==="offline")return s.health==="offline";
+  if(currentFilter==="alert")return s.alert;
+  return true;
+}
+
+function renderMap(fit){
+  const ds=DATASETS[curDS],v=curMapVar(),isType=v.key==="__type";
+  layerG.clearLayers();markers={};
+  const pts=[];let located=0,nostn=0;
+  const dom=isType?null:fieldDomain(v.key);
+  Object.values(stationsOf()).forEach(st=>{
+    if(!passFilter(st))return;
+    if(st.lat==null||st.lon==null){nostn++;return;}
+    located++;
+    const val=isType?null:st.latest[v.key];
+    let color=ds.color;
+    if(!isType){color=val==null?"#7a8aa3":(dom?rampColor((val-dom[0])/(dom[1]-dom[0])):ds.color);}
+    const m=L.marker([st.lat,st.lon],{icon:makeIcon(st,color,st.id===selectedId,st.status.alert)});
+    m.bindTooltip(st.name||st.id,{direction:"top",offset:[0,-10]});
+    m.bindPopup(popupHTML(st,v));
+    m.on("click",()=>selectStation(st.id,false));
+    m.addTo(layerG);markers[st.id]=m;pts.push([st.lat,st.lon]);
+  });
+  if(fit&&pts.length){map.fitBounds(L.latLngBounds(pts),{padding:[40,40],maxZoom:9});}
+  // 圖例
+  if(isType){
+    $("legTitle").textContent=`${ds.em} ${ds.name} · ${located} 站（參考位置）`;
+    $("legBar").style.display="none";$("legTicks").innerHTML="";
+  }else{
+    $("legTitle").textContent=`${v.label}（${v.unit}）· 各站最新值`;
+    $("legBar").style.display="block";$("legBar").style.background=gradientCSS();
+    $("legTicks").innerHTML=dom?`<span>${(+dom[0]).toFixed(1)}</span><span>${((dom[0]+dom[1])/2).toFixed(1)}</span><span>${(+dom[1]).toFixed(1)}</span>`:"<span>無資料</span>";
+  }
+  $("legNote").innerHTML=(nostn?`⚠ ${nostn} 站無參考點，僅列於清單<br>`:"")+`<span style="color:var(--muted)">📍 圖上為約略參考位置，非真實座標</span>`;
+}
+
+function popupHTML(st,v){
+  const ds=DATASETS[curDS],l=st.latest;
+  const row=(k,x,u)=>x==null?"":`<div style="display:flex;justify-content:space-between;gap:14px"><span style="color:#9fb0c8">${k}</span><span>${x}${u?" "+u:""}</span></div>`;
+  return`<b>${st.name||st.id}</b> <small style="color:#9fb0c8">${st.id}</small><br>
+    <div style="margin:4px 0 2px;font-size:13px;font-weight:700;color:${ds.color}">${ds.em} ${ds.name}</div>
+    ${ds.fields.map(f=>row(f.label,l[f.key],f.unit)).join("")}
+    <div style="color:#9fb0c8;margin-top:4px;font-size:11px">🕒 ${fmtFull(st.latestT)}</div>`;
+}
+
+/* ===================== 右側：時序圖 ===================== */
+let charts=[];
+Chart.defaults.color="#9fb0c8";
+Chart.defaults.borderColor="rgba(42,58,87,.6)";
+Chart.defaults.font.family='"Segoe UI","Microsoft JhengHei",sans-serif';
+function destroyCharts(){charts.forEach(c=>c.destroy());charts=[];$("charts").innerHTML="";}
+const SERIES_COLOR=["#a78bfa","#22d3ee","#f59e0b","#34d399","#f472b6","#60a5fa"];
+
+function addChart(title,labels,datasets,yTitle){
+  const box=document.createElement("div");box.className="chartbox";
+  box.innerHTML=`<div class="ct">${title}</div><div class="cwrap"><canvas></canvas></div>`;
+  $("charts").appendChild(box);
+  const c=new Chart(box.querySelector("canvas"),{
+    type:"line",data:{labels,datasets},
+    options:{responsive:true,maintainAspectRatio:false,animation:false,spanGaps:true,
+      interaction:{mode:"index",intersect:false},
+      plugins:{legend:{labels:{boxWidth:18,boxHeight:3,font:{size:11}}},
+        tooltip:{backgroundColor:"#16213a",borderColor:"#2a3a57",borderWidth:1}},
+      scales:{x:{ticks:{maxTicksLimit:8,maxRotation:0},grid:{display:false}},
+        y:{title:{display:!!yTitle,text:yTitle},grid:{color:"rgba(42,58,87,.5)"}}}}
+  });
+  charts.push(c);
+}
+const LSTYLE={borderWidth:2,pointRadius:0,tension:.25};
+const any=a=>a.some(x=>x!=null);
+
+function selectStation(id,openPopup){
+  const ds=DATASETS[curDS],st=stationsOf()[id];if(!st)return;
+  selectedId=id;$("stSel").value=id;renderMap(false);
+  if(openPopup&&markers[id]){markers[id].openPopup();map.panTo(markers[id].getLatLng());}
+  $("side").scrollTop=0;$("emptyMsg").style.display="none";
+  const card=$("stCard");card.style.display="block";const l=st.latest;
+  const stat=st.status;
+  let statusText="🟢 正常運作";
+  if(stat.health==="warning")statusText=`🟡 延遲 (${Math.round(stat.ageHrs)} 小時前更新)`;
+  else if(stat.health==="offline")statusText=`🔴 離線 (${stat.ageHrs?Math.round(stat.ageHrs)+" 小時前更新":"無資料"})`;
+  if(stat.alert)statusText+=" ‧ ⚠️ 數值異常";
+  const chip=(k,val,unit)=>val==null?"":`<div class="chip">${k}<b>${(typeof val==="number"?(Math.abs(val)>=100?val.toFixed(1):val.toFixed(2)):val)}${unit?" "+unit:""}</b></div>`;
+  card.innerHTML=`<h2>${st.name||st.id} <small>${st.id}</small><span class="tag">${ds.em} ${ds.name}</span></h2>
+    <div style="font-size:12px;margin:4px 0 8px;font-weight:600;color:${stat.health==='normal'?'#10b981':(stat.health==='warning'?'#f59e0b':'#ef4444')}">${statusText}</div>
+    <div class="meta">最新觀測：${fmtFull(st.latestT)}（共 ${st.obs.length} 筆）${st.lat!=null?' ‧ <span title="依所在地名之約略參考位置，非真實座標">📍參考位置</span>':''}</div>
+    <div class="chips">${ds.fields.map(f=>chip(f.label,l[f.key],f.unit)).join("")}</div>`;
+  /* 時序圖 */
+  destroyCharts();
+  const rows=st.obs,labels=rows.map(r=>fmtT(r.t));
+  ds.charts.forEach(cfg=>{
+    const dss=[];let hasAny=false;
+    cfg.series.forEach((sk,i)=>{
+      const data=rows.map(r=>r[sk]);if(any(data))hasAny=true;
+      const f=ds.fields.find(x=>x.key===sk);
+      dss.push({label:(f?f.label:sk)+(f&&f.unit?` (${f.unit})`:""),data,
+        borderColor:SERIES_COLOR[i%SERIES_COLOR.length],
+        backgroundColor:cfg.series.length===1?"rgba(139,92,246,.12)":"transparent",
+        fill:cfg.series.length===1,...LSTYLE});
+    });
+    if(hasAny)addChart(cfg.title,labels,dss,cfg.yTitle);
+  });
+  if(!charts.length)$("charts").innerHTML='<div id="emptyMsg" style="display:block">此測站近期皆為缺測</div>';
+}
+
+/* ===================== 控制列 / 頁籤 ===================== */
+function buildTabs(){
+  const box=$("dsTabs");box.innerHTML="";
+  Object.entries(DATASETS).forEach(([key,ds])=>{
+    const t=document.createElement("div");t.className="ds-tab"+(key===curDS?" active":"");
+    t.innerHTML=`<span class="em">${ds.em}</span><span>${ds.name}</span><span class="cnt" id="tabcnt-${key}">—</span>`;
+    t.onclick=()=>switchDS(key);
+    box.appendChild(t);
+  });
+}
+function buildMapVarSel(){
+  const ds=DATASETS[curDS],sel=$("mapVarSel");sel.innerHTML="";
+  const add=(k,label)=>{const o=document.createElement("option");o.value=k;o.textContent=label;sel.appendChild(o);};
+  add("__type","測站分布");
+  ds.fields.forEach(f=>add(f.key,"著色："+f.label));
+}
+
+async function switchDS(key){
+  if(key===curDS&&CACHE[DATASETS[key].code])return;
+  curDS=key;selectedId=null;currentFilter="all";
+  document.querySelectorAll(".kpi-card").forEach(c=>c.classList.remove("active"));
+  buildTabs();buildMapVarSel();
+  $("dsSub").textContent=DATASETS[key].code+" · 自動更新";
+  $("stCard").style.display="none";$("emptyMsg").style.display="block";destroyCharts();
+  await ensureData(key,true);
+}
+
+$("mapVarSel").onchange=()=>renderMap(false);
+$("stSel").onchange=e=>{if(e.target.value)selectStation(e.target.value,true);};
+$("baseSel").onchange=e=>{map.removeLayer(curBase);curBase=BASES[e.target.value].addTo(map);curBase.bringToBack();};
+$("reload").onclick=()=>load(true);
+$("changeKey").onclick=()=>openGate();
+
+function fillStationSel(){
+  const list=Object.values(stationsOf()).filter(passFilter)
+    .sort((a,b)=>(a.name||a.id).localeCompare(b.name||b.id,"zh-Hant"));
+  $("stSel").innerHTML='<option value="">— 選擇測站 —</option>'
+    +list.map(st=>`<option value="${st.id}">${st.name||st.id}（${st.id}）</option>`).join("");
+}
+
+/* ===================== KPI / 警報 ===================== */
+function updateDashboardUI(){
+  let normal=0,warning=0,offline=0,alert=0,html="";
+  Object.values(stationsOf()).forEach(st=>{
+    const s=st.status;
+    if(s.health==="offline")offline++;
+    else if(s.health==="warning")warning++;
+    else normal++;
+    if(s.alert){alert++;
+      html+=`<div class="alert-item" onclick="selectStation('${st.id}',true)">
+        <span><span class="time">${fmtT(st.latestT)}</span><b>${st.name||st.id}</b>：${s.msgs.join("、")}</span></div>`;
+    }
+  });
+  $("count-normal").textContent=normal;$("count-warning").textContent=warning;
+  $("count-offline").textContent=offline;$("count-alert").textContent=alert;
+  const total=normal+warning+offline;
+  const cnt=$("tabcnt-"+curDS);if(cnt)cnt.textContent=total;
+  const box=$("alertLogBox");
+  if(alert>0){box.style.display="block";$("alertLogList").innerHTML=html;}
+  else box.style.display="none";
+}
+
+/* ===================== 倒數更新 ===================== */
+let countdownSec=300,countdownTimerId=null;
+function startCountdown(){
+  if(countdownTimerId)clearInterval(countdownTimerId);
+  countdownSec=300;
+  countdownTimerId=setInterval(()=>{
+    countdownSec--;
+    if(countdownSec<=0){clearInterval(countdownTimerId);load(true);}
+    else{const m=Math.floor(countdownSec/60),s=countdownSec%60;
+      $("countdownTimer").textContent=`⏱️ ${m}:${String(s).padStart(2,"0")} 後更新`;}
+  },1000);
+}
+
+/* ===================== 資料載入 ===================== */
+async function fetchDataset(code){
+  try{const r=await fetch(urlFile(code,KEY));if(r.ok){const j=await r.json();return j;}}catch(e){}
+  try{const r=await fetch(urlS3(code));if(r.ok)return await r.json();}catch(e){}
+  return null;
+}
+async function ensureData(key,render){
+  const ds=DATASETS[key];
+  $("loader").style.display="flex";
+  try{
+    if(!CACHE[ds.code]){
+      const j=await fetchDataset(ds.code);
+      if(!j)throw new Error("無法取得資料（金鑰無效或網路問題）");
+      if(j.success==="false"||j.Success==="false"){$("loader").style.display="none";openGate("金鑰無效或未授權");return;}
+      RAW[ds.code]=j; // 供診斷使用
+      CACHE[ds.code]={stations:parseDataset(j,ds),fetchedAt:Date.now()};
+    }
+    if(render&&key===curDS){
+      const n=Object.keys(stationsOf()).length;
+      if(!n){ // 有取到 JSON 但解析不出測站 → 非阻斷式提示，仍可用 🐞 回報結構
+        $("loader").style.display="none";
+        layerG.clearLayers();$("stCard").style.display="none";destroyCharts();updateDashboardUI();
+        $("emptyMsg").style.display="block";
+        $("emptyMsg").innerHTML='⚠ 已取得資料，但無法辨識此資料集的結構。<br>請點右上角 <b>🐞</b> 按鈕，把結構骨架複製給我，我再調整解析。';
+        $("obsTime").textContent="⚠ 已下載資料，待對應結構";
+        return;
+      }
+      $("emptyMsg").innerHTML='⬅ 點選地圖測站（或上方下拉選單），右側顯示觀測時序圖';
+      fillStationSel();renderMap(true);updateDashboardUI();
+      const newest=Object.values(stationsOf()).map(s=>s.latestT).filter(Boolean).sort().pop();
+      const loc=Object.values(stationsOf()).filter(s=>s.lat!=null).length;
+      $("obsTime").textContent="🕒 "+fmtFull(newest)+`｜${n} 站（${loc} 站標示參考位置）`;
+      const first=Object.values(stationsOf()).find(s=>s.lat!=null)||Object.values(stationsOf())[0];
+      if(first)selectStation(first.id,false);
+      startCountdown();
+    }
+    $("loader").style.display="none";
+  }catch(e){
+    $("loader").style.display="none";
+    openGate("載入失敗："+e.message);
+  }
+}
+async function load(force){
+  if(!KEY){openGate();return;}
+  if(force)CACHE[DATASETS[curDS].code]=null;
+  await ensureData(curDS,true);
+}
+
+/* ===================== 金鑰畫面 ===================== */
+function setKey(k){KEY=k.trim();}
+function openGate(msg){
+  $("gate").style.display="flex";
+  if(msg){$("keyErr").textContent=msg;$("keyErr").style.display="block";}else{$("keyErr").style.display="none";}
+  const inp=$("keyInput");if(KEY)inp.value=KEY;setTimeout(()=>inp.focus(),50);
+}
+function closeGate(){$("gate").style.display="none";}
+$("keyToggle").onclick=()=>{const inp=$("keyInput");inp.type=inp.type==="password"?"text":"password";};
+function submitKey(){
+  const k=$("keyInput").value.trim();
+  if(!k){$("keyErr").textContent="請輸入 API 授權碼";$("keyErr").style.display="block";return;}
+  setKey(k);
+  if($("rememberKey").checked){try{localStorage.setItem(STORE,k);}catch(e){}}
+  else{try{localStorage.removeItem(STORE);}catch(e){}}
+  closeGate();load(true);
+}
+$("enterBtn").onclick=submitKey;
+$("keyInput").addEventListener("keydown",e=>{if(e.key==="Enter")submitKey();});
+
+/* ===================== 診斷面板 ===================== */
+$("diagBtn").onclick=()=>{
+  const code=DATASETS[curDS].code;
+  const j=RAW[code];
+  $("diagCode").textContent=code+" · "+DATASETS[curDS].name;
+  $("diagText").value=j?skeleton(j):"（尚未取得此資料集的原始資料，請先載入該頁籤）";
+  $("diagModal").style.display="flex";
+};
+$("diagClose").onclick=()=>{$("diagModal").style.display="none";};
+$("diagModal").onclick=e=>{if(e.target.id==="diagModal")$("diagModal").style.display="none";};
+$("diagCopy").onclick=()=>{
+  const t=$("diagText");t.select();
+  try{navigator.clipboard.writeText(t.value);}catch(e){document.execCommand("copy");}
+  $("diagCopy").textContent="✓ 已複製";setTimeout(()=>$("diagCopy").textContent="📋 複製到剪貼簿",1500);
+};
+
+/* ===================== 圖例控制 ===================== */
+(function legendCtrl(){
+  const box=$("legendBox"),tg=$("legToggleBtn"),pos=$("legPosBtn");
+  tg.onclick=e=>{e.stopPropagation();const m=box.classList.toggle("minimized");tg.textContent=m?"+":"−";};
+  pos.onclick=e=>{e.stopPropagation();box.classList.toggle("pos-right");};
+})();
+
+/* ===================== 初始化 ===================== */
+(function init(){
+  buildTabs();buildMapVarSel();
+  let saved="";try{saved=localStorage.getItem(STORE)||"";}catch(e){}
+  if(saved){$("rememberKey").checked=true;setKey(saved);closeGate();load(true);}
+  else openGate();
+})();
+</script>
+</body>
+</html>

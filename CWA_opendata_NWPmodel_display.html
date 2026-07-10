@@ -490,6 +490,7 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.25)}
         <option value="gfs">全球模式 GFS（M-A0060）</option>
         <option value="wrf15">區域模式 WRF 15km（M-A0061）</option>
         <option value="wrf3">區域模式 WRF 3km（M-A0064）</option>
+        <option value="ocean">海流數值模式（M-B0071）</option>
       </select>
     </div>
 
@@ -554,7 +555,7 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.25)}
       <!-- 風場粒子開關（可疊在任何色階場之上）-->
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:8px;border-top:1px solid var(--border2);padding-top:8px;font-size:13px;user-select:none">
         <input type="checkbox" id="particleChk" checked style="width:14px;height:14px;cursor:pointer">
-        <span>🌬️ 顯示風場粒子（離地 10m 風）</span>
+        <span id="particleLabel">🌬️ 顯示風場粒子（離地 10m 風）</span>
       </label>
 
       <!-- 流場粒子密度控制 -->
@@ -663,6 +664,8 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.25)}
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<!-- jsfive：純 JS HDF5 讀取器（海流模式 M-B0071 為 NetCDF-4/HDF5，需此函式庫解析）-->
+<script src="https://cdn.jsdelivr.net/npm/jsfive@0.4.0/dist/browser/hdf5.js"></script>
 <script>
 /* ═══════════════════════════════════════════════
    CWA GFS GRIB2 Visualization
@@ -896,11 +899,14 @@ $('fcstSlider').addEventListener('change',function(e){
 /* ── 數值預報模式設定表 ─────────────────────── */
 /* maxHour / step / tickStep 為 WRF 常見值，若與實際不符，改此處即可 */
 var MODELS={
-  gfs:  {id:'M-A0060', name:'全球預報模式 GFS', maxHour:384, step:6, tickStep:24, view:[23.5,180,3]},
-  wrf15:{id:'M-A0061', name:'區域模式 WRF 15km', maxHour:84,  step:6, tickStep:12, view:[23.5,121,6]},
-  wrf3: {id:'M-A0064', name:'區域模式 WRF 3km',  maxHour:84,  step:6, tickStep:12, view:[23.7,121,7]}
+  gfs:  {id:'M-A0060', name:'全球預報模式 GFS', maxHour:384, step:6, tickStep:24, view:[23.5,180,3], type:'atmos'},
+  wrf15:{id:'M-A0061', name:'區域模式 WRF 15km', maxHour:84,  step:6, tickStep:12, view:[23.5,121,6], type:'atmos'},
+  wrf3: {id:'M-A0064', name:'區域模式 WRF 3km',  maxHour:84,  step:6, tickStep:12, view:[23.7,121,7], type:'atmos'},
+  /* 海流模式：時距/間隔為推測值，實測後改此處即可 */
+  ocean:{id:'M-B0071', name:'海流數值模式',       maxHour:72,  step:6, tickStep:12, view:[24.5,122,6], type:'ocean'}
 };
 var curModel='gfs';
+function curType(){ return (MODELS[curModel]&&MODELS[curModel].type)||'atmos'; }
 
 /* 依模式重建時間軸刻度標示 */
 function buildTimeTicks(maxHour,tickStep){
@@ -927,6 +933,9 @@ function applyModel(key){
   $('fcstLabel').textContent=fcstHourLabel(0);
   buildTimeTicks(m.maxHour,m.tickStep);
   map.setView([m.view[0],m.view[1]],m.view[2]);
+  /* 粒子圖層標籤依模式類型切換（風 vs 海流）*/
+  var pl=$('particleLabel');
+  if(pl) pl.textContent = (m.type==='ocean') ? '🌊 顯示海流粒子（表層流）' : '🌬️ 顯示風場粒子（離地 10m 風）';
 }
 
 $('modelSel').onchange=function(e){
@@ -1070,7 +1079,11 @@ var PARAM_NAMES={
   '0-6-1':'Total Cloud','0-6-3':'Low Cloud','0-6-4':'Mid Cloud','0-6-5':'High Cloud',
   '0-7-6':'CAPE','0-7-7':'CIN','0-7-8':'Helicity',
   '0-14-0':'Total Ozone','0-19-0':'Visibility',
-  '2-0-0':'Land Cover','10-0-3':'Sig Wave Height'
+  '2-0-0':'Land Cover','10-0-3':'Sig Wave Height',
+  /* 海洋 (discipline 10) — 代碼為推測值，實測後可校正 */
+  '10-1-0':'Current Direction','10-1-1':'Current Speed','10-1-2':'U-Current','10-1-3':'V-Current',
+  'current-vector':'Current Speed/Direction',
+  '10-3-0':'Water Temperature','10-3-1':'Sea Surface Height','10-4-2':'Salinity'
 };
 var PARAM_NAMES_TW={
   '0-0-0':'氣溫','0-0-6':'露點溫度','0-0-7':'露點溫度差',
@@ -1079,11 +1092,16 @@ var PARAM_NAMES_TW={
   '0-2-2':'緯向風速 (U)','0-2-3':'經向風速 (V)','wind-vector':'風速/風向 (向量)','0-2-8':'垂直速度 (Pa/s)','0-2-10':'絕對渦度',
   '0-2-22':'瞬間陣風',
   '0-3-0':'氣壓','0-3-1':'海平面氣壓','0-3-5':'重力位高度',
-  '0-6-1':'總雲量','0-7-6':'對流可用位能 (CAPE)','0-7-7':'對流抑制能 (CIN)'
+  '0-6-1':'總雲量','0-7-6':'對流可用位能 (CAPE)','0-7-7':'對流抑制能 (CIN)',
+  /* 海洋 (discipline 10) — 代碼為推測值，實測後可校正 */
+  '10-1-1':'海流流速','10-1-2':'緯向流速 (U)','10-1-3':'經向流速 (V)',
+  'current-vector':'海流流速/流向 (向量)',
+  '10-3-0':'海水溫度','10-3-1':'海面高度','10-4-2':'鹽度'
 };
 var LEVEL_TYPES={
-  1:'地面',100:'等壓面',101:'海平面',103:'地面以上固定高度',
-  104:'sigma',105:'hybrid',106:'地下深度',108:'等壓面間',200:'大氣全層',10:'對流層頂'
+  1:'地面/海面',100:'等壓面',101:'海平面',103:'地面以上固定高度',
+  104:'sigma',105:'hybrid',106:'地下深度',108:'等壓面間',200:'大氣全層',10:'對流層頂',
+  160:'海面下深度'
 };
 
 /* ── Section 3: Grid Definition ──────────── */
@@ -1278,6 +1296,7 @@ function scanGrib2(buf){
       var levS=LEVEL_TYPES[ltype]||(ltype+'');
       if(ltype===100) levS=(aLev/100)+' hPa';
       else if(ltype===103) levS='離地 ' + aLev + ' 公尺';
+      else if(ltype===160) levS='海面下 ' + aLev + ' 公尺';
       var tk=e.rep?e.rep.template:'?';tplStats[tk]=(tplStats[tk]||0)+1;
 
       var nameTW=PARAM_NAMES_TW[key]||PARAM_NAMES[key]||('P'+key);
@@ -1318,35 +1337,38 @@ function scanGrib2(buf){
       console.log('[GRIB2] spatial: order='+m.rep.spatialOrder+' iosp='+m.rep.extraDescOctets);
   }
 
-  /* ── 尋找同高度層的 U/V 風分量並合併為虛擬的風速向量變數 ── */
-  var uComponents={};
-  var vComponents={};
-  for(var i=0;i<msgs.length;i++){
-    var m=msgs[i];
-    var levKey=m.levelType + '-' + m.levelVal;
-    if(m.key==='0-2-2'){ uComponents[levKey]=m; }
-    else if(m.key==='0-2-3'){ vComponents[levKey]=m; }
-  }
+  /* ── 診斷：列出檔案中所有唯一的「參數代碼 @ 高度層」 ── */
+  (function(){
+    var seen={};
+    for(var i=0;i<msgs.length;i++){var m=msgs[i];var k=m.key+' @ '+m.levelStr;if(!seen[k]){seen[k]=1;}}
+    console.log('[GRIB2] 參數清單:', Object.keys(seen).join(' | '));
+  })();
 
+  /* ── 合併同層 U/V 分量為虛擬向量變數（大氣風 + 海流）── */
+  var VEC_PAIRS=[
+    {u:'0-2-2', v:'0-2-3', key:'wind-vector',    name:'Wind Vector',    nameTW:'風速/風向 (向量)',   flag:'isVirtualWind'},
+    {u:'10-1-2',v:'10-1-3',key:'current-vector', name:'Current Vector', nameTW:'海流流速/流向 (向量)', flag:'isVirtualCurrent'}
+  ];
   var virtualIndex=msgs.length;
-  for(var levKey in uComponents){
-    if(vComponents[levKey]){
-      var msgU=uComponents[levKey];
-      var msgV=vComponents[levKey];
-      msgs.push({
-        index:virtualIndex++,
-        isVirtualWind:true,
-        key:'wind-vector',
-        name:'Wind Vector',
-        nameTW:'風速/風向 (向量)',
-        levelStr:msgU.levelStr,
-        levelType:msgU.levelType,
-        levelVal:msgU.levelVal,
-        grid:msgU.grid,
-        rep:msgU.rep,
-        msgU:msgU,
-        msgV:msgV
-      });
+  for(var pi=0;pi<VEC_PAIRS.length;pi++){
+    var pair=VEC_PAIRS[pi];
+    var uComp={}, vComp={};
+    for(var i=0;i<msgs.length;i++){
+      var m=msgs[i];
+      var levKey=m.levelType+'-'+m.levelVal;
+      if(m.key===pair.u){ uComp[levKey]=m; }
+      else if(m.key===pair.v){ vComp[levKey]=m; }
+    }
+    for(var levKey in uComp){
+      if(vComp[levKey]){
+        var msgU=uComp[levKey], msgV=vComp[levKey];
+        var vm={index:virtualIndex++, key:pair.key, name:pair.name, nameTW:pair.nameTW,
+          levelStr:msgU.levelStr, levelType:msgU.levelType, levelVal:msgU.levelVal,
+          grid:msgU.grid, rep:msgU.rep, msgU:msgU, msgV:msgV};
+        vm[pair.flag]=true;
+        vm.isVirtualWind = (pair.key==='wind-vector');   /* 沿用既有欄位供其他程式判斷 */
+        msgs.push(vm);
+      }
     }
   }
 
@@ -1355,6 +1377,8 @@ function scanGrib2(buf){
 
 /* ── 解碼指定訊息資料 ─────────────────────── */
 function decodeMessage(buf,msg){
+  /* NetCDF（海流模式）：資料已於解析階段預先解出，直接回傳 Float32Array */
+  if(msg && msg.ncValues) return msg.ncValues;
   var u8=new Uint8Array(buf),rep=msg.rep,grid=msg.grid;
   if(!rep||!grid) return null;
   var N=grid.nx*grid.ny;
@@ -1446,6 +1470,22 @@ var COLOR_SCALES={
     ],
     unit:'m/s',title:'風速 (m/s)',range:[0,50]
   },
+  current:{ /* 海流 m/s: 0~2.5（黑潮約 1~2 m/s）*/
+    stops:[
+      [0,'#0b2447'],[0.15,'#123a63'],[0.3,'#0e7490'],[0.5,'#0891b2'],
+      [0.75,'#059669'],[1.0,'#65a30d'],[1.25,'#ca8a04'],[1.5,'#ea580c'],
+      [2.0,'#dc2626'],[2.5,'#7c1d6f']
+    ],
+    unit:'m/s',title:'海流流速 (m/s)',range:[0,2.5]
+  },
+  sst:{ /* 海水溫度 °C: 0~32 */
+    stops:[
+      [0,'#3b1899'],[5,'#1e40af'],[10,'#0369a1'],[15,'#0891b2'],
+      [20,'#059669'],[24,'#65a30d'],[27,'#ca8a04'],[29,'#ea580c'],
+      [31,'#dc2626'],[32,'#9f1239']
+    ],
+    unit:'°C',title:'海水溫度 (°C)',range:[0,32]
+  },
   precipitation:{ /* mm: 0~100 */
     stops:[
       [0,'#1a1a2e'],[0.5,'#16537e'],[2,'#0ea5e9'],[5,'#06b6d4'],
@@ -1488,6 +1528,9 @@ function getColorScale(msg){
   if(k==='0-1-8'||k==='0-1-10') return 'precipitation';
   if(k==='0-1-1'||k==='0-1-0') return 'humidity';
   if(k==='0-3-5') return 'height';
+  /* 海洋 */
+  if(k==='10-1-1'||k==='10-1-2'||k==='10-1-3'||k==='current-vector') return 'current';
+  if(k==='10-3-0') return 'sst';
   return 'generic';
 }
 
@@ -1724,11 +1767,16 @@ function getWindAtLatLng(lat, lon){
     if(col < 0 || col >= g.nx || row < 0 || row >= g.ny) return null;
   }else{
     var gridLon = lon;
-    while(gridLon < 0) gridLon += 360;
-    while(gridLon >= 360) gridLon -= 360;
-    col = Math.round(gridLon / g.dx);
+    /* 僅在 0→360 全球格點時做經度環繞；區域格點（如海流模式 lon1≈105）保留原值 */
+    if(g.lon1>=0 && g.lon2>180){
+      while(gridLon < 0) gridLon += 360;
+      while(gridLon >= 360) gridLon -= 360;
+    }
+    col = Math.round((gridLon - (g.lon1||0)) / g.dx);
     col = Math.max(0, Math.min(g.nx - 1, col));
-    row = Math.round((g.lat1 - lat) / g.dy);
+    /* 依緯度排序方向決定列索引（lat1 為第一列的緯度）*/
+    if(g.lat1 > g.lat2) row = Math.round((g.lat1 - lat) / g.dy);
+    else                row = Math.round((lat - g.lat1) / g.dy);
     row = Math.max(0, Math.min(g.ny - 1, row));
   }
 
@@ -1764,7 +1812,7 @@ function initParticles() {
   }
 }
 
-/* 粒子配色：低速偏白 → 高速偏暖紅，且高速更亮 */
+/* 風場粒子配色：低速偏白 → 高速偏暖紅 (m/s，0~35+) */
 function getWindColor(speed) {
   if (speed < 3.0) return 'rgba(200, 224, 250, 0.55)';  // 近白淡藍
   if (speed < 8.0) return 'rgba(125, 211, 252, 0.75)';  // 亮青
@@ -1772,6 +1820,15 @@ function getWindColor(speed) {
   if (speed < 25.0) return 'rgba(250, 204, 21, 0.92)';  // 琥珀
   if (speed < 35.0) return 'rgba(251, 146, 60, 0.95)';  // 橘
   return 'rgba(248, 113, 113, 1.0)';                     // 珊瑚紅
+}
+/* 海流粒子配色：流速較小 (m/s，0~2+)，門檻對應洋流尺度 */
+function getCurrentColor(speed) {
+  if (speed < 0.15) return 'rgba(160, 200, 235, 0.50)';
+  if (speed < 0.40) return 'rgba(125, 211, 252, 0.75)';
+  if (speed < 0.75) return 'rgba(74, 222, 128, 0.85)';
+  if (speed < 1.10) return 'rgba(250, 204, 21, 0.92)';
+  if (speed < 1.60) return 'rgba(251, 146, 60, 0.95)';
+  return 'rgba(248, 113, 113, 1.0)';
 }
 
 function startWindAnimation() {
@@ -1801,8 +1858,10 @@ function startWindAnimation() {
     ctx.globalCompositeOperation = 'source-over';
 
     var zoom = map.getZoom();
-    // 位移量隨縮放調整，讓各縮放層級的流速觀感一致
-    var speedScale = 0.06 * Math.pow(1.12, zoom);
+    var oceanFlow = !!(windField && windField.ocean);
+    // 位移量隨縮放調整；海流流速較小故放大約 10 倍讓流動可見
+    var speedScale = (oceanFlow ? 0.6 : 0.06) * Math.pow(1.12, zoom);
+    var minSpeed = oceanFlow ? 0.03 : 0.5;   // 低於此流速的粒子重生
 
     for(var i = 0; i < windParticles.length; i++) {
       var p = windParticles[i];
@@ -1823,7 +1882,7 @@ function startWindAnimation() {
       }
 
       var speed = Math.sqrt(wind.u*wind.u + wind.v*wind.v);
-      if(speed < 0.5) {
+      if(speed < minSpeed) {
         p.x = Math.random() * canvas.width;
         p.y = Math.random() * canvas.height;
         p.age = 0;
@@ -1836,8 +1895,9 @@ function startWindAnimation() {
       var nextX = p.x + dx;
       var nextY = p.y + dy;
 
-      ctx.strokeStyle = getWindColor(speed);
-      ctx.lineWidth = speed > 25 ? 2.0 : (speed > 12 ? 1.5 : 1.1);
+      ctx.strokeStyle = oceanFlow ? getCurrentColor(speed) : getWindColor(speed);
+      ctx.lineWidth = oceanFlow ? (speed>1.2?1.8:(speed>0.6?1.4:1.1))
+                                : (speed>25?2.0:(speed>12?1.5:1.1));
       ctx.beginPath();
       ctx.moveTo(p.x, p.y);
       ctx.lineTo(nextX, nextY);
@@ -2088,12 +2148,37 @@ function renderGrid(values,grid,scaleName,msg){
     overlay=L.imageOverlay(canvas2.toDataURL('image/png'),bounds,
       {opacity:+$('op').value/100,pane:'datapane',interactive:false}).addTo(map);
   }else{
-    ctx.putImageData(imgData,0,0);
+    /* 區域等經緯格點 → 重投影至 Web Mercator。
+       imageOverlay 會把影像在麥卡托座標中線性拉伸，但等經緯資料的列在緯度上是線性、
+       在麥卡托 y 上非線性，若直接貼會造成緯向位移（投影錯位）。此處逐輸出列以
+       麥卡托 y 均分、反算地理緯度再取樣來源列，使影像與底圖正確對齊。*/
+    var d2rM=Math.PI/180;
+    var yN=Math.log(Math.tan(Math.PI/4+latN*d2rM/2));
+    var yS=Math.log(Math.tan(Math.PI/4+latS*d2rM/2));
+    var mh=ny, ascLat=(grid.lat1<=grid.lat2);
+    var cM=document.createElement('canvas'); cM.width=nx; cM.height=mh;
+    var ctxM=cM.getContext('2d');
+    var imgM=ctxM.createImageData(nx,mh), dM=imgM.data;
+    for(var jm=0;jm<mh;jm++){
+      var yy = yN + (mh<=1?0:(jm/(mh-1))*(yS-yN));
+      var latj = (2*Math.atan(Math.exp(yy)) - Math.PI/2)/d2rM;
+      var srcRowM = ascLat ? ((latj-grid.lat1)/grid.dy) : ((grid.lat1-latj)/grid.dy);
+      srcRowM = Math.round(srcRowM); if(srcRowM<0) srcRowM=0; if(srcRowM>ny-1) srcRowM=ny-1;
+      for(var im=0;im<nx;im++){
+        var vvM = values[srcRowM*nx+im];
+        var ppM = (jm*nx+im)*4;
+        if(!isFinite(vvM)){ dM[ppM+3]=0; continue; }
+        if(isKelvin) vvM-=273.15; if(isPa) vvM/=100;
+        var rgbM=getColorRGB(vvM,scale);
+        dM[ppM]=rgbM[0]; dM[ppM+1]=rgbM[1]; dM[ppM+2]=rgbM[2]; dM[ppM+3]=220;
+      }
+    }
+    ctxM.putImageData(imgM,0,0);
     if($('contourCheck').checked){
-      drawContourLines(ctx, values, grid, msg.key, vMin, vMax, isKelvin, isPa, nx, ny);
+      drawContourLines(ctxM, values, grid, msg.key, vMin, vMax, isKelvin, isPa, nx, ny);
     }
     bounds=[[latS,lonW],[latN,lonE]];
-    overlay=L.imageOverlay(canvas.toDataURL('image/png'),bounds,
+    overlay=L.imageOverlay(cM.toDataURL('image/png'),bounds,
       {opacity:+$('op').value/100,pane:'datapane',interactive:false}).addTo(map);
   }
 
@@ -2186,7 +2271,9 @@ map.on('mousemove',function(e){
       var compass = ["北","北北東","東北","東北東","東","東南東","東南","南南東","南","南南西","西南","西南西","西","西北西","西北","北北西"];
       var compassIdx = Math.round(dir / 22.5) % 16;
       var compassText = compass[compassIdx];
-      $('hv-val').innerHTML=speed.toFixed(2)+' m/s<br><span style="font-size:0.85em;color:var(--text-muted)">風向：'+compassText+'風 ('+Math.round(dir)+'°)<br>U: '+u.toFixed(1)+' m/s, V: '+vComp.toFixed(1)+' m/s</span>';
+      var isCur = d.msg && d.msg.key==='current-vector';
+      var dirLabel = isCur ? '流向' : '風向';
+      $('hv-val').innerHTML=speed.toFixed(2)+' m/s<br><span style="font-size:0.85em;color:var(--text-muted)">'+dirLabel+'：'+compassText+(isCur?'':'風')+' ('+Math.round(dir)+'°)<br>U: '+u.toFixed(1)+' m/s, V: '+vComp.toFixed(1)+' m/s</span>';
     } else {
       $('hv-val').textContent='—';
     }
@@ -2199,6 +2286,524 @@ map.on('mousemove',function(e){
 map.on('mouseout',function(){$('hover-info').classList.remove('visible');});
 
 /* ═══════════════════════════════════════════════
+   NetCDF-3 Parser（classic / 64-bit offset）
+   海流數值模式 M-B0071 為 NetCDF 格式，於前端直接解析後
+   轉為與 GRIB2 相同的 msg / grid 結構，沿用同一套渲染流程。
+   ═══════════════════════════════════════════════ */
+var NC_TYPES={1:{n:'byte',s:1},2:{n:'char',s:1},3:{n:'short',s:2},4:{n:'int',s:4},5:{n:'float',s:4},6:{n:'double',s:8}};
+function ncReadTyped(dv,o,type){
+  switch(type){
+    case 1: return dv.getInt8(o);
+    case 2: return dv.getUint8(o);
+    case 3: return dv.getInt16(o,false);
+    case 4: return dv.getInt32(o,false);
+    case 5: return dv.getFloat32(o,false);
+    case 6: return dv.getFloat64(o,false);
+  }
+  return NaN;
+}
+/* 解析 NetCDF classic header + 提供變數讀取器 */
+function parseNetCDF(arrayBuffer){
+  var dv=new DataView(arrayBuffer);
+  var flen=arrayBuffer.byteLength;
+  if(flen<8) throw new Error('檔案過小，非有效 NetCDF');
+  var magic=String.fromCharCode(dv.getUint8(0),dv.getUint8(1),dv.getUint8(2));
+  if(magic!=='CDF') throw new Error('非 NetCDF classic 格式（magic="'+magic+'"）');
+  var version=dv.getUint8(3);
+  if(version!==1 && version!==2)
+    throw new Error('不支援的 NetCDF 版本 '+version+'（僅支援 classic 與 64-bit offset；NetCDF-4/HDF5 需伺服器端轉檔）');
+  var off64=(version===2);
+  var off=4;
+  function rU32(){var v=dv.getUint32(off,false);off+=4;return v;}
+  function rI32(){var v=dv.getInt32(off,false);off+=4;return v;}
+  function rOffset(){ if(off64){var hi=dv.getUint32(off,false),lo=dv.getUint32(off+4,false);off+=8;return hi*4294967296+lo;} return rU32(); }
+  function rName(){
+    var n=rU32(), s='';
+    for(var i=0;i<n;i++) s+=String.fromCharCode(dv.getUint8(off+i));
+    off+=n; while(off%4!==0) off++;
+    return s;
+  }
+  function rAttrs(){
+    var tag=rU32(), n=rU32(), atts={};   /* tag 0x0C=NC_ATTRIBUTE，ABSENT 時 tag=n=0 */
+    for(var i=0;i<n;i++){
+      var name=rName(), type=rU32(), nelems=rU32(), ts=NC_TYPES[type].s, start=off, vals;
+      if(type===2){
+        var str=''; for(var c=0;c<nelems;c++) str+=String.fromCharCode(dv.getUint8(off+c));
+        vals=str;
+      }else{
+        vals=[]; for(var e=0;e<nelems;e++) vals.push(ncReadTyped(dv,off+e*ts,type));
+      }
+      off=start+nelems*ts; while(off%4!==0) off++;
+      atts[name]=vals;
+    }
+    return atts;
+  }
+  var numrecs=rU32();  /* 0xFFFFFFFF = STREAMING */
+  /* dim_list */
+  var dtag=rU32(), ndims=rU32(), dims=[], unlimId=-1;
+  for(var i=0;i<ndims;i++){ var nm=rName(), ln=rU32(); if(ln===0) unlimId=i; dims.push({name:nm,len:ln}); }
+  /* global attributes */
+  var gatts=rAttrs();
+  /* var_list */
+  var vtag=rU32(), nvars=rU32(), vars=[];
+  for(var v=0;v<nvars;v++){
+    var name=rName(), vnd=rU32(), dimids=[];
+    for(var d=0;d<vnd;d++) dimids.push(rI32());
+    var vatts=rAttrs(), nctype=rU32(), vsize=rU32(), begin=rOffset();
+    vars.push({name:name,dimids:dimids,atts:vatts,type:nctype,vsize:vsize,begin:begin});
+  }
+  /* 若為 streaming，依錄變數推算 numrecs */
+  var recVars=vars.filter(function(x){return x.dimids.length>0 && x.dimids[0]===unlimId;});
+  var recsize=0; for(var r=0;r<recVars.length;r++) recsize+=recVars[r].vsize;
+  if(numrecs===0xFFFFFFFF){
+    if(recsize>0){ var minBegin=Math.min.apply(null,recVars.map(function(x){return x.begin;})); numrecs=Math.floor((flen-minBegin)/recsize); }
+    else numrecs=0;
+  }
+  var api={version:version,dims:dims,unlimId:unlimId,gatts:gatts,vars:vars,numrecs:numrecs,recsize:recsize};
+  api.findVar=function(name){ for(var i=0;i<vars.length;i++) if(vars[i].name===name) return vars[i]; return null; };
+  api.dimLen=function(id){ return id===unlimId ? numrecs : dims[id].len; };
+  /* 讀取整個變數（1-D 座標軸用）*/
+  api.readAll=function(vv){
+    var total=1; for(var i=0;i<vv.dimids.length;i++) total*=api.dimLen(vv.dimids[i]);
+    var ts=NC_TYPES[vv.type].s, out=new Float64Array(total), isRec=(vv.dimids.length>0&&vv.dimids[0]===unlimId);
+    if(!isRec){ for(var k=0,o=vv.begin;k<total;k++,o+=ts) out[k]=ncReadTyped(dv,o,vv.type); }
+    else{ var per=total/(numrecs||1); for(var rr=0;rr<numrecs;rr++){ var o2=vv.begin+rr*recsize; for(var p=0;p<per;p++,o2+=ts) out[rr*per+p]=ncReadTyped(dv,o2,vv.type); } }
+    return out;
+  };
+  /* 讀取變數在 (lat,lon) 最內兩維、指定 timeIndex（首維為時間時）、depth 0 的 2-D 切片
+     → Float32Array(ny*nx)，row=lat、col=lon */
+  api.readSlice2D=function(vv,latPos,lonPos,ny,nx,timeIndex,ntime){
+    timeIndex=timeIndex||0; ntime=ntime||1;
+    var ts=NC_TYPES[vv.type].s, n=ny*nx, out=new Float32Array(n);
+    var nd=vv.dimids.length, lonLast=(lonPos===nd-1);
+    var isRec=(nd>0 && vv.dimids[0]===unlimId);
+    var innerPer=1; for(var q=1;q<nd;q++) innerPer*=api.dimLen(vv.dimids[q]);
+    var hasTime = nd>=3 && (isRec ? true : (api.dimLen(vv.dimids[0])===ntime && ntime>1));
+    var ti = hasTime ? Math.min(timeIndex, api.dimLen(vv.dimids[0])-1) : 0;
+    /* record 變數：時間為 record 維，每筆資料相隔 recsize bytes；固定維則連續 */
+    var baseByte = isRec ? (vv.begin + ti*recsize) : (vv.begin + (hasTime? ti*innerPer:0)*ts);
+    if(lonLast){
+      for(var k=0;k<n;k++) out[k]=ncReadTyped(dv,baseByte+k*ts,vv.type);
+    }else{
+      for(var col=0;col<nx;col++) for(var row=0;row<ny;row++)
+        out[row*nx+col]=ncReadTyped(dv,baseByte+(col*ny+row)*ts,vv.type);
+    }
+    return out;
+  };
+  /* 預報時間軸：回傳各時距（小時），供時間軸滑桿使用 */
+  api.timeHours=function(){
+    var tv=null;
+    for(var i=0;i<vars.length;i++){ var vv=vars[i]; if(vv.dimids.length!==1) continue;
+      var un=((vv.atts&&vv.atts.units)||'').toString().toLowerCase();
+      if(/^time$/i.test(vv.name)||un.indexOf(' since ')>=0){ tv=vv; break; } }
+    if(!tv) return [0];
+    var arr=api.readAll(tv), un=((tv.atts&&tv.atts.units)||'').toString().toLowerCase();
+    var mult=1; if(un.indexOf('second')>=0)mult=1/3600; else if(un.indexOf('minute')>=0)mult=1/60; else if(un.indexOf('day')>=0)mult=24;
+    var t0=arr[0], out=[]; for(var j=0;j<arr.length;j++) out.push(Math.round((arr[j]-t0)*mult));
+    return out.length?out:[0];
+  };
+  return api;
+}
+
+/* ── CF 屬性小工具 ─────────────────────────── */
+function ncAttr(vv,name){ return vv&&vv.atts&&(name in vv.atts)?vv.atts[name]:undefined; }
+function ncAttrNum(vv,name){ var a=ncAttr(vv,name); if(a===undefined)return undefined; return Array.isArray(a)?a[0]:(typeof a==='string'?parseFloat(a):a); }
+function ncUnits(vv){ var u=ncAttr(vv,'units'); return (typeof u==='string'?u:'').toLowerCase(); }
+function ncStd(vv){ var s=ncAttr(vv,'standard_name')||ncAttr(vv,'long_name'); return (typeof s==='string'?s:'').toLowerCase(); }
+
+/* ── 依 CF 慣例自動分類海洋資料變數 → GRIB2 相容 key ── */
+function classifyOceanVar(vv){
+  var nm=(vv.name||'').toLowerCase(), u=ncUnits(vv), sd=ncStd(vv);
+  var has=function(){ for(var i=0;i<arguments.length;i++){ var t=arguments[i]; if(nm===t||nm.indexOf(t)>=0||sd.indexOf(t)>=0) return true; } return false; };
+  /* U 分量（東向流）*/
+  if(sd.indexOf('eastward_sea_water_velocity')>=0 || sd.indexOf('eastward')>=0 ||
+     /^(u|uo|us|ucur|uvel|water_u|u_velocity|eastward.*)$/.test(nm) || nm==='u' || nm.indexOf('water_u')>=0)
+    return {key:'10-1-2', nameTW:'東向海流 U', name:'U-Current'};
+  /* V 分量（北向流）*/
+  if(sd.indexOf('northward_sea_water_velocity')>=0 || sd.indexOf('northward')>=0 ||
+     /^(v|vo|vs|vcur|vvel|water_v|v_velocity|northward.*)$/.test(nm) || nm==='v' || nm.indexOf('water_v')>=0)
+    return {key:'10-1-3', nameTW:'北向海流 V', name:'V-Current'};
+  /* 海水溫度 */
+  if(sd.indexOf('sea_water_temperature')>=0 || sd.indexOf('potential_temperature')>=0 ||
+     has('thetao','temperature','water_temp','temp','sst','sea_temp') || nm==='t')
+    return {key:'10-3-0', nameTW:'海水溫度', name:'Water Temperature'};
+  /* 鹽度 */
+  if(sd.indexOf('salinity')>=0 || has('salinity','salt','so','psu'))
+    return {key:'10-4-2', nameTW:'鹽度', name:'Salinity'};
+  /* 海面高度 */
+  if(sd.indexOf('sea_surface_height')>=0 || sd.indexOf('sea_surface_elevation')>=0 ||
+     has('zos','ssh','sea_surface_height','surf_el','el','adt'))
+    return {key:'10-3-1', nameTW:'海面高度', name:'Sea Surface Height'};
+  /* 流速大小 */
+  if(sd.indexOf('sea_water_speed')>=0 || has('current_speed','speed','cur_speed'))
+    return {key:'10-1-1', nameTW:'海流流速', name:'Current Speed'};
+  return null;
+}
+
+/* ── 由 NetCDF ArrayBuffer 建立海流模式 msg 清單（結構同 scanGrib2）── */
+function buildOceanMessagesFromNetCDF(arrayBuffer, timeIndex, ntime){
+  timeIndex=timeIndex||0;
+  var nc=parseNetCDF(arrayBuffer);
+  if(!ntime){ var _th=nc.timeHours(); ntime=_th.length; }
+
+  /* 1. 找經緯度座標變數（依 units / 名稱）*/
+  var lonVar=null, latVar=null;
+  for(var i=0;i<nc.vars.length;i++){
+    var vv=nc.vars[i]; if(vv.dimids.length!==1) continue;
+    var u=ncUnits(vv), nm=vv.name.toLowerCase();
+    if(!lonVar && (u.indexOf('degrees_east')>=0||u==='degree_east'||/^(lon|longitude|nav_lon|x)$/.test(nm))) lonVar=vv;
+    if(!latVar && (u.indexOf('degrees_north')>=0||u==='degree_north'||/^(lat|latitude|nav_lat|y)$/.test(nm))) latVar=vv;
+  }
+  if(!lonVar||!latVar) throw new Error('NetCDF 中找不到經度/緯度座標變數（需符合 CF degrees_east / degrees_north）');
+  var lonDimId=lonVar.dimids[0], latDimId=latVar.dimids[0];
+  var lon=nc.readAll(lonVar), lat=nc.readAll(latVar);
+  var nx=lon.length, ny=lat.length;
+  if(nx<2||ny<2) throw new Error('經緯度格點數不足（nx='+nx+', ny='+ny+'）');
+
+  /* 2. 建立 grid（與 GRIB2 lat/lon 網格相容欄位）*/
+  var dx=Math.abs(lon[1]-lon[0]), dy=Math.abs(lat[1]-lat[0]);
+  var latAsc=(lat[1]>lat[0]);
+  var grid={template:0, nx:nx, ny:ny,
+    lon1:lon[0], lon2:lon[nx-1], lat1:lat[0], lat2:lat[ny-1],
+    dx:dx, dy:dy,
+    /* renderGrid 以 scan bit6 決定畫布列方向：lat 由北到南(降冪)⇒scan=0；由南到北(升冪)⇒0x40 */
+    scan: latAsc?0x40:0 };
+
+  /* 3. 逐一取出 (lat,lon) 資料變數，套用 CF 打包（scale_factor/add_offset/_FillValue）*/
+  var msgs=[], comps={};
+  for(var vi=0; vi<nc.vars.length; vi++){
+    var vv=nc.vars[vi];
+    if(vv===lonVar||vv===latVar) continue;
+    var latPos=vv.dimids.indexOf(latDimId), lonPos=vv.dimids.indexOf(lonDimId);
+    if(latPos<0||lonPos<0) continue;                       /* 非空間場（如 time、depth）跳過 */
+    if(!((lonPos===vv.dimids.length-1&&latPos===vv.dimids.length-2)||
+         (latPos===vv.dimids.length-1&&lonPos===vv.dimids.length-2))) continue;  /* 內兩維須為 lat/lon */
+    var cls=classifyOceanVar(vv);
+    if(!cls) continue;                                     /* 無法辨識的變數不列入 */
+
+    var raw=nc.readSlice2D(vv,latPos,lonPos,ny,nx,timeIndex,ntime);
+    var scale=ncAttrNum(vv,'scale_factor'), addoff=ncAttrNum(vv,'add_offset');
+    var fill=ncAttrNum(vv,'_FillValue'); if(fill===undefined) fill=ncAttrNum(vv,'missing_value');
+    var vmax=ncAttrNum(vv,'valid_max'), vmin=ncAttrNum(vv,'valid_min');
+    var vals=new Float32Array(ny*nx);
+    for(var k=0;k<vals.length;k++){
+      var r=raw[k];
+      if(!isFinite(r) || (fill!==undefined&&r===fill) || r<=-1e30 || r>=1e30 ||
+         (vmax!==undefined&&r>vmax) || (vmin!==undefined&&r<vmin)){ vals[k]=NaN; continue; }
+      if(scale!==undefined) r*=scale;
+      if(addoff!==undefined) r+=addoff;
+      vals[k]=r;
+    }
+    /* 溫度單位若為 K，轉 °C（sst 色階以 °C 為準）*/
+    if(cls.key==='10-3-0'){ var tu=ncUnits(vv); if(tu.indexOf('k')===0||tu==='kelvin'){ for(var t=0;t<vals.length;t++) if(isFinite(vals[t])) vals[t]-=273.15; } }
+
+    var msg={index:msgs.length, key:cls.key, name:cls.name,
+      nameTW:(PARAM_NAMES_TW[cls.key]||cls.nameTW||cls.name),
+      levelStr:'表層', levelType:1, levelVal:0,
+      grid:grid, rep:{template:0}, ncValues:vals, ncVarName:vv.name};
+    msgs.push(msg);
+    if(cls.key==='10-1-2') comps.U=msg;
+    if(cls.key==='10-1-3') comps.V=msg;
+  }
+
+  /* 4. 合併 U/V → 虛擬海流向量（供色階＋粒子流場）*/
+  if(comps.U && comps.V){
+    msgs.push({index:msgs.length, key:'current-vector',
+      name:'Current Vector', nameTW:'海流流速/流向 (向量)',
+      levelStr:'表層', levelType:1, levelVal:0,
+      grid:grid, rep:{template:0}, msgU:comps.U, msgV:comps.V, isVirtualCurrent:true, isVirtualWind:false});
+  }
+
+  if(!msgs.length)
+    throw new Error('NetCDF 已解析，但未辨識出任何海流/海溫/鹽度/海面高度變數。變數清單：'+nc.vars.map(function(x){return x.name;}).join(', '));
+  console.log('[NetCDF] 解析完成：格點 '+nx+'×'+ny+'，變數 '+msgs.map(function(m){return m.nameTW+'('+m.key+')';}).join(' | '));
+  return msgs;
+}
+
+/* ═══════════════════════════════════════════════
+   NetCDF-4 / HDF5 讀取（透過 jsfive）
+   CWA 海流模式 M-B0071 實際為 NetCDF-4（HDF5 容器），classic 解析器無法讀，
+   改用 jsfive 讀取 HDF5 dataset，再轉為相同的 msg / grid 結構。
+   ═══════════════════════════════════════════════ */
+function hdf5AttrNum(ds,name){
+  var a=(ds.attrs&&(name in ds.attrs))?ds.attrs[name]:undefined;
+  if(a===undefined) return undefined;
+  if(Array.isArray(a)||ArrayBuffer.isView(a)) return a.length?+a[0]:undefined;
+  return typeof a==='string'?parseFloat(a):+a;
+}
+function hdf5AttrStr(ds,name){
+  var a=(ds.attrs&&(name in ds.attrs))?ds.attrs[name]:undefined;
+  if(a===undefined) return '';
+  if(Array.isArray(a)) a=a[0];
+  return (''+a);
+}
+function hdf5AttrsPlain(ds){ var o={}, a=ds.attrs||{}; for(var k in a){ var v=a[k]; o[k]=Array.isArray(v)?v[0]:v; } return o; }
+
+function buildOceanMessagesFromHDF5(arrayBuffer, timeIndex, ntime){
+  timeIndex=timeIndex||0; ntime=ntime||1;
+  if(typeof hdf5==='undefined'||!hdf5.File)
+    throw new Error('HDF5 / NetCDF-4 讀取函式庫 (jsfive) 未載入，請確認能連上 CDN。');
+  var f=new hdf5.File(arrayBuffer);
+
+  /* 遞迴收集所有 dataset（含群組內）*/
+  var dsList=[];
+  (function walk(group,prefix){
+    var keys=group.keys||[];
+    for(var i=0;i<keys.length;i++){
+      var nm=keys[i], item; try{ item=group.get(nm); }catch(e){ continue; }
+      if(!item) continue;
+      if(item.shape!==undefined){ dsList.push({name:nm, ds:item}); }
+      else if(item.keys!==undefined){ walk(item, prefix+nm+'/'); }
+    }
+  })(f,'');
+
+  /* 1. 找經緯度座標 dataset */
+  var lonDs=null, latDs=null;
+  for(var i=0;i<dsList.length;i++){
+    var d=dsList[i]; if(!d.ds.shape||d.ds.shape.length!==1) continue;
+    var u=hdf5AttrStr(d.ds,'units').toLowerCase(), nm=d.name.toLowerCase();
+    if(!lonDs && (u.indexOf('degrees_east')>=0||u==='degree_east'||/^(lon|longitude|nav_lon|x)$/.test(nm))) lonDs=d.ds;
+    if(!latDs && (u.indexOf('degrees_north')>=0||u==='degree_north'||/^(lat|latitude|nav_lat|y)$/.test(nm))) latDs=d.ds;
+  }
+  if(!lonDs||!latDs) throw new Error('HDF5/NetCDF-4 中找不到經度/緯度座標變數（需符合 CF degrees_east / degrees_north）');
+  var lon=Array.prototype.slice.call(lonDs.value), lat=Array.prototype.slice.call(latDs.value);
+  var nx=lon.length, ny=lat.length;
+  if(nx<2||ny<2) throw new Error('經緯度格點數不足（nx='+nx+', ny='+ny+'）');
+
+  /* 2. grid（與 GRIB2 lat/lon 網格相容）*/
+  var latAsc=(lat[1]>lat[0]);
+  var grid={template:0, nx:nx, ny:ny, lon1:lon[0], lon2:lon[nx-1], lat1:lat[0], lat2:lat[ny-1],
+    dx:Math.abs(lon[1]-lon[0]), dy:Math.abs(lat[1]-lat[0]), scan: latAsc?0x40:0};
+
+  /* 3. 逐一取出 (lat,lon) 資料變數，套用 CF 打包 */
+  var msgs=[], comps={};
+  for(var vi=0; vi<dsList.length; vi++){
+    var dd=dsList[vi]; if(dd.ds===lonDs||dd.ds===latDs) continue;
+    var sh=dd.ds.shape; if(!sh||sh.length<2) continue;
+    var L=sh.length, normal=(sh[L-1]===nx&&sh[L-2]===ny), latLast=(sh[L-1]===ny&&sh[L-2]===nx);
+    if(!normal&&!latLast) continue;
+    var cls=classifyOceanVar({name:dd.name, atts:hdf5AttrsPlain(dd.ds)});
+    if(!cls) continue;
+
+    var raw=dd.ds.value;
+    var scale=hdf5AttrNum(dd.ds,'scale_factor'), addoff=hdf5AttrNum(dd.ds,'add_offset');
+    var fill=hdf5AttrNum(dd.ds,'_FillValue'); if(fill===undefined) fill=hdf5AttrNum(dd.ds,'missing_value');
+    var vmax=hdf5AttrNum(dd.ds,'valid_max'), vmin=hdf5AttrNum(dd.ds,'valid_min');
+    var n=ny*nx, vals=new Float32Array(n);
+    var pack=function(r){
+      if(!isFinite(r) || (fill!==undefined&&r===fill) || r<=-1e30 || r>=1e30 ||
+         (vmax!==undefined&&r>vmax) || (vmin!==undefined&&r<vmin)) return NaN;
+      if(scale!==undefined) r*=scale;
+      if(addoff!==undefined) r+=addoff;
+      return r;
+    };
+    /* 若首維為預報時間（含所有時距），依 timeIndex 取該時距、最淺層 (depth 0) 之 (lat,lon) 切片 */
+    var hasTime=(L>=3 && ntime>1 && sh[0]===ntime);
+    var innerPer=hasTime?(raw.length/sh[0]):0;
+    var base=hasTime?(Math.min(timeIndex,sh[0]-1)*innerPer):0;
+    if(normal){ for(var k=0;k<n;k++) vals[k]=pack(raw[base+k]); }
+    else { for(var c=0;c<nx;c++) for(var r2=0;r2<ny;r2++) vals[r2*nx+c]=pack(raw[base+c*ny+r2]); }
+    if(cls.key==='10-3-0'){ var tu=hdf5AttrStr(dd.ds,'units').toLowerCase(); if(tu.indexOf('k')===0||tu==='kelvin'){ for(var t=0;t<vals.length;t++) if(isFinite(vals[t])) vals[t]-=273.15; } }
+
+    var msg={index:msgs.length, key:cls.key, name:cls.name,
+      nameTW:(PARAM_NAMES_TW[cls.key]||cls.nameTW||cls.name),
+      levelStr:'表層', levelType:1, levelVal:0,
+      grid:grid, rep:{template:0}, ncValues:vals, ncVarName:dd.name};
+    msgs.push(msg);
+    if(cls.key==='10-1-2') comps.U=msg;
+    if(cls.key==='10-1-3') comps.V=msg;
+  }
+
+  if(comps.U && comps.V){
+    msgs.push({index:msgs.length, key:'current-vector',
+      name:'Current Vector', nameTW:'海流流速/流向 (向量)',
+      levelStr:'表層', levelType:1, levelVal:0,
+      grid:grid, rep:{template:0}, msgU:comps.U, msgV:comps.V, isVirtualCurrent:true, isVirtualWind:false});
+  }
+
+  if(!msgs.length)
+    throw new Error('HDF5/NetCDF-4 已解析，但未辨識出任何海流/海溫/鹽度/海面高度變數。dataset：'+dsList.map(function(x){return x.name;}).join(', '));
+  console.log('[HDF5] 解析完成：格點 '+nx+'×'+ny+'，變數 '+msgs.map(function(m){return m.nameTW+'('+m.key+')';}).join(' | '));
+  return msgs;
+}
+
+/* ── 海流模式（NetCDF）快取與時間軸 ─────────── */
+var oceanCache=null;  /* {baseId, arrayBuffer, format:'CDF'|'HDF5'|'GRIB', times:[hrs], ntime} */
+
+/* 讀取 HDF5 檔的預報時間軸（小時） */
+function hdf5TimeHours(arrayBuffer){
+  if(typeof hdf5==='undefined'||!hdf5.File) return [0];
+  var f=new hdf5.File(arrayBuffer), tv=null;
+  (function walk(group){
+    var keys=group.keys||[];
+    for(var i=0;i<keys.length;i++){
+      var nm=keys[i], item; try{ item=group.get(nm); }catch(e){ continue; }
+      if(!item) continue;
+      if(item.shape!==undefined){
+        if(!tv && item.shape.length===1){
+          var un=hdf5AttrStr(item,'units').toLowerCase();
+          if(/^time$/i.test(nm)||un.indexOf(' since ')>=0) tv=item;
+        }
+      }else if(item.keys!==undefined){ walk(item); }
+    }
+  })(f);
+  if(!tv) return [0];
+  var arr=Array.prototype.slice.call(tv.value), un=hdf5AttrStr(tv,'units').toLowerCase();
+  var mult=1; if(un.indexOf('second')>=0)mult=1/3600; else if(un.indexOf('minute')>=0)mult=1/60; else if(un.indexOf('day')>=0)mult=24;
+  var t0=arr[0], out=[]; for(var j=0;j<arr.length;j++) out.push(Math.round((arr[j]-t0)*mult));
+  return out.length?out:[0];
+}
+function nearestTimeIndex(times,hour){
+  var bi=0,bd=Infinity; for(var i=0;i<times.length;i++){ var d=Math.abs(times[i]-hour); if(d<bd){bd=d;bi=i;} } return bi;
+}
+/* 依檔案實際時間軸設定時間軸滑桿（min/max/step + 刻度）*/
+function applyOceanTimeAxis(times){
+  if(!times||!times.length) return;
+  var sl=$('fcstSlider');
+  var maxH=times[times.length-1]||0;
+  var step=(times.length>1)?Math.max(1,(times[1]-times[0])):6;
+  MODELS.ocean.maxHour=maxH; MODELS.ocean.step=step;
+  sl.min=0; sl.max=maxH; sl.step=step;
+  if(+sl.value>maxH){ sl.value=0; currentHour=0; }
+  var tickStep=step*Math.max(1, Math.round((times.length-1)/8))||step||12;
+  buildTimeTicks(maxH, tickStep);
+  $('fcstLabel').textContent=fcstHourLabel(currentHour);
+}
+
+/* ── 海流模式（NetCDF）載入流程 ─────────────── */
+/* 單一檔（M-B0071-000.nc）內含所有預報時距 000~xxx；下載一次後快取，
+   移動時間軸只在快取內切換 timeIndex，不重新下載。*/
+async function loadOceanNetCDF(dataId, hour, fitView){
+  var baseId=MODELS.ocean.id+'-000';   /* 一律載入含全時距的 -000 檔 */
+
+  /* A. 尚未快取 → 下載＋解析檔頭＋讀時間軸 */
+  if(!oceanCache || oceanCache.baseId!==baseId){
+    setStatus('<span class="spinner"></span>讀取海流模式資訊（'+baseId+'）…');
+    setProgress(6);
+    var fileUrl=null;
+    try{
+      var jurl='https://opendata.cwa.gov.tw/fileapi/v1/opendataapi/'+baseId
+        +'?Authorization='+encodeURIComponent(KEY)+'&downloadType=WEB&format=JSON&_t='+Date.now();
+      var jr=await fetch(jurl);
+      if(jr.ok){
+        var j=null; try{ j=await jr.json(); }catch(e){ j=null; }
+        if(j){
+          try{ showJsonMeta(j); }catch(e){}
+          var root=j.cwaopendata||j, rsc=(root.dataset&&root.dataset.resource)||{};
+          fileUrl=rsc.ProductURL||rsc.productURL||rsc.uri||rsc.url||null;   /* 檔案連結在 ProductURL */
+        }
+      }
+    }catch(e){ /* JSON 非必要 */ }
+
+    function extractDataUrl(text){
+      var m=text.match(/"(?:ProductURL|uri|url|fileUrl|downloadURL)"\s*:\s*"([^"]+)"/i); if(m) return m[1].replace(/\\\//g,'/');
+      m=text.match(/<(?:uri|url|resourceuri|fileurl)>\s*([^<]+?)\s*<\/(?:uri|url|resourceuri|fileurl)>/i); if(m) return m[1].trim();
+      m=text.match(/https?:\/\/[^\s"'<>]+\.(?:nc4|nc|cdf|grb2|grib2)\b/i); if(m) return m[0];
+      return null;
+    }
+    if(!fileUrl){ fileUrl='https://cwaopendata.s3.ap-northeast-1.amazonaws.com/Model/'+baseId+'.nc'; }
+
+    var arrayBuffer=null, buf=null, m3='';
+    for(var attempt=0; attempt<3; attempt++){
+      setStatus('<span class="spinner"></span>下載海流模式檔案…<br><span style="color:var(--txt3)">'+fileUrl.split('/').pop().split('?')[0]+'</span>');
+      setProgress(15);
+      var response=await fetch(fileUrl);
+      if(!response.ok) throw new Error('檔案下載失敗 HTTP '+response.status+(response.status===401?' (金鑰無效)':''));
+      var contentLength=response.headers.get('content-length');
+      var total=contentLength?parseInt(contentLength):0, received=0, chunks=[], reader=response.body.getReader();
+      while(true){
+        var res=await reader.read(); if(res.done) break;
+        chunks.push(res.value); received+=res.value.length;
+        if(total>0){ setProgress(15+Math.round(received/total*50));
+          setStatus('<span class="spinner"></span>下載：'+(received/1048576).toFixed(1)+' / '+(total/1048576).toFixed(1)+' MB');
+        }else setStatus('<span class="spinner"></span>下載：'+(received/1048576).toFixed(1)+' MB…');
+      }
+      buf=new Uint8Array(received); var pos=0;
+      for(var i=0;i<chunks.length;i++){ buf.set(chunks[i],pos); pos+=chunks[i].length; }
+      arrayBuffer=buf.buffer;
+      setProgress(66);
+
+      m3=String.fromCharCode(buf[0]||0,buf[1]||0,buf[2]||0);
+      if(m3==='CDF') break;
+      if(buf[0]===0x89&&buf[1]===0x48&&buf[2]===0x44&&buf[3]===0x46){ m3='HDF5'; break; }
+      if(buf[0]===0x50&&buf[1]===0x4B) throw new Error('回應為 ZIP 壓縮檔（PK 檔頭）；此檔可能為壓縮包，請確認 CWA 提供的下載格式。');
+      if(buf[0]===0x1f&&buf[1]===0x8b) throw new Error('回應為 GZIP 壓縮檔；前端未內建解壓，請改用未壓縮 NetCDF。');
+      if(buf[0]===0x47&&buf[1]===0x52&&buf[2]===0x49&&buf[3]===0x42){ m3='GRIB'; break; }
+
+      var text=new TextDecoder('utf-8').decode(buf.subarray(0, Math.min(buf.length, 20000)));
+      var nextUrl=extractDataUrl(text);
+      if(nextUrl && nextUrl.indexOf('http')===0 && nextUrl!==fileUrl){ fileUrl=nextUrl; continue; }
+
+      var hex=''; for(var b=0;b<Math.min(buf.length,16);b++){ hex+=(buf[b]<16?'0':'')+buf[b].toString(16)+' '; }
+      var preview=text.replace(/\s+/g,' ').trim().slice(0,220).replace(/</g,'&lt;');
+      throw new Error('CWA 回傳的不是 NetCDF 檔，而是文字/其他內容。<br>'+
+        '<span style="color:var(--txt3)">前 16 bytes：'+(hex.trim()||'(空)')+'<br>內容預覽：'+(preview||'(空白回應)')+'</span><br>'+
+        '常見原因：① 檔案暫無資料；② 資料 ID「'+baseId+'」不符；③ 需改用 format 參數下載。請把上方「內容預覽」貼給我以便定位。');
+    }
+
+    /* 讀時間軸 */
+    setStatus('<span class="spinner"></span>讀取預報時間軸…'); setProgress(70);
+    var times=[0];
+    try{
+      if(m3==='CDF') times=parseNetCDF(arrayBuffer).timeHours();
+      else if(m3==='HDF5') times=hdf5TimeHours(arrayBuffer);
+    }catch(e){ times=[0]; }
+    oceanCache={baseId:baseId, arrayBuffer:arrayBuffer, format:m3, times:times, ntime:times.length};
+    applyOceanTimeAxis(times);
+  }
+
+  /* B. 依 hour 取最接近的時距索引，於快取內切片 */
+  var times=oceanCache.times;
+  if(MODELS.ocean.maxHour!==times[times.length-1]) applyOceanTimeAxis(times);  /* 切換模式回來時同步軸 */
+  var ti=nearestTimeIndex(times, hour);
+  loadedHour=hour;
+  setStatus('<span class="spinner"></span>解析海流資料（+'+times[ti]+'h，時距 '+(ti+1)+'/'+times.length+'）…');
+  setProgress(74);
+  gribBuffer=oceanCache.arrayBuffer;
+  if(oceanCache.format==='CDF') gribMessages=buildOceanMessagesFromNetCDF(gribBuffer, ti, oceanCache.ntime);
+  else if(oceanCache.format==='HDF5') gribMessages=buildOceanMessagesFromHDF5(gribBuffer, ti, oceanCache.ntime);
+  else if(oceanCache.format==='GRIB') gribMessages=scanGrib2(gribBuffer);
+  setProgress(82);
+  if(!gribMessages || !gribMessages.length) throw new Error('檔案中未找到可辨識的 (lat, lon) 資料變數。');
+  setStatus('<span style="color:var(--green)">✅</span> 解析完成：<b>'+gribMessages.length+'</b> 個海洋變數場 · 預報 +'+times[ti]+'h（共 '+times.length+' 個時距）');
+
+  /* 變數清單 */
+  buildVarList(gribMessages);
+
+  /* 粒子流場來源（表層海流向量）*/
+  windField=null;
+  (function(){
+    var pick=null;
+    for(var wi=0; wi<gribMessages.length; wi++){
+      var wm=gribMessages[wi];
+      if(wm.key==='current-vector' && wm.msgU && wm.msgV && (!pick || wm.levelVal<pick.levelVal)) pick=wm;
+    }
+    if(!pick) return;
+    try{
+      var wU=decodeMessage(gribBuffer, pick.msgU), wV=decodeMessage(gribBuffer, pick.msgV);
+      if(wU && wV) windField={valsU:wU, valsV:wV, grid:pick.grid, ocean:true};
+    }catch(e){ console.warn('海流粒子資料解碼失敗', e); }
+  })();
+
+  /* 自動選取變數：優先沿用上次，否則用海流預設場 */
+  var supportedMsgs=gribMessages.filter(function(m){return m.rep&&(m.rep.template===0||m.rep.template===2||m.rep.template===3);});
+  if(supportedMsgs.length>0){
+    var chosen=null;
+    if(lastSel){
+      for(var si=0;si<supportedMsgs.length;si++){
+        var sm=supportedMsgs[si];
+        if(sm.key===lastSel.key&&sm.levelType===lastSel.levelType&&sm.levelVal===lastSel.levelVal){chosen=sm;break;}
+      }
+    }
+    if(!chosen) chosen=pickDefaultMsg(supportedMsgs);
+    selectVar(chosen.index);
+  }
+  setProgress(100);
+  await new Promise(function(r){setTimeout(r,300);});
+  setProgress(null);
+}
+
+/* ═══════════════════════════════════════════════
    Main Loading Flow
    ═══════════════════════════════════════════════ */
 
@@ -2207,6 +2812,12 @@ var PREFERRED_KEYS=['0-0-0','0-3-1','0-2-2','0-1-8','0-1-1','0-3-5','0-6-1'];
 var PREFERRED_LEVELS=[103,1,101]; /* AGL, surface, MSL */
 
 function pickDefaultMsg(msgs){
+  /* 海流模式：優先表層海流向量 → 海水溫度 */
+  if(curType()==='ocean'){
+    for(var i=0;i<msgs.length;i++){ if(msgs[i].key==='current-vector') return msgs[i]; }
+    for(var i=0;i<msgs.length;i++){ if(msgs[i].key==='10-3-0') return msgs[i]; }
+    return msgs[0];
+  }
   /* 優先找 2m 氣溫 */
   for(var i=0;i<msgs.length;i++){
     if(msgs[i].key==='0-0-0'&&msgs[i].levelType===103&&msgs[i].levelVal===2) return msgs[i];
@@ -2263,8 +2874,8 @@ function buildVarList(msgs){
     }
   }
 
-  /* Build 建議選單（常用氣象場）— 依固定順序列出，缺項顯示為「無資料」 */
-  var SUGGESTED=[
+  /* Build 建議選單 — 依模式類型給不同常用場；缺項顯示為「無資料」 */
+  var SUGGESTED_ATMOS=[
     {label:'氣溫',       sub:'離地 2 公尺',  key:'0-0-0',       lstr:'離地 2 公尺'},
     {label:'氣壓',       sub:'海平面',       keys:['0-3-0','0-3-1'], lstr:'海平面'},
     {label:'風速/風向',  sub:'離地 10 公尺', key:'wind-vector', lstr:'離地 10 公尺'},
@@ -2276,12 +2887,21 @@ function buildVarList(msgs){
     {label:'重力位高度', sub:'200 hPa',      key:'0-3-5',       lstr:'200 hPa'},
     {label:'風速/風向',  sub:'200 hPa',      key:'wind-vector', lstr:'200 hPa'}
   ];
+  /* 海流常用場（代碼/層字串為推測，實測後可校正）*/
+  var SUGGESTED_OCEAN=[
+    {label:'海流流速/流向', sub:'表層',   key:'current-vector', anyLevel:true},
+    {label:'海水溫度',      sub:'表層',   key:'10-3-0',         anyLevel:true},
+    {label:'海面高度',      sub:'海面',   key:'10-3-1',         anyLevel:true},
+    {label:'鹽度',          sub:'表層',   key:'10-4-2',         anyLevel:true}
+  ];
+  var SUGGESTED = (curType()==='ocean') ? SUGGESTED_OCEAN : SUGGESTED_ATMOS;
   function findSuggested(spec){
     var keys=spec.keys||[spec.key];   /* 依優先序比對多個參數代碼 */
     for(var kIdx=0;kIdx<keys.length;kIdx++){
       for(var i=0;i<msgs.length;i++){
         var m=msgs[i];
         if(m.key!==keys[kIdx]) continue;
+        if(spec.anyLevel) return m;           /* 不限高度層，取第一個符合者 */
         if(spec.precip6){
           if((m.prod&&m.prod.timeRangeLength===6)||/前\s*6\s*小時/.test(m.nameTW||'')) return m;
           continue;
@@ -2337,35 +2957,35 @@ function selectVar(idx){
   setTimeout(function(){
     try{
       var values;
-      var isWind = msg.key === 'wind-vector' || msg.key === '0-2-1' || msg.key === '0-2-2' || msg.key === '0-2-3';
-      if(isWind){
-        // Find U and V messages for the same height level
-        var msgU = null, msgV = null;
-        for(var i = 0; i < gribMessages.length; i++){
-          var m = gribMessages[i];
-          if(m.levelType === msg.levelType && m.levelVal === msg.levelVal){
-            if(m.key === '0-2-2') msgU = m;
-            else if(m.key === '0-2-3') msgV = m;
-          }
-        }
+      var isVector = msg.key === 'wind-vector' || msg.key === 'current-vector';
+      var isWindComp = msg.key === '0-2-1' || msg.key === '0-2-2' || msg.key === '0-2-3';
+      if(isVector){
+        /* 虛擬向量：直接用合併時記錄的 msgU/msgV，計算流速/風速大小 */
+        var msgU = msg.msgU || null, msgV = msg.msgV || null;
         var valsU = msgU ? decodeMessage(gribBuffer, msgU) : null;
         var valsV = msgV ? decodeMessage(gribBuffer, msgV) : null;
-
-        if(msg.key === 'wind-vector'){
-          if(!valsU||!valsV) throw new Error('無法解碼 U/V 風分量');
-          var len=valsU.length;
-          values=new Float32Array(len);
-          for(var i=0;i<len;i++){
-            var u=valsU[i],v=valsV[i];
-            values[i]=(isFinite(u)&&isFinite(v))?Math.sqrt(u*u+v*v):NaN;
+        if(!valsU || !valsV) throw new Error('無法解碼 U/V 分量');
+        var len=valsU.length;
+        values=new Float32Array(len);
+        for(var i=0;i<len;i++){
+          var u=valsU[i],v=valsV[i];
+          values[i]=(isFinite(u)&&isFinite(v))?Math.sqrt(u*u+v*v):NaN;
+        }
+        values.valsU=valsU;
+        values.valsV=valsV;
+      } else if(isWindComp){
+        /* 單一風分量：解碼本身，並附上同層 U/V 供懸停顯示風向 */
+        var mU=null, mV=null;
+        for(var i=0;i<gribMessages.length;i++){
+          var m=gribMessages[i];
+          if(m.levelType===msg.levelType && m.levelVal===msg.levelVal){
+            if(m.key==='0-2-2') mU=m; else if(m.key==='0-2-3') mV=m;
           }
-        } else {
-          values=decodeMessage(gribBuffer,msg);
         }
-        if(valsU && valsV){
-          values.valsU=valsU;
-          values.valsV=valsV;
-        }
+        values=decodeMessage(gribBuffer,msg);
+        if(!values) throw new Error('不支援此壓縮格式 (Template '+msg.rep.template+')');
+        var vu=mU?decodeMessage(gribBuffer,mU):null, vv=mV?decodeMessage(gribBuffer,mV):null;
+        if(vu && vv){ values.valsU=vu; values.valsV=vv; }
       } else {
         values=decodeMessage(gribBuffer,msg);
         if(!values) throw new Error('不支援此壓縮格式 (Template '+msg.rep.template+')');
@@ -2441,6 +3061,22 @@ async function loadForecast(hour,fitView){
   $('loadBtn').disabled=true;
   $('varSel').disabled=true;
   setProgress(3);
+
+  /* 海流數值模式（M-B0071）為 NetCDF 格式，走 netCDF 解析流程 */
+  if(curType()==='ocean'){
+    try{
+      await loadOceanNetCDF(dataId, hour, fitView);
+    }catch(e){
+      setProgress(null);
+      setStatus('<span style="color:var(--red)">⚠️ 海流模式載入失敗：'+e.message+'</span><br>'+
+        '<span style="color:var(--txt3)">請確認金鑰、網路，或該時步是否提供 NetCDF 檔。</span>','err');
+      console.error(e);
+    }
+    $('loadBtn').disabled=false;
+    $('varSel').disabled=false;
+    return;
+  }
+
   setStatus('<span class="spinner"></span>讀取 JSON API（'+dataId+'）…');
 
   try{
@@ -2522,22 +3158,29 @@ async function loadForecast(hour,fitView){
     /* 6. Build variable list */
     buildVarList(gribMessages);
 
-    /* 6b. 解碼「離地10m 風」作為獨立粒子流場，可疊在任何色階場之上 */
+    /* 6b. 解碼粒子流場來源（大氣：離地10m 風；海洋：表層海流），可疊在任何色階場之上 */
     windField=null;
-    for(var wi=0; wi<gribMessages.length; wi++){
-      var wm=gribMessages[wi];
-      if(wm.isVirtualWind && wm.levelType===103 && wm.levelVal===10 && wm.msgU && wm.msgV){
-        try{
-          var wU=decodeMessage(gribBuffer, wm.msgU);
-          var wV=decodeMessage(gribBuffer, wm.msgV);
-          if(wU && wV){
-            if(wm.grid && wm.grid.lambert) lambertInit(wm.grid);
-            windField={valsU:wU, valsV:wV, grid:wm.grid};
-          }
-        }catch(e){ console.warn('風場粒子資料解碼失敗', e); }
-        break;
+    (function(){
+      var isOcean=(curType()==='ocean'), pick=null;
+      for(var wi=0; wi<gribMessages.length; wi++){
+        var wm=gribMessages[wi];
+        if(!wm.msgU || !wm.msgV) continue;
+        if(isOcean){
+          if(wm.key==='current-vector' && (!pick || wm.levelVal<pick.levelVal)) pick=wm;  /* 取最淺層 */
+        }else{
+          if(wm.key==='wind-vector' && wm.levelType===103 && wm.levelVal===10){ pick=wm; break; }
+        }
       }
-    }
+      if(!pick) return;
+      try{
+        var wU=decodeMessage(gribBuffer, pick.msgU);
+        var wV=decodeMessage(gribBuffer, pick.msgV);
+        if(wU && wV){
+          if(pick.grid && pick.grid.lambert) lambertInit(pick.grid);
+          windField={valsU:wU, valsV:wV, grid:pick.grid, ocean:isOcean};
+        }
+      }catch(e){ console.warn('粒子流場資料解碼失敗', e); }
+    })();
 
     /* 7. 自動選取變數：優先沿用上次選定的同一個場，找不到才用預設 */
     var supportedMsgs=gribMessages.filter(function(m){return m.rep&&(m.rep.template===0||m.rep.template===2||m.rep.template===3);});
