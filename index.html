@@ -19,8 +19,6 @@
   a.go+a.go{margin-top:12px}
   a.go .desc{display:block;font-size:12px;font-weight:400;opacity:.85;margin-top:3px}
   a.go:hover{filter:brightness(1.12)}
-  ul{margin:18px 0 0;padding:0;list-style:none;color:var(--muted);font-size:12px;line-height:1.9}
-  li::before{content:"‧ ";color:var(--accent)}
   .foot{margin-top:20px;font-size:11px;color:var(--muted);line-height:1.6}
   .foot a{color:var(--accent)}
 </style>
@@ -35,17 +33,13 @@
       <span class="desc">自動氣象站逐時觀測、格點分析與大潮／長浪監測</span></a>
     <a class="go" href="CWA_opendata_marine_display.html">進入地圖（即時海象監控）→
       <span class="desc">資料浮標與潮位站即時觀測、48 小時歷史時序圖與健康狀態監控</span></a>
-    <a class="go" href="CWA_opendata_NWPmodel_display.html" style="background:linear-gradient(135deg,#7c3aed,#06b6d4)">進入地圖（數值預報模式）→
+    <a class="go" href="CWA_opendata_geophysical_display.html">進入地圖（地球物理監測）→
+      <span class="desc">地磁、地電、電離層與地下水等地球物理觀測儀表板</span></a>
+    <a class="go" href="CWA_forecast_display.html" style="background:linear-gradient(135deg,#0891b2,#16a34a)">進入地圖（預報整合）→
+      <span class="desc">鄉鎮/縣市天氣 × 海面天氣 × 藍色公路 × 潮汐 × 育樂景點適遊燈號 × 1小時降雨預報 · 時間軸動畫 · 圖資與長期展望</span></a>
+    <a class="go" href="CWA_opendata_NWPmodel_display.html" style="background:linear-gradient(135deg,#0891b2,#16a34a)">進入地圖（數值預報模式）→
       <span class="desc">GFS 全球 · WRF 區域 15km／3km · 氣溫/氣壓/風場/降水 · GRIB2 前端解析 · 動畫播放
       <span style="display:block;margin-top:4px;color:#fbbf24">⚠ 資料檔較大（約 60–200 MB），載入需較久時間（約 30–200 秒），請耐心等候。</span></span></a>
-    <ul>
-      <li>氣溫、濕度、氣壓、風向風速（O-A0003-001）</li>
-      <li>時雨量與累積雨量（O-A0002-001）</li>
-      <li>署屬氣象站日射量（O-A0091-001）</li>
-      <li>自動氣象站逐時觀測（O-A0001-001）</li>
-      <li>波高、波期、波向、海溫與潮位（O-B0075-001）</li>
-      <li>街道 / 衛星 / 地形 / 深色底圖切換</li>
-    </ul>
     <div class="foot">資料來源：<a href="https://opendata.cwa.gov.tw/" target="_blank" rel="noopener">中央氣象署開放資料平臺</a>；金鑰僅存於您的瀏覽器，不會上傳。</div>
   </div>
 </body>
