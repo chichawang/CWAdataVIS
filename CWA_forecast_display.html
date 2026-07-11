@@ -126,9 +126,10 @@ select{padding:6px;border-radius:8px;border:1px solid var(--line);background:#0e
   color:var(--txt);font-size:14px;cursor:pointer;flex:none}
 #tPlay:hover{border-color:var(--accent)}
 #tLabel{font-size:14px;font-weight:700;min-width:150px;flex:none}
-#tSlider{flex:1;accent-color:var(--accent)}
+#tTrack{flex:1;display:flex;flex-direction:column;min-width:0}
+#tSlider{width:100%;accent-color:var(--accent);display:block}
 #tSpeed{width:78px;flex:none;padding:4px}
-#tTicks{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:2px;padding:0 2px}
+#tTicks{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:2px}
 
 /* ── 圖例（右下） ─────────────────────── */
 #legend{position:absolute;right:10px;bottom:10px;z-index:1000;max-width:250px;max-height:55%;
@@ -182,6 +183,11 @@ select{padding:6px;border-radius:8px;border:1px solid var(--line);background:#0e
 .txtdoc{font-size:13px;line-height:1.8;white-space:pre-wrap;background:#0e1830;border:1px solid var(--line);
   border-radius:10px;padding:14px;margin-bottom:14px}
 .txtdoc h4{margin:0 0 6px;font-size:14px;color:var(--accent)}
+.txtdoc h5{margin:10px 0 4px;font-size:12.5px;color:var(--txt)}
+.txtdoc table{border-collapse:collapse;font-size:11.5px;width:100%;margin:2px 0 10px;white-space:normal}
+.txtdoc td,.txtdoc th{border:1px solid var(--line);padding:4px 6px;text-align:center}
+.txtdoc th{color:var(--accent);background:#0b1220}
+.txtdoc td:first-child,.txtdoc th:first-child{white-space:nowrap;background:#0b1220cc;color:var(--txt);font-weight:700}
 
 /* ── Lightbox ─────────────────────────── */
 #lightbox{position:fixed;inset:0;z-index:4000;background:#000c;display:none;align-items:center;justify-content:center}
@@ -343,10 +349,12 @@ select{padding:6px;border-radius:8px;border:1px solid var(--line);background:#0e
   <div class="tb-top">
     <button id="tPlay" title="播放/暫停">▶</button>
     <span id="tLabel">--/-- --:--</span>
-    <input type="range" id="tSlider" min="0" max="55" value="0" step="1">
+    <div id="tTrack">
+      <input type="range" id="tSlider" min="0" max="55" value="0" step="1">
+      <div id="tTicks"></div>
+    </div>
     <select id="tSpeed"><option value="900">慢</option><option value="500" selected>中</option><option value="220">快</option></select>
   </div>
-  <div id="tTicks"></div>
 </div>
 
 <!-- 右上 -->
@@ -506,6 +514,13 @@ const COUNTY_SEATS={'臺北市':'中正區','新北市':'板橋區','基隆市':
   '南投縣':'南投市','雲林縣':'斗六市','嘉義市':'東區','嘉義縣':'太保市','臺南市':'安平區',
   '高雄市':'苓雅區','屏東縣':'屏東市','宜蘭縣':'宜蘭市','花蓮縣':'花蓮市','臺東縣':'臺東市',
   '澎湖縣':'馬公市','金門縣':'金城鎮','連江縣':'南竿鄉'};
+/* 月／季長期展望（F-A0013-001／002）分區對照：縣市 → 北/中/南/東（離島澎湖/金門/連江不在此展望分區內） */
+const REGION4={
+  '基隆市':'北部','臺北市':'北部','新北市':'北部','桃園市':'北部','新竹縣':'北部','新竹市':'北部','苗栗縣':'北部',
+  '臺中市':'中部','彰化縣':'中部','南投縣':'中部','雲林縣':'中部','嘉義縣':'中部','嘉義市':'中部',
+  '臺南市':'南部','高雄市':'南部','屏東縣':'南部',
+  '宜蘭縣':'東部','花蓮縣':'東部','臺東縣':'東部',
+};
 
 
 /* ── 全域狀態 ─────────────────────────────────────────────────────────── */
@@ -588,6 +603,23 @@ async function fetchText(url, ttl){
   if(!r.ok) throw new Error('HTTP '+r.status);
   const data=await r.text();
   CACHE.set(url,{t:Date.now(),data}); return data;
+}
+/* 取原始位元組（供需自行判斷編碼的純文字公報，如 CWA FW01 常見 Big5 編碼，避免 fetch().text() 誤判 UTF-8 產生亂碼） */
+async function fetchBuffer(url, ttl){
+  const key='buf:'+url; const c=CACHE.get(key);
+  if(c && Date.now()-c.t < ttl) return c.data;
+  const r=await fetch(url);
+  if(r.status===401){ toast('API 金鑰無效或逾期，請重新輸入'); showKeyGate(true); throw new Error('401'); }
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  const data=await r.arrayBuffer();
+  CACHE.set(key,{t:Date.now(),data}); return data;
+}
+/* 位元組陣列 → 文字：優先嘗試 Big5（CWA 文字公報慣用編碼），若解碼出大量替代字元(U+FFFD)則改用 UTF-8 */
+function decodeCwaText(buf){
+  let big5=''; try{ big5=new TextDecoder('big5').decode(buf); }catch(e){}
+  const bad=(big5.match(/�/g)||[]).length;
+  if(big5 && bad/Math.max(big5.length,1) < 0.01) return big5;
+  try{ return new TextDecoder('utf-8').decode(buf); }catch(e){ return big5; }
 }
 /* XML → 純物件（重複標籤轉陣列），供泛用解析器沿用 */
 function xmlToObj(node){
@@ -1225,6 +1257,8 @@ async function openLandPopup(props, latlng){
   if(hRec||dRec) html+=`<div id="ppHealth" class="sm"></div>`;
   if(isCounty&&recC){ const wxNow=valAt(recC,'Wx',curTime());
     html+=`<details><summary>縣市 36 小時預報摘要</summary><div id="ppC36" class="sm"></div></details>`; }
+  const region=REGION4[county];
+  if(region) html+=`<details><summary>📅 月／季長期展望（${region}）</summary><div id="ppLong" class="sm">載入中…</div></details>`;
   html+=`</div>`;
   const pop=L.popup({maxWidth:380}).setLatLng(latlng).setContent(html).openOn(S.map);
   /* 重要：以「本次彈窗的 DOM」為範圍查詢，避免抓到前一個淡出中彈窗的同名元素 */
@@ -1287,6 +1321,29 @@ async function openLandPopup(props, latlng){
         return `<div>${fmtT(w.s)} 起：${wxIcon(w.code,w.txt,isDaytime(county,w.s))} ${w.txt}，${mn&&mn.v!=null?mn.v+'～':''}${mx&&mx.v!=null?mx.v+'°C':''}，降雨 ${pp&&pp.v!=null?pp.v+'%':'–'}</div>`;
       });
       pc.innerHTML=rows.join('');
+    }
+    /* 月／季長期展望摘要（依 REGION4 分區對照，僅取最近一期） */
+    const pl=Q('#ppLong');
+    if(pl && region){
+      Promise.allSettled([apiFile(DS.longM),apiFile(DS.longS)]).then(([rm,rs])=>{
+        const lines=[];
+        if(rm.status==='fulfilled'){
+          const data=parseLongOutlook(rm.value);
+          const t=data.find(d=>/溫度機率|氣溫機率/.test(d.name)), p=data.find(d=>/雨量機率/.test(d.name));
+          const tp=t&&t.regions[region]&&t.regions[region][0], pp=p&&p.regions[region]&&p.regions[region][0];
+          if(tp||pp) lines.push(`<div><b>月展望${tp?'（'+tp.period+'）':''}</b>：`+
+            `氣溫 ${tp?fmtOutlookValue(tp.value,tp.measures):'–'}／雨量 ${pp?fmtOutlookValue(pp.value,pp.measures):'–'}</div>`);
+        }
+        if(rs.status==='fulfilled'){
+          const data=parseLongOutlook(rs.value);
+          const t=data.find(d=>/溫度機率|氣溫機率/.test(d.name)), p=data.find(d=>/雨量機率/.test(d.name));
+          const tp=t&&t.regions[region]&&t.regions[region][0], pp=p&&p.regions[region]&&p.regions[region][0];
+          if(tp||pp) lines.push(`<div><b>季展望${tp?'（'+tp.period+'）':''}</b>：`+
+            `氣溫 ${tp?fmtOutlookValue(tp.value,tp.measures):'–'}／雨量 ${pp?fmtOutlookValue(pp.value,pp.measures):'–'}</div>`);
+        }
+        lines.push(`<div style="margin-top:4px"><a href="javascript:void(0)" onclick="openLongDrawer()">查看完整月／季展望 →</a></div>`);
+        pl.innerHTML=lines.length>1?lines.join(''):'目前無資料';
+      }).catch(()=>{ pl.textContent='載入失敗'; });
     }
   }catch(err){ console.error('popup',err); } },60);
 }
@@ -2627,7 +2684,7 @@ function renderGrid(){
 /* =========================================================================
    抽屜：官方圖資 / 滿潮潮線圖 / 長期展望 / 天氣概況
    ========================================================================= */
-const DRAWER={ imgCache:{}, galTimers:{} };
+const DRAWER={ imgCache:{}, galTimers:{}, ovBlobUrl:null };
 function findImageUrl(json){
   let url=null;
   deepFind(json,o=>{ if(typeof o==='string'&&/^https?:\/\//.test(o)&&/\.(jpg|jpeg|png|gif)/i.test(o)&&!url) url=o; return false; });
@@ -2667,6 +2724,89 @@ function extractTexts(json,minLen=30){
     if(s.length>=minLen&&!/^https?:/.test(s)&&!/^[\d.,\s:+-]+$/.test(s)&&!seen.has(s)){ seen.add(s); out.push(s); } } return false; });
   return out;
 }
+function escapeHtml(s){
+  return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+/* 長期展望（F-A0013-001 月／F-A0013-002 季）解析：weatherElement → location(分區) → time(期間) → elementValue */
+function parseLongOutlook(json){
+  const els=deepFind(json, o=>o && typeof o==='object' && !Array.isArray(o) &&
+    pick(o,['elementName','ElementName'])!==undefined && pick(o,['location','Location'])!==undefined);
+  const out=[];
+  for(const we of els){
+    const name=pick(we,['elementName','ElementName'])||'';
+    const locs=pick(we,['location','Location'])||[];
+    const regions={}; let periods=null;
+    for(const loc of locs){
+      const rname=normName(pick(loc,['locationName','LocationName'])||''); if(!rname) continue;
+      const times=pick(loc,['time','Time'])||[];
+      const arr=[];
+      for(const tm of times){
+        const st=pick(tm,['StartTime','startTime']), et=pick(tm,['EndTime','endTime']), dt=pick(tm,['DataTime','dataTime']);
+        const period = dt ? `${dt}月` : (st&&et? `${st.slice(5).replace('-','/')}~${et.slice(5).replace('-','/')}` : (st||'—'));
+        const ev=pick(tm,['elementValue','ElementValue'])||{};
+        const value=pick(ev,['value','Value']), measures=pick(ev,['measures','Measures'])||'';
+        arr.push({period,value,measures});
+      }
+      regions[rname]=arr;
+      if(!periods||arr.length>periods.length) periods=arr.map(a=>a.period);
+    }
+    if(Object.keys(regions).length) out.push({name,periods:periods||[],regions});
+  }
+  return out;
+}
+/* 三分類機率值 "偏低:正常:偏高"（如 "10:60:30"）轉可讀文字 */
+function fmtOutlookValue(v,measures){
+  if(v==null) return '–';
+  const m=/^(-?\d+(?:\.\d+)?):(-?\d+(?:\.\d+)?):(-?\d+(?:\.\d+)?)$/.exec(String(v).trim());
+  if(m) return `偏低 ${m[1]}%／正常 ${m[2]}%／偏高 ${m[3]}%`;
+  return `${v}${measures?' '+measures:''}`;
+}
+function renderLongOutlookHTML(json){
+  const data=parseLongOutlook(json);
+  if(!data.length) return '目前無資料';
+  let html='';
+  for(const el of data){
+    html+=`<h5>${escapeHtml(el.name)}</h5><table><thead><tr><th>分區</th>`+
+      el.periods.map(p=>`<th>${escapeHtml(p)}</th>`).join('')+'</tr></thead><tbody>';
+    for(const rname in el.regions){
+      html+=`<tr><td>${escapeHtml(rname)}</td>`+
+        el.regions[rname].map(p=>`<td>${escapeHtml(fmtOutlookValue(p.value,p.measures))}</td>`).join('')+'</tr>';
+    }
+    html+='</tbody></table>';
+  }
+  return html;
+}
+/* 天氣概況（F-C0044-001）：中繼 JSON 內含 ProductURL 指向純文字公報（.FW01，常為 Big5 編碼）。
+   直接以 <iframe src="原始URL"> 內嵌會因瀏覽器誤判編碼（多半當作 UTF-8）而顯示亂碼，
+   故改為自行抓取位元組、判斷並轉換編碼後，包成 UTF-8 的 HTML 文件（Blob URL）再內嵌，畫面仍為 iframe。 */
+async function loadOverviewFrame(){
+  const j=await apiFile(DS.overview);
+  const resNode=deepFind(j, o=>o && typeof o==='object' && !Array.isArray(o) && pick(o,['ProductURL','productURL'])!==undefined)[0];
+  const url=resNode && pick(resNode,['ProductURL','productURL']);
+  if(url){
+    try{
+      const buf=await fetchBuffer(url, TTL.def);
+      const text=decodeCwaText(buf).replace(/\r\n/g,'\n').trim();
+      if(text){
+        const doc=`<!doctype html><html><head><meta charset="utf-8"><style>`+
+          `body{margin:0;padding:14px;background:#0e1830;color:#dbe4f5;`+
+          `font:13px/1.8 -apple-system,'Segoe UI',Roboto,'Noto Sans TC',sans-serif;white-space:pre-wrap;word-break:break-word}`+
+          `</style></head><body>${escapeHtml(text)}</body></html>`;
+        if(DRAWER.ovBlobUrl){ URL.revokeObjectURL(DRAWER.ovBlobUrl); DRAWER.ovBlobUrl=null; }
+        const blobUrl=URL.createObjectURL(new Blob([doc],{type:'text/html;charset=utf-8'}));
+        DRAWER.ovBlobUrl=blobUrl;
+        return `<iframe src="${blobUrl}" title="臺灣天氣概況原始公報" `+
+          `style="width:100%;height:60vh;min-height:340px;border:1px solid var(--line);border-radius:8px;background:#0e1830"></iframe>`+
+          `<div class="note" style="margin-top:6px">內容取自氣象署原始公報並自動轉換編碼；如需查看原始檔案，<a href="${escapeHtml(url)}" target="_blank" rel="noopener">點此另開新視窗</a>。</div>`;
+      }
+    }catch(e){
+      console.warn('天氣概況內文載入失敗',e.message);
+      return `<div class="sm">內文無法於頁面內載入，請<a href="${escapeHtml(url)}" target="_blank" rel="noopener">點此開啟原始公報</a>。</div>`;
+    }
+  }
+  const texts=extractTexts(j);
+  return texts.length? texts.map(t=>`<p>${escapeHtml(t)}</p>`).join('') : '目前無資料';
+}
 async function renderDrawerTab(tab){
   const body=$('dwBody');
   document.querySelectorAll('.dw-tab').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
@@ -2679,14 +2819,14 @@ async function renderDrawerTab(tab){
   }else if(tab==='long'){
     body.innerHTML='<div class="txtdoc"><h4>📅 月長期天氣展望（F-A0013-001）</h4><div id="dwLongM">載入中…</div></div>'+
       '<div class="txtdoc"><h4>📆 季長期天氣展望（F-A0013-002）</h4><div id="dwLongS">載入中…</div></div>'+
-      '<div class="note" style="padding:0 4px">展望內容為北中南東分區之溫度／雨量三分類機率與文字說明；如需圖形化機率圖，屬後續進階項。</div>';
-    apiFile(DS.longM).then(j=>{ const el=$('dwLongM'); if(el) el.innerHTML=extractTexts(j).map(t=>`<p>${t}</p>`).join('')||'目前無資料'; })
+      '<div class="note" style="padding:0 4px">機率值為「偏低／正常／偏高」三分類百分比；氣候正常值範圍取自過去 30 年統計平均。</div>';
+    apiFile(DS.longM).then(j=>{ const el=$('dwLongM'); if(el) el.innerHTML=renderLongOutlookHTML(j); })
       .catch(()=>{ const el=$('dwLongM'); if(el) el.textContent='載入失敗'; });
-    apiFile(DS.longS).then(j=>{ const el=$('dwLongS'); if(el) el.innerHTML=extractTexts(j).map(t=>`<p>${t}</p>`).join('')||'目前無資料'; })
+    apiFile(DS.longS).then(j=>{ const el=$('dwLongS'); if(el) el.innerHTML=renderLongOutlookHTML(j); })
       .catch(()=>{ const el=$('dwLongS'); if(el) el.textContent='載入失敗'; });
   }else if(tab==='text'){
     body.innerHTML='<div class="txtdoc"><h4>🗒️ 臺灣天氣概況（F-C0044-001）</h4><div id="dwOv">載入中…</div></div>';
-    apiFile(DS.overview).then(j=>{ const el=$('dwOv'); if(el) el.innerHTML=extractTexts(j).map(t=>`<p>${t}</p>`).join('')||'目前無資料'; })
+    loadOverviewFrame().then(html=>{ const el=$('dwOv'); if(el) el.innerHTML=html; })
       .catch(()=>{ const el=$('dwOv'); if(el) el.textContent='載入失敗'; });
   }
 }
@@ -2702,6 +2842,7 @@ $('dwBody').addEventListener('click',e=>{
 });
 document.querySelectorAll('.dw-tab').forEach(b=>b.addEventListener('click',()=>renderDrawerTab(b.dataset.tab)));
 $('btnDrawer').addEventListener('click',()=>{ $('drawer').classList.add('open'); renderDrawerTab('charts'); });
+window.openLongDrawer=()=>{ $('drawer').classList.add('open'); renderDrawerTab('long'); };
 $('dwClose').addEventListener('click',()=>{ $('drawer').classList.remove('open');
   Object.keys(DRAWER.galTimers).forEach(k=>{ clearInterval(DRAWER.galTimers[k]); DRAWER.galTimers[k]=null; }); });
 $('lightbox').addEventListener('click',()=>$('lightbox').style.display='none');
