@@ -804,6 +804,9 @@ function renderLegend(){
   b.innerHTML = blocks.length?blocks.join(''):'<div class="lg-block" style="border:none;margin:0;padding:0"><span class="lv">尚無啟用圖層</span></div>';
 }
 $('lgHead').addEventListener('click',()=>$('legend').classList.toggle('collapsed'));
+document.querySelectorAll('#panel .sect > .st').forEach(st=>{
+  st.addEventListener('click',()=>st.parentElement.classList.toggle('collapsed'));
+});
 function togglePanel(){
   const c=$('panel').classList.toggle('collapsed');
   $('panelTab').classList.toggle('collapsed',c);
