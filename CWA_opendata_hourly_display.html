@@ -4,109 +4,124 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>氣象署OPEN DATA逐時觀測×格點分析地圖</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
-  :root{--bg:#0b1220;--card:#16213a;--line:#2a3a57;--txt:#e6edf6;--muted:#9fb0c8;--accent:#3b82f6;--chip:#1e293b}
+  :root{
+    --bg:#0e1217;
+    --card:rgba(23, 28, 40, 0.75);
+    --line:rgba(255, 255, 255, 0.12);
+    --txt:#f8f9fa;
+    --muted:#9aa0a6;
+    --accent:#8ab4f8;
+    --accent-dark:#1a73e8;
+    --chip:rgba(255, 255, 255, 0.08);
+    --panelW:310px;
+  }
   *{box-sizing:border-box}
-  html,body{margin:0;height:100%;font-family:"Segoe UI","Microsoft JhengHei",system-ui,sans-serif;color:var(--txt);font-size:14px}
-  #map{position:absolute;inset:0;background:#0b1220}
-  .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--card);color:var(--txt);border:1px solid var(--line)}
-  .leaflet-popup-content{margin:12px 14px;font-size:13px;line-height:1.55}
+  html,body{margin:0;height:100%;font-family:"Roboto","Noto Sans TC",system-ui,-apple-system,sans-serif;color:var(--txt);font-size:14px;-webkit-font-smoothing:antialiased}
+  #map{position:absolute;inset:0;background:var(--bg)}
+  .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:rgba(23,28,40,0.92);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);color:var(--txt);border:1px solid var(--line);border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,0.4)}
+  .leaflet-popup-content{margin:14px 16px;font-size:13px;line-height:1.55}
   .windarrow{background:none;border:none}
   .windarrow svg{filter:drop-shadow(0 0 1px rgba(0,0,0,.6))}
   /* 颱風符號：緩慢逆時針旋轉（北半球氣旋方向） */
   .tyicon svg{animation:tyspin 6s linear infinite;transform-origin:50% 50%}
   @keyframes tyspin{to{transform:rotate(-360deg)}}
-  .pop h3{margin:0 0 6px;font-size:15px}
+  .pop h3{margin:0 0 6px;font-size:15px;font-weight:700;color:#ffffff}
   .pop .row{display:flex;justify-content:space-between;gap:18px}
-  .pop .k{color:var(--muted)} .pop .big{font-size:20px;font-weight:700;color:#fff}
+  .pop .k{color:var(--muted)} .pop .big{font-size:20px;font-weight:700;color:var(--accent)}
 
   /* 控制面板：全高側欄（參考 O-B0055 頁面），收合時整片滑出畫面左側 */
-  :root{--panelW:300px}
-  .panel{position:absolute;top:0;left:0;bottom:0;z-index:1000;background:rgba(16,24,42,.55);
-    backdrop-filter:blur(18px) saturate(1.5);-webkit-backdrop-filter:blur(18px) saturate(1.5);
-    box-shadow:0 8px 32px rgba(0,0,0,.35);
-    border-right:1px solid rgba(255,255,255,.08);padding:14px;width:var(--panelW);
-    overflow-y:auto;transition:transform .2s ease}
+  .panel{position:absolute;top:0;left:0;bottom:0;z-index:1000;background:rgba(23,28,40,0.65);
+    backdrop-filter:blur(24px) saturate(1.8);-webkit-backdrop-filter:blur(24px) saturate(1.8);
+    box-shadow:0 12px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1);
+    border-right:1px solid var(--line);padding:18px 16px;width:var(--panelW);
+    overflow-y:auto;transition:transform .25s cubic-bezier(0.4, 0, 0.2, 1)}
   .panel::-webkit-scrollbar{width:5px}
   .panel::-webkit-scrollbar-track{background:transparent}
-  .panel::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px}
-  .panel h1{margin:0 0 2px;font-size:16px}
-  .panel .sub{color:var(--muted);font-size:11px;margin-bottom:10px}
-  label{display:block;font-size:11px;color:var(--muted);margin:8px 0 4px;font-weight:600}
-  select,input{width:100%;padding:7px 8px;background:rgba(13,21,38,.55);color:var(--txt);border:1px solid rgba(255,255,255,.12);border-radius:7px;font-size:13px}
-  .btns{display:flex;gap:8px;margin-top:10px}
-  button{flex:1;padding:7px;background:var(--accent);color:#fff;border:none;border-radius:7px;font-size:12px;cursor:pointer;font-weight:600}
+  .panel::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.2);border-radius:4px}
+  .panel h1{margin:0 0 2px;font-size:17px;font-weight:700;letter-spacing:-0.2px}
+  .panel .sub{color:var(--muted);font-size:12px;margin-bottom:12px;line-height:1.5}
+  label{display:block;font-size:11.5px;color:var(--muted);margin:10px 0 4px;font-weight:500;letter-spacing:0.2px}
+  select,input{width:100%;padding:8px 10px;background:rgba(15,20,30,0.6);color:var(--txt);border:1px solid var(--line);border-radius:12px;font-size:13px;outline:none;transition:border-color .2s,box-shadow .2s}
+  select:focus,input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(138,180,248,0.2)}
+  .btns{display:flex;gap:8px;margin-top:12px}
+  button{flex:1;padding:9px 12px;background:var(--accent);color:#041e49;border:none;border-radius:20px;font-size:12.5px;cursor:pointer;font-weight:700;transition:all .2s ease;display:inline-flex;align-items:center;justify-content:center;gap:4px}
   button.ghost{background:transparent;border:1px solid var(--line);color:var(--txt)}
-  button:hover{filter:brightness(1.12)}
+  button:hover{background:#a8c7fa;box-shadow:0 2px 8px rgba(138,180,248,0.3)}
+  button.ghost:hover{background:rgba(255,255,255,0.08);border-color:var(--accent);color:var(--accent)}
   .chip{display:block;margin-top:9px;font-size:11px;color:var(--muted)}
-  .chip.time{color:#e6edf6;font-weight:600}
+  .chip.time{color:#ffffff;font-weight:600}
 
   /* 海象監測 checkbox */
-  .ckrow{display:flex;align-items:center;gap:7px;margin:5px 0 0;font-size:12px;color:var(--txt);font-weight:400;cursor:pointer}
+  .ckrow{display:flex;align-items:center;gap:8px;margin:6px 0 0;font-size:12.5px;color:var(--txt);font-weight:400;cursor:pointer;padding:3px 0}
   .ckrow input{width:auto;accent-color:var(--accent)}
 
   /* 全臺極值 */
-  .stats{margin-top:10px;border-top:1px solid var(--line);padding-top:8px;font-size:11px}
-  .stats .t{font-weight:700;color:var(--txt);margin-bottom:4px}
-  .stats .row{display:flex;justify-content:space-between;color:var(--muted);margin:2px 0}
-  .stats .v{color:#fff;font-weight:600}
+  .stats{margin-top:14px;border-top:1px solid var(--line);padding-top:10px;font-size:12px;background:rgba(255,255,255,0.03);border-radius:12px;padding:10px 12px}
+  .stats .t{font-weight:700;color:var(--accent);margin-bottom:6px;font-size:12.5px;display:flex;align-items:center;gap:4px}
+  .stats .row{display:flex;justify-content:space-between;color:var(--muted);margin:4px 0}
+  .stats .v{color:#ffffff;font-weight:600}
 
   /* 面板 / 圖例 縮小切換 */
   .phead{display:flex;align-items:center;gap:8px}
   .phead h1{flex:1;margin:0}
-  .mini{flex:0 0 auto;width:26px;height:26px;padding:0;background:transparent;border:1px solid var(--line);
-    color:var(--muted);border-radius:6px;font-size:14px;line-height:1;cursor:pointer;font-weight:700}
-  .mini:hover{color:var(--txt);border-color:var(--accent);filter:none}
+  .mini{flex:0 0 auto;width:28px;height:28px;padding:0;background:rgba(255,255,255,0.05);border:1px solid var(--line);
+    color:var(--muted);border-radius:50%;font-size:13px;line-height:1;cursor:pointer;font-weight:700}
+  .mini:hover{color:var(--txt);border-color:var(--accent);background:rgba(138,180,248,0.15)}
   .panel.collapsed{transform:translateX(-100%)}
   /* 面板收合把手：貼於面板右緣，跟隨收合位置移動 */
   #panelTab{position:absolute;top:50%;left:var(--panelW);transform:translateY(-50%);z-index:1001;
-    width:22px;height:56px;padding:0;flex:none;background:rgba(16,24,42,.55);
-    backdrop-filter:blur(18px) saturate(1.5);-webkit-backdrop-filter:blur(18px) saturate(1.5);
-    border:1px solid var(--line);border-left:none;border-radius:0 8px 8px 0;
-    color:var(--muted);font-size:12px;cursor:pointer;transition:left .2s ease}
-  #panelTab:hover{color:var(--txt);border-color:var(--accent);filter:none}
+    width:24px;height:60px;padding:0;flex:none;background:rgba(23,28,40,0.65);
+    backdrop-filter:blur(24px) saturate(1.8);-webkit-backdrop-filter:blur(24px) saturate(1.8);
+    border:1px solid var(--line);border-left:none;border-radius:0 12px 12px 0;
+    color:var(--muted);font-size:13px;cursor:pointer;transition:left .25s cubic-bezier(0.4, 0, 0.2, 1);box-shadow:4px 0 16px rgba(0,0,0,0.2)}
+  #panelTab:hover{color:var(--accent);border-color:var(--accent)}
   #panelTab.collapsed{left:0}
-  .legend.collapsed{width:auto;padding:8px 10px}
+  .legend.collapsed{width:auto;padding:8px 12px}
   .legend.collapsed .lbody{display:none}
   .lhead{display:flex;align-items:center;gap:8px}
   .lhead .title{flex:1;margin-bottom:0}
 
   /* 浮動資訊盒（格點控制 / 讀值） */
-  .fbox{position:absolute;z-index:1000;background:rgba(16,24,42,.55);border:1px solid rgba(255,255,255,.1);
-    border-radius:12px;padding:10px 12px;backdrop-filter:blur(18px) saturate(1.5);
-    -webkit-backdrop-filter:blur(18px) saturate(1.5);box-shadow:0 8px 32px rgba(0,0,0,.35)}
+  .fbox{position:absolute;z-index:1000;background:rgba(23,28,40,0.65);border:1px solid var(--line);
+    border-radius:16px;padding:12px 14px;backdrop-filter:blur(24px) saturate(1.8);
+    -webkit-backdrop-filter:blur(24px) saturate(1.8);box-shadow:0 8px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.1)}
   .fbox .bhead{display:flex;align-items:center;gap:8px}
-  .fbox .bhead .btitle{flex:1;font-size:12px;font-weight:700}
-  .fbox.collapsed{padding:8px 10px}
+  .fbox .bhead .btitle{flex:1;font-size:13px;font-weight:700;color:#ffffff}
+  .fbox.collapsed{padding:8px 12px}
   .fbox.collapsed .bbody{display:none}
   input[type=range]{padding:0;height:22px;background:transparent;border:none;accent-color:var(--accent)}
   #gridLegend{margin-top:8px}
 
-
   /* colorbar 圖例 */
-  .legend{position:absolute;bottom:22px;right:12px;z-index:1000;background:rgba(16,24,42,.55);
-    backdrop-filter:blur(18px) saturate(1.5);-webkit-backdrop-filter:blur(18px) saturate(1.5);
-    border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:12px 14px;width:230px;
-    box-shadow:0 8px 32px rgba(0,0,0,.35)}
-  .legend .title{font-size:12px;font-weight:700;margin-bottom:8px}
-  .bar{height:14px;border-radius:4px;border:1px solid var(--line)}
-  .ticks{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:3px}
-  .legend .na{font-size:11px;color:var(--muted);margin-top:8px;display:flex;align-items:center;gap:6px}
+  .legend{position:absolute;bottom:22px;right:12px;z-index:1000;background:rgba(23,28,40,0.65);
+    backdrop-filter:blur(24px) saturate(1.8);-webkit-backdrop-filter:blur(24px) saturate(1.8);
+    border:1px solid var(--line);border-radius:16px;padding:14px 16px;width:240px;
+    box-shadow:0 8px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.1)}
+  .legend .title{font-size:13px;font-weight:700;margin-bottom:8px;color:#ffffff}
+  .bar{height:14px;border-radius:6px;border:1px solid var(--line)}
+  .ticks{display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted);margin-top:4px}
+  .legend .na{font-size:11.5px;color:var(--muted);margin-top:8px;display:flex;align-items:center;gap:6px}
   .dot{width:11px;height:11px;border-radius:50%;background:#7a8aa3;border:1px solid #fff;display:inline-block}
   .loader{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-    background:rgba(11,18,32,.7);z-index:2000;color:var(--muted);font-size:15px}
-  @media(max-width:520px){:root{--panelW:min(260px,85vw)}.legend{width:165px}}
+    background:rgba(14,18,23,0.75);backdrop-filter:blur(12px);z-index:2000;color:var(--accent);font-size:15px;font-weight:500}
+  @media(max-width:520px){:root{--panelW:min(270px,85vw)}.legend{width:165px}}
 
   /* ===== API 金鑰輸入畫面 ===== */
   #gate{position:fixed;inset:0;z-index:3000;display:flex;align-items:center;justify-content:center;
-    background:radial-gradient(1200px 600px at 50% -10%,#12203c,#0b1220)}
-  #gate .box{width:min(420px,calc(100% - 32px));background:var(--card);border:1px solid var(--line);
-    border-radius:16px;padding:26px 24px;box-shadow:0 20px 60px rgba(0,0,0,.45)}
-  #gate h1{margin:0 0 4px;font-size:20px}
-  #gate .sub{color:var(--muted);font-size:12px;margin-bottom:18px;line-height:1.5}
+    background:radial-gradient(1200px 600px at 50% -10%, #172033, #0e1217)}
+  #gate .box{width:min(440px,calc(100% - 32px));background:rgba(23,28,40,0.75);
+    backdrop-filter:blur(24px) saturate(1.8);-webkit-backdrop-filter:blur(24px) saturate(1.8);
+    border:1px solid var(--line);border-radius:24px;padding:32px 28px;box-shadow:0 16px 48px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.12)}
+  #gate h1{margin:0 0 6px;font-size:21px;font-weight:700;color:#ffffff}
+  #gate .sub{color:var(--muted);font-size:13px;margin-bottom:20px;line-height:1.5}
   #gate label{margin-top:0}
   #gate .keyrow{display:flex;gap:8px}
   #gate .keyrow input{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}

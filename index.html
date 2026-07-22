@@ -4,47 +4,163 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>氣象署 OPEN DATA 即時觀測資料地圖</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
 <style>
-  :root{--bg:#0b1220;--card:#16213a;--line:#2a3a57;--txt:#e6edf6;--muted:#9fb0c8;--accent:#3b82f6}
+  :root{
+    --bg:#0e1217;
+    --card:rgba(23, 28, 40, 0.65);
+    --card-hover:rgba(30, 37, 54, 0.85);
+    --line:rgba(255, 255, 255, 0.12);
+    --txt:#f8f9fa;
+    --muted:#9aa0a6;
+    --accent:#8ab4f8;
+    --accent-dark:#1a73e8;
+    --accent-glow:rgba(138, 180, 248, 0.25);
+  }
   *{box-sizing:border-box}
-  html,body{margin:0;min-height:100%;font-family:"Segoe UI","Microsoft JhengHei",system-ui,sans-serif;color:var(--txt)}
-  body{display:flex;align-items:center;justify-content:center;min-height:100vh;
-    background:radial-gradient(1200px 600px at 50% -10%,#12203c,#0b1220)}
-  .box{width:min(560px,calc(100% - 32px));background:rgba(22,33,58,.55);
-    backdrop-filter:blur(18px) saturate(1.5);-webkit-backdrop-filter:blur(18px) saturate(1.5);
-    border:1px solid rgba(255,255,255,.1);
-    border-radius:16px;padding:32px 28px;box-shadow:0 20px 60px rgba(0,0,0,.45)}
-  h1{margin:0 0 6px;font-size:22px}
-  .sub{color:var(--muted);font-size:13px;line-height:1.6;margin-bottom:22px}
-  a.go{display:block;text-align:center;padding:14px;background:var(--accent);color:#fff;
-    border-radius:10px;font-size:15px;font-weight:700;text-decoration:none}
-  a.go+a.go{margin-top:12px}
-  a.go .desc{display:block;font-size:12px;font-weight:400;opacity:.85;margin-top:3px}
-  a.go:hover{filter:brightness(1.12)}
-  .foot{margin-top:20px;font-size:11px;color:var(--muted);line-height:1.6}
-  .foot a{color:var(--accent)}
+  html,body{margin:0;min-height:100%;font-family:"Roboto","Noto Sans TC",system-ui,-apple-system,sans-serif;color:var(--txt);-webkit-font-smoothing:antialiased}
+  body{
+    display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px 16px;
+    background:radial-gradient(1400px 800px at 50% -10%, #172033 0%, #0e1217 70%, #080a0f 100%);
+    background-attachment:fixed;
+  }
+  .box{
+    width:min(620px, 100%);
+    background:var(--card);
+    backdrop-filter:blur(24px) saturate(1.8);
+    -webkit-backdrop-filter:blur(24px) saturate(1.8);
+    border:1px solid var(--line);
+    border-radius:24px;
+    padding:36px 32px;
+    box-shadow:0 12px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.12);
+  }
+  .header-tag{
+    display:inline-flex;align-items:center;gap:6px;padding:4px 12px;background:rgba(138,180,248,0.12);
+    border:1px solid rgba(138,180,248,0.3);border-radius:20px;color:var(--accent);font-size:12px;font-weight:500;margin-bottom:12px;
+  }
+  h1{
+    margin:0 0 10px;font-size:24px;font-weight:700;letter-spacing:-0.2px;
+    display:flex;align-items:center;gap:10px;color:#ffffff;
+  }
+  h1 .icon{font-size:28px;color:var(--accent)}
+  .sub{color:var(--muted);font-size:14px;line-height:1.65;margin-bottom:28px}
+  .links{display:flex;flex-direction:column;gap:12px}
+  a.go{
+    display:flex;flex-direction:column;padding:16px 20px;background:rgba(255,255,255,0.05);
+    border:1px solid rgba(255,255,255,0.1);color:var(--txt);border-radius:16px;
+    font-size:15px;font-weight:500;text-decoration:none;transition:all .25s cubic-bezier(0.4, 0, 0.2, 1);
+    position:relative;overflow:hidden;
+  }
+  a.go::before{
+    content:'';position:absolute;top:0;left:0;bottom:0;width:4px;background:var(--accent);
+    opacity:0;transition:opacity .25s ease;
+  }
+  a.go .title-row{display:flex;align-items:center;justify-content:space-between;width:100%;font-weight:700;color:#ffffff}
+  a.go .title-row .arrow{font-size:18px;color:var(--accent);transition:transform .25s ease}
+  a.go .desc{display:block;font-size:12.5px;font-weight:400;color:var(--muted);line-height:1.5;margin-top:5px}
+  a.go:hover{
+    background:rgba(138,180,248,0.12);
+    border-color:rgba(138,180,248,0.4);
+    transform:translateY(-2px);
+    box-shadow:0 8px 24px rgba(0,0,0,0.3), 0 0 16px var(--accent-glow);
+  }
+  a.go:hover::before{opacity:1}
+  a.go:hover .title-row .arrow{transform:translateX(4px)}
+
+  /* Special themes */
+  a.go.eq-theme::before{background:#f28b82}
+  a.go.eq-theme:hover{background:rgba(242,139,130,0.12);border-color:rgba(242,139,130,0.4);box-shadow:0 8px 24px rgba(0,0,0,0.3), 0 0 16px rgba(242,139,130,0.2)}
+  a.go.eq-theme .title-row .arrow{color:#f28b82}
+
+  a.go.fc-theme::before{background:#81c995}
+  a.go.fc-theme:hover{background:rgba(129,201,149,0.12);border-color:rgba(129,201,149,0.4);box-shadow:0 8px 24px rgba(0,0,0,0.3), 0 0 16px rgba(129,201,149,0.2)}
+  a.go.fc-theme .title-row .arrow{color:#81c995}
+
+  a.go.nwp-theme::before{background:#fdd663}
+  a.go.nwp-theme:hover{background:rgba(253,214,99,0.12);border-color:rgba(253,214,99,0.4);box-shadow:0 8px 24px rgba(0,0,0,0.3), 0 0 16px rgba(253,214,99,0.2)}
+  a.go.nwp-theme .title-row .arrow{color:#fdd663}
+
+  .warn-badge{display:block;margin-top:6px;color:#fdd663;font-size:11.5px;font-weight:500;display:flex;align-items:center;gap:4px}
+  .foot{margin-top:28px;padding-top:18px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);line-height:1.6;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+  .foot a{color:var(--accent);text-decoration:none}
+  .foot a:hover{text-decoration:underline}
 </style>
 </head>
 <body>
   <div class="box">
-    <h1>🗺️ 氣象署 OPEN DATA 即時觀測資料地圖</h1>
+    <div class="header-tag">
+      <span class="material-symbols-outlined" style="font-size:14px">cloud</span> CWA Open Data Portal
+    </div>
+    <h1><span class="material-symbols-outlined icon">map</span> 氣象署 OPEN DATA 即時觀測地圖</h1>
     <div class="sub">以中央氣象署（CWA）開放資料呈現全臺測站即時觀測，支援多種觀測變數、縣市篩選與測站搜尋。需自備 CWA API 授權碼。</div>
-    <a class="go" href="CWA_opendata_10min_display.html">進入地圖（逐 10 分鐘觀測）→
-      <span class="desc">氣象站 10 分鐘綜觀氣象、雨量、日射量與雷達疊加</span></a>
-    <a class="go" href="CWA_opendata_hourly_display.html">進入地圖（逐時觀測）→
-      <span class="desc">自動氣象站逐時觀測、格點分析與大潮／長浪監測</span></a>
-    <a class="go" href="CWA_opendata_marine_display.html">進入地圖（即時海象監控）→
-      <span class="desc">資料浮標與潮位站即時觀測、48 小時歷史時序圖與健康狀態監控</span></a>
-    <a class="go" href="CWA_opendata_geophysical_display.html">進入地圖（地球物理監測）→
-      <span class="desc">地磁、地電、電離層與地下水等地球物理觀測儀表板</span></a>
-    <a class="go" href="CWA_opendata_earthquake_display.html" style="background:linear-gradient(135deg,#b45309,#dc2626)">進入地圖（地震即時監測）→
-      <span class="desc">顯著有感 × 小區域地震報告 · 3D 震源深度地圖 · 鄉鎮震度 · 時間軸播放 · 每分鐘自動更新</span></a>
-    <a class="go" href="CWA_forecast_display.html" style="background:linear-gradient(135deg,#0891b2,#16a34a)">進入地圖（預報整合）→
-      <span class="desc">鄉鎮/縣市天氣 × 海面天氣 × 藍色公路 × 潮汐 × 育樂景點適遊燈號 × 1小時降雨預報 · 時間軸動畫 · 圖資與長期展望</span></a>
-    <a class="go" href="CWA_opendata_NWPmodel_display.html" style="background:linear-gradient(135deg,#0891b2,#16a34a)">進入地圖（數值預報模式）→
-      <span class="desc">GFS 全球 · WRF 區域 15km／3km · 氣溫/氣壓/風場/降水 · GRIB2 前端解析 · 動畫播放
-      <span style="display:block;margin-top:4px;color:#fbbf24">⚠ 資料檔較大（約 60–200 MB），載入需較久時間（約 30–200 秒），請耐心等候。</span></span></a>
-    <div class="foot">資料來源：<a href="https://opendata.cwa.gov.tw/" target="_blank" rel="noopener">中央氣象署開放資料平臺</a>；金鑰僅存於您的瀏覽器，不會上傳。</div>
+    
+    <div class="links">
+      <a class="go" href="CWA_opendata_10min_display.html">
+        <div class="title-row">
+          <span>進入地圖（逐 10 分鐘觀測）</span>
+          <span class="material-symbols-outlined arrow">arrow_forward</span>
+        </div>
+        <span class="desc">氣象站 10 分鐘綜觀氣象、雨量、日射量與雷達疊加</span>
+      </a>
+
+      <a class="go" href="CWA_opendata_hourly_display.html">
+        <div class="title-row">
+          <span>進入地圖（逐時觀測）</span>
+          <span class="material-symbols-outlined arrow">arrow_forward</span>
+        </div>
+        <span class="desc">自動氣象站逐時觀測、格點分析與大潮／長浪監測</span>
+      </a>
+
+      <a class="go" href="CWA_opendata_marine_display.html">
+        <div class="title-row">
+          <span>進入地圖（即時海象監控）</span>
+          <span class="material-symbols-outlined arrow">arrow_forward</span>
+        </div>
+        <span class="desc">資料浮標與潮位站即時觀測、48 小時歷史時序圖與健康狀態監控</span>
+      </a>
+
+      <a class="go" href="CWA_opendata_geophysical_display.html">
+        <div class="title-row">
+          <span>進入地圖（地球物理監測）</span>
+          <span class="material-symbols-outlined arrow">arrow_forward</span>
+        </div>
+        <span class="desc">地磁、地電、電離層與地下水等地球物理觀測儀表板</span>
+      </a>
+
+      <a class="go eq-theme" href="CWA_opendata_earthquake_display.html">
+        <div class="title-row">
+          <span>進入地圖（地震即時監測）</span>
+          <span class="material-symbols-outlined arrow">arrow_forward</span>
+        </div>
+        <span class="desc">顯著有感 × 小區域地震報告 · 3D 震源深度地圖 · 鄉鎮震度 · 時間軸播放 · 每分鐘自動更新</span>
+      </a>
+
+      <a class="go fc-theme" href="CWA_forecast_display.html">
+        <div class="title-row">
+          <span>進入地圖（預報整合）</span>
+          <span class="material-symbols-outlined arrow">arrow_forward</span>
+        </div>
+        <span class="desc">鄉鎮/縣市天氣 × 海面天氣 × 藍色公路 × 潮汐 × 育樂景點適遊燈號 × 1小時降雨預報 · 時間軸動畫 · 圖資與長期展望</span>
+      </a>
+
+      <a class="go nwp-theme" href="CWA_opendata_NWPmodel_display.html">
+        <div class="title-row">
+          <span>進入地圖（數值預報模式）</span>
+          <span class="material-symbols-outlined arrow">arrow_forward</span>
+        </div>
+        <span class="desc">GFS 全球 · WRF 區域 15km／3km · 氣溫/氣壓/風場/降水 · GRIB2 前端解析 · 動畫播放
+          <span class="warn-badge"><span class="material-symbols-outlined" style="font-size:14px">warning</span> 資料檔較大（約 60–200 MB），載入需較久時間（約 30–200 秒），請耐心等候。</span>
+        </span>
+      </a>
+    </div>
+
+    <div class="foot">
+      <span>資料來源：<a href="https://opendata.cwa.gov.tw/" target="_blank" rel="noopener">中央氣象署開放資料平臺</a></span>
+      <span>金鑰僅存於您的瀏覽器，不會上傳。</span>
+    </div>
   </div>
 </body>
 </html>
