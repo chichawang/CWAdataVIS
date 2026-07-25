@@ -83,6 +83,36 @@
   a.go.nwp-theme:hover{background:rgba(253,214,99,0.12);border-color:rgba(253,214,99,0.4);box-shadow:0 8px 24px rgba(0,0,0,0.3), 0 0 16px rgba(253,214,99,0.2)}
   a.go.nwp-theme .title-row .arrow{color:#fdd663}
 
+  a.go.cam-theme::before{background:#4dd0e1}
+  a.go.cam-theme:hover{background:rgba(77,208,225,0.12);border-color:rgba(77,208,225,0.4);box-shadow:0 8px 24px rgba(0,0,0,0.3), 0 0 16px rgba(77,208,225,0.2)}
+  a.go.cam-theme .title-row .arrow{color:#4dd0e1}
+
+  a.go.aq-theme::before{background:#c58af9}
+  a.go.aq-theme:hover{background:rgba(197,138,249,0.12);border-color:rgba(197,138,249,0.4);box-shadow:0 8px 24px rgba(0,0,0,0.3), 0 0 16px rgba(197,138,249,0.2)}
+  a.go.aq-theme .title-row .arrow{color:#c58af9}
+
+  /* ===== 頁簽 ===== */
+  .tabs{display:flex;gap:6px;margin-bottom:20px;padding:4px;background:rgba(255,255,255,0.04);
+    border:1px solid var(--line);border-radius:16px}
+  .tab{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 10px;
+    background:transparent;border:none;border-radius:12px;color:var(--muted);
+    font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;
+    transition:all .22s cubic-bezier(0.4, 0, 0.2, 1)}
+  .tab .material-symbols-outlined{font-size:17px}
+  .tab:hover{color:var(--txt);background:rgba(255,255,255,0.06)}
+  .tab.active{background:rgba(138,180,248,0.16);color:var(--accent);
+    box-shadow:inset 0 0 0 1px rgba(138,180,248,0.35)}
+  .tab .cnt{font-size:11px;font-weight:500;opacity:.75}
+  .pane{display:none;animation:fadeIn .25s ease}
+  .pane.active{display:block}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  .pane-note{font-size:12.5px;color:var(--muted);line-height:1.6;margin:-4px 0 14px}
+  .key-tag{display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:2px 8px;
+    border-radius:10px;font-size:11px;font-weight:500}
+  .key-tag.need{background:rgba(253,214,99,0.14);color:#fdd663;border:1px solid rgba(253,214,99,0.3)}
+  .key-tag.free{background:rgba(129,201,149,0.14);color:#81c995;border:1px solid rgba(129,201,149,0.3)}
+  @media(max-width:520px){.tab{font-size:12px;padding:8px 6px}.tab .cnt{display:none}}
+
   .warn-badge{display:block;margin-top:6px;color:#fdd663;font-size:11.5px;font-weight:500;display:flex;align-items:center;gap:4px}
   .foot{margin-top:28px;padding-top:18px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);line-height:1.6;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
   .foot a{color:var(--accent);text-decoration:none}
@@ -94,9 +124,20 @@
     <div class="header-tag">
       <span class="material-symbols-outlined" style="font-size:14px">cloud</span> CWA Open Data Portal
     </div>
-    <h1><span class="material-symbols-outlined icon">map</span> 氣象署 OPEN DATA 即時觀測地圖</h1>
-    <div class="sub">以中央氣象署（CWA）開放資料呈現全臺測站即時觀測，支援多種觀測變數、縣市篩選與測站搜尋。需自備 CWA API 授權碼。</div>
-    
+    <h1><span class="material-symbols-outlined icon">map</span> 開放資料視覺化地圖集</h1>
+    <div class="sub">以中央氣象署（CWA）與環境部（MOENV）開放資料呈現全臺即時觀測，支援多種觀測變數、縣市篩選與測站搜尋。另收錄不需金鑰的全臺即時影像地圖。</div>
+
+    <div class="tabs" role="tablist">
+      <button class="tab active" role="tab" data-pane="cwa">
+        <span class="material-symbols-outlined">cloud</span> 氣象署觀測 <span class="cnt">7</span>
+      </button>
+      <button class="tab" role="tab" data-pane="other">
+        <span class="material-symbols-outlined">apps</span> 其他分頁 <span class="cnt">2</span>
+      </button>
+    </div>
+
+    <div class="pane active" id="pane-cwa">
+    <div class="pane-note">中央氣象署開放資料平臺（opendata.cwa.gov.tw）系列地圖，均需自備 CWA API 授權碼。</div>
     <div class="links">
       <a class="go" href="CWA_opendata_10min_display.html">
         <div class="title-row">
@@ -156,11 +197,56 @@
         </span>
       </a>
     </div>
+    </div><!-- /pane-cwa -->
+
+    <div class="pane" id="pane-other">
+    <div class="pane-note">非氣象署資料來源的地圖頁面：公開影像串流整合與環境部空氣品質監測。</div>
+    <div class="links">
+      <a class="go cam-theme" href="台灣即時影像地圖.html">
+        <div class="title-row">
+          <span>台灣即時影像地圖</span>
+          <span class="material-symbols-outlined arrow">arrow_forward</span>
+        </div>
+        <span class="desc">全臺 5,586 支公開即時影像鏡頭整合於單一地圖：公路局省道交控、國道路況、新北與嘉義縣市 CCTV、水利署河川監控、水利防災、水土保持、土石流監測、臺南與嘉義水情。
+          支援即時快照／MJPEG／HLS 串流／iframe 四種影像型態，可依分區與 11 種分類勾選、鏡頭名稱與路線搜尋、收藏常用鏡頭（存於瀏覽器）、切換底圖與定位目前位置。
+          省道鏡頭可即時改抓公路局最新 CCTV 清單。
+          <span class="key-tag free"><span class="material-symbols-outlined" style="font-size:13px">lock_open</span> 不需任何 API 金鑰，開啟即用</span>
+        </span>
+      </a>
+
+      <a class="go aq-theme" href="MOENV_aqx_hourly_display.html">
+        <div class="title-row">
+          <span>環境部空氣品質監測地圖</span>
+          <span class="material-symbols-outlined arrow">arrow_forward</span>
+        </div>
+        <span class="desc">環境部環境資料開放平臺空品監測整合圖：以 AQI 六級標準色呈現全臺測站，可切換 19 種測項（PM2.5／PM10／O₃／SO₂／NO₂／CO 依 AQI 分級上色，另有 NO／NOx／CH₄／NMHC／THC 與溫濕度、雨量、氣壓、風向風速箭號）。
+          側欄含各空品區未來數日 AQI 預報、全臺極值統計、縣市與測站類型篩選；可疊加河川揚塵監測、特殊性工業區監測與光化測站 50＋ 種 VOC 物種圖層。
+          點選測站可載入該站單站資料集畫出近日逐時變化圖。
+          <span class="key-tag need"><span class="material-symbols-outlined" style="font-size:13px">key</span> 需 MOENV API KEY（頁面已內建預設金鑰，可直接進入）</span>
+        </span>
+      </a>
+    </div>
+    </div><!-- /pane-other -->
 
     <div class="foot">
-      <span>資料來源：<a href="https://opendata.cwa.gov.tw/" target="_blank" rel="noopener">中央氣象署開放資料平臺</a></span>
+      <span>資料來源：<a href="https://opendata.cwa.gov.tw/" target="_blank" rel="noopener">中央氣象署</a> ‧ <a href="https://data.moenv.gov.tw/" target="_blank" rel="noopener">環境部</a> ‧ 公路局／水利署等公開影像</span>
       <span>金鑰僅存於您的瀏覽器，不會上傳。</span>
     </div>
   </div>
+
+<script>
+  // 頁簽切換（記住上次選擇）
+  const STORE="cwadatavis_tab";
+  const tabs=[...document.querySelectorAll(".tab")];
+  function show(name){
+    tabs.forEach(t=>t.classList.toggle("active",t.dataset.pane===name));
+    document.querySelectorAll(".pane").forEach(p=>p.classList.toggle("active",p.id==="pane-"+name));
+    try{localStorage.setItem(STORE,name);}catch(e){}
+  }
+  tabs.forEach(t=>t.onclick=()=>show(t.dataset.pane));
+  let saved="";
+  try{saved=localStorage.getItem(STORE)||"";}catch(e){}
+  if(saved&&document.getElementById("pane-"+saved))show(saved);
+</script>
 </body>
 </html>
