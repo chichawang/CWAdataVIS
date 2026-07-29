@@ -224,6 +224,7 @@
       <label class="ckrow"><input type="checkbox" id="ckWind" checked> 暴風半徑圈（七級／十級風）</label>
       <label class="ckrow"><input type="checkbox" id="ckTau" checked> 預報時距標籤（+24h…）</label>
       <label class="ckrow"><input type="checkbox" id="ckName" checked> 颱風名稱標籤（總覽模式）</label>
+      <label class="ckrow"><input type="checkbox" id="ckDayNight" checked> 日夜變化陰影區（晨昏線）</label>
       <label class="ckrow"><input type="checkbox" id="ckCmp" checked> 比較表</label>
       <label class="ckrow"><input type="checkbox" id="ckAuto"> 每 10 分鐘自動更新</label>
       <label class="fl">底圖</label>
@@ -305,7 +306,7 @@
    ═══════════════════════════════════════════════════════════════════ */
 
 const $ = id => document.getElementById(id);
-const LS = {key:"tyma_cwa_key",rem:"tyma_cwa_rem",agencies:"tyma_agencies",base:"tyma_base"};
+const LS = {key:"tyma_cwa_key",rem:"tyma_cwa_rem",agencies:"tyma_agencies",base:"tyma_base",dayNight:"tyma_daynight"};
 
 /* ─────────── 機構註冊表（code 為 WMO CCCC 電報代碼） ─────────── */
 const AGENCIES = [
@@ -1672,7 +1673,7 @@ function drawStorm(S,opt){
 function render(fit){
   clearAll();
   const list = shownStorms();
-  drawDayNight(list);
+  if($("ckDayNight").checked) drawDayNight(list);
   const all=[];
   list.forEach(S=>{ all.push.apply(all,drawStorm(S,{thin:overview&&list.length>1})); });
   updateAgencyStatus();
@@ -1830,6 +1831,13 @@ function updateLegend(){
   h += '<div style="margin-top:6px;border-top:1px solid rgba(255,255,255,.12);padding-top:5px;color:#9fb0c8">'
      + '<span style="color:#ff8fb0">粉紅圈</span>＝七級風暴風半徑｜<span style="color:#e8447a">深粉圈</span>＝十級風'
      + '（實線＝目前，虛線＝各預報時刻）<br>機構色虛圓＝該機構之預報機率圓／預報圓</div>';
+  if($("ckDayNight").checked){
+    const t=dayNightTime(shownStorms());
+    h += '<div style="margin-top:6px;border-top:1px solid rgba(255,255,255,.12);padding-top:5px;color:#9fb0c8">'
+       + '<span style="display:inline-block;width:22px;height:10px;border-radius:8px;background:linear-gradient(90deg,rgba(2,6,23,.1),rgba(2,6,23,.42));border:1px solid rgba(255,255,255,.16);vertical-align:-1px;margin-right:5px"></span>'
+       + '日夜陰影＝依目前顯示資料時間估算的夜間與晨昏區'
+       + (t?'（'+fmtTime(t)+'）':'') + '</div>';
+  }
   $("lgBody").innerHTML = h;
 }
 function updateStatusBar(){
@@ -2211,6 +2219,10 @@ $("modeOne").onclick = ()=>{
   render(true);
 };
 ["ckPast","ckFcst","ckCone","ckWind","ckTau","ckName","ckCmp"].forEach(id=>{ $(id).onchange=()=>render(false); });
+$("ckDayNight").onchange = ()=>{
+  try{ localStorage.setItem(LS.dayNight,$("ckDayNight").checked?"1":"0"); }catch(e){}
+  render(false);
+};
 $("basinSel").onchange = ()=>{
   renderStormList();
   if(!overview){
@@ -2282,6 +2294,7 @@ $("aboutBox").innerHTML = [
 /* ═══════════ 啟動 ═══════════ */
 $("baseSel").value = localStorage.getItem(LS.base)||"osm";
 $("baseDim").value = 100;
+try{ $("ckDayNight").checked = localStorage.getItem(LS.dayNight)!=="0"; }catch(e){}
 buildAgencyBox();
 setMode(true);                    // 預設：總覽所有颱風 × 所有單位
 $("basinSel").value = "ALL";      // 預設：全球平面，顯示南北緯 60 度
@@ -2293,7 +2306,6 @@ window.addEventListener("resize",()=>map.invalidateSize());
 </script>
 </body>
 </html>
-
 
 
 

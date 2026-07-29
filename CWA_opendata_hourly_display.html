@@ -203,6 +203,8 @@
   <span class="chip" id="lightStat" style="display:none"></span>
   <span class="chip" id="tyStat" style="display:none"></span>
   <span class="chip" id="typStat" style="display:none"></span>
+  <label>日夜變化</label>
+  <label class="ckrow"><input type="checkbox" id="dayNightChk" checked> 🌗 日夜變化陰影區（晨昏線）</label>
   <div class="btns">
     <button id="reload">↻ 重新整理</button>
     <button class="ghost" id="fit">⤢ 重置視角</button>
@@ -347,8 +349,76 @@ const BASES={
 };
 let curBase=BASES.light.addTo(map);
 const layer=L.layerGroup().addTo(map);
+const dayNightLayer=L.layerGroup().addTo(map);
 
 let RAW=[],bounds=null,refZoom=null;
+const DAYNIGHT_LS="cwa_hourly_daynight";
+
+map.createPane("daynight");
+map.getPane("daynight").style.zIndex=360;
+map.getPane("daynight").style.pointerEvents="none";
+
+const DN_W=1024, DN_H=768, DN_LATMAX=85.0511287798066, DN_MAXA=.42, DN_TWI=18;
+let dnCanvas=null,dnKey="",dnURL="";
+function solarDeclination(d){
+  const start=Date.UTC(d.getUTCFullYear(),0,1);
+  const day=(d.getTime()-start)/864e5+1;
+  const h=d.getUTCHours()+d.getUTCMinutes()/60+d.getUTCSeconds()/3600;
+  const g=2*Math.PI/365*(day-1+(h-12)/24);
+  return .006918-.399912*Math.cos(g)+.070257*Math.sin(g)-.006758*Math.cos(2*g)
+    +.000907*Math.sin(2*g)-.002697*Math.cos(3*g)+.00148*Math.sin(3*g);
+}
+function normLon180(lon){ return ((((lon+180)%360)+360)%360)-180; }
+function dnRender(dec,subLonDeg){
+  if(!dnCanvas){ dnCanvas=document.createElement("canvas"); dnCanvas.width=DN_W; dnCanvas.height=DN_H; }
+  const ctx=dnCanvas.getContext("2d");
+  const img=ctx.createImageData(DN_W,DN_H), D=img.data;
+  const RAD=Math.PI/180, sd=Math.sin(dec), cd=Math.cos(dec);
+  const sinLat=new Float64Array(DN_H), cosLat=new Float64Array(DN_H);
+  for(let j=0;j<DN_H;j++){
+    const y=(1-2*(j+.5)/DN_H)*Math.PI;
+    const la=2*Math.atan(Math.exp(y))-Math.PI/2;
+    sinLat[j]=Math.sin(la); cosLat[j]=Math.cos(la);
+  }
+  const cosH=new Float64Array(DN_W);
+  for(let i=0;i<DN_W;i++) cosH[i]=Math.cos((-180+(i+.5)*360/DN_W-subLonDeg)*RAD);
+  let k=0;
+  for(let j=0;j<DN_H;j++){
+    const A=sinLat[j]*sd, B=cosLat[j]*cd;
+    for(let i=0;i<DN_W;i++){
+      let s=A+B*cosH[i];
+      if(s>1)s=1; else if(s<-1)s=-1;
+      const alt=Math.asin(s)/RAD;
+      let u=-alt/DN_TWI;
+      if(u<0)u=0; else if(u>1)u=1;
+      const a=DN_MAXA*Math.pow(u,.7);
+      D[k]=2; D[k+1]=6; D[k+2]=23; D[k+3]=(a*255+.5)|0;
+      k+=4;
+    }
+  }
+  ctx.putImageData(img,0,0);
+  return dnCanvas.toDataURL("image/png");
+}
+function dayNightTime(){
+  const t=RAW[0]?.ObsTime?.DateTime;
+  const d=t?new Date(t):new Date();
+  return isNaN(d)?new Date():d;
+}
+function drawDayNight(){
+  dayNightLayer.clearLayers();
+  if(!$("dayNightChk").checked) return;
+  const t=dayNightTime();
+  const utc=t.getUTCHours()+t.getUTCMinutes()/60+t.getUTCSeconds()/3600;
+  const subLon=normLon180((12-utc)*15);
+  const dec=solarDeclination(t);
+  const key=Math.round(subLon*20)+"|"+Math.round(dec*2000);
+  if(key!==dnKey){ dnKey=key; dnURL=dnRender(dec,subLon); }
+  for(let w=-360; w<=360; w+=360){
+    L.imageOverlay(dnURL,[[-DN_LATMAX,w-180],[DN_LATMAX,w+180]],{
+      pane:"daynight",opacity:1,interactive:false,className:"dayNightLayer"
+    }).addTo(dayNightLayer);
+  }
+}
 function sizeScale(){
   if(refZoom===null)refZoom=map.getBoundsZoom(TAIWAN);
   return Math.max(0.7,Math.min(2.6,Math.pow(2,(map.getZoom()-refZoom)*0.45)));
@@ -441,6 +511,7 @@ function buildPopup(s,v,val,color){
 }
 
 function render(fit){
+  drawDayNight();
   // 「無」：隱藏所有測站點位（格點 / 海象圖層不受影響）
   if($("varSel").value==="__none__"){
     layer.clearLayers();
@@ -545,6 +616,12 @@ function legend(v){
         ? (v.key==="Precipitation"?'CWB/NCL 標準雨量分級 (mm) ‧ 當日 00 時起累積':'CWB 溫度分級色階 (℃)')
         : (v.key==="UVIndex"?'紫外線指數 0-2低 3-5中 6-7高 8-10過高 11+危險':''));
   $("legNote").style.display=(v.wind||v.levels||v.key==="UVIndex")?"block":"none";
+  const t=dayNightTime();
+  const dn=$("dayNightChk").checked
+    ? `<div style="border-top:1px solid var(--line);margin-top:7px;padding-top:6px;color:var(--muted)">🌗 日夜陰影：依資料時間 ${t.toLocaleString("zh-TW")} 估算</div>`
+    : "";
+  $("legNote").innerHTML += dn;
+  if(dn) $("legNote").style.display="block";
 }
 
 // ===== 格點分析疊加圖層（O-A0038-003 溫度 / O-A0040-004 日累積雨量）=====
@@ -1514,6 +1591,11 @@ map.on("zoomend",()=>{if(RAW.length)render(false);});
 $("varSel").onchange=()=>render(false);
 $("countySel").onchange=()=>render(true);
 $("search").oninput=()=>render(false);
+$("dayNightChk").checked=localStorage.getItem(DAYNIGHT_LS)!=="0";
+$("dayNightChk").onchange=()=>{
+  localStorage.setItem(DAYNIGHT_LS,$("dayNightChk").checked?"1":"0");
+  render(false);
+};
 // 重新抓取所有已啟用圖層的資料；fit=false 時不改變視角與使用者選擇（變數 / 縣市 / 搜尋 / 圖層）
 function refreshAll(fit){
   Object.keys(gridCache).forEach(k=>delete gridCache[k]);

@@ -361,6 +361,7 @@ select:focus{border-color:var(--accent)}
         <option value="sat">衛星影像</option>
         <option value="topo">地形圖</option>
       </select>
+      <div class="rowline"><label><input type="checkbox" id="ckDayNight" checked> 日夜變化陰影區（晨昏線）</label></div>
       <div class="rowline"><label><input type="checkbox" id="ckAuto" checked> 自動更新（10 分鐘）</label></div>
       <div class="rowline" style="gap:6px">
         <button class="btn2" id="btnKey">更換金鑰</button>
@@ -557,6 +558,7 @@ const S = {
   key:'', map:null, base:null,
   land:'T', sea:'wave', grid:'none', wxIcon:false,
   blue:false, blueVar:'wave',
+  dayNight:true,
   pts:{leisure:false, tide:false, freak:false, penghu:false, wavecur:false},
   leisureOn:new Set(['port','forest']),
   t:0,                     // 時間軸索引
@@ -573,6 +575,7 @@ const TY_ID="W-C0034-005";
 const TYP_ID="W-C0034-003";
 const tyLayer=L.layerGroup();
 const typLayer=L.layerGroup();
+const dayNightLayer=L.layerGroup();
 let tyCache=null;
 let typCache=null;
 
@@ -774,6 +777,62 @@ function buildTimeline(){
   updateTimeLabel();
 }
 function curTime(){ return S.steps[S.t]||S.steps[0]; }
+const DN_W=1024, DN_H=768, DN_LATMAX=85.0511287798066, DN_MAXA=.42, DN_TWI=18;
+let dnCanvas=null,dnKey='',dnURL='';
+function solarDeclination(d){
+  const start=Date.UTC(d.getUTCFullYear(),0,1);
+  const day=(d.getTime()-start)/864e5+1;
+  const h=d.getUTCHours()+d.getUTCMinutes()/60+d.getUTCSeconds()/3600;
+  const g=2*Math.PI/365*(day-1+(h-12)/24);
+  return .006918-.399912*Math.cos(g)+.070257*Math.sin(g)-.006758*Math.cos(2*g)
+    +.000907*Math.sin(2*g)-.002697*Math.cos(3*g)+.00148*Math.sin(3*g);
+}
+function normLon180(lon){ return ((((lon+180)%360)+360)%360)-180; }
+function dnRender(dec,subLonDeg){
+  if(!dnCanvas){ dnCanvas=document.createElement('canvas'); dnCanvas.width=DN_W; dnCanvas.height=DN_H; }
+  const ctx=dnCanvas.getContext('2d');
+  const img=ctx.createImageData(DN_W,DN_H), D=img.data;
+  const RAD=Math.PI/180, sd=Math.sin(dec), cd=Math.cos(dec);
+  const sinLat=new Float64Array(DN_H), cosLat=new Float64Array(DN_H);
+  for(let j=0;j<DN_H;j++){
+    const y=(1-2*(j+.5)/DN_H)*Math.PI;
+    const la=2*Math.atan(Math.exp(y))-Math.PI/2;
+    sinLat[j]=Math.sin(la); cosLat[j]=Math.cos(la);
+  }
+  const cosH=new Float64Array(DN_W);
+  for(let i=0;i<DN_W;i++) cosH[i]=Math.cos((-180+(i+.5)*360/DN_W-subLonDeg)*RAD);
+  let k=0;
+  for(let j=0;j<DN_H;j++){
+    const A=sinLat[j]*sd, B=cosLat[j]*cd;
+    for(let i=0;i<DN_W;i++){
+      let s=A+B*cosH[i];
+      if(s>1)s=1; else if(s<-1)s=-1;
+      const alt=Math.asin(s)/RAD;
+      let u=-alt/DN_TWI;
+      if(u<0)u=0; else if(u>1)u=1;
+      const a=DN_MAXA*Math.pow(u,.7);
+      D[k]=2; D[k+1]=6; D[k+2]=23; D[k+3]=(a*255+.5)|0;
+      k+=4;
+    }
+  }
+  ctx.putImageData(img,0,0);
+  return dnCanvas.toDataURL('image/png');
+}
+function drawDayNight(){
+  dayNightLayer.clearLayers();
+  if(!S.dayNight || !S.map) return;
+  const t=curTime()||new Date();
+  const utc=t.getUTCHours()+t.getUTCMinutes()/60+t.getUTCSeconds()/3600;
+  const subLon=normLon180((12-utc)*15);
+  const dec=solarDeclination(t);
+  const key=Math.round(subLon*20)+'|'+Math.round(dec*2000);
+  if(key!==dnKey){ dnKey=key; dnURL=dnRender(dec,subLon); }
+  for(let w=-360; w<=360; w+=360){
+    L.imageOverlay(dnURL,[[-DN_LATMAX,w-180],[DN_LATMAX,w+180]],{
+      pane:'daynight', opacity:1, interactive:false, className:'dayNightLayer'
+    }).addTo(dayNightLayer);
+  }
+}
 function updateTimeLabel(){
   const d=curTime(); const wd='日一二三四五六'[d.getDay()];
   $('tLabel').textContent=`${fmtT(d)}（${wd}）`;
@@ -826,6 +885,7 @@ function renderLegend(){
   if(S.pts.penghu) blocks.push(`<div class="lg-block"><div class="lt">🐟 澎湖海水溫預警</div><div class="lv">${S.valid.penghu||''}</div></div>`);
   if(S.pts.wavecur) blocks.push(`<div class="lg-block"><div class="lt">🌊 波流模式（點色＝浪高）</div>${legendScale('wave')}<div class="lv">${S.valid.wavecur||''}</div></div>`);
   if(S.grid!=='none') blocks.push(`<div class="lg-block"><div class="lt">🌧️ 1小時降雨預報</div>${legendScale('rain')}<div class="lv">${S.valid.grid||''}</div></div>`);
+  if(S.dayNight) blocks.push(`<div class="lg-block"><div class="lt">🌗 日夜變化陰影區</div><div class="lv">依時間軸 ${fmtT(curTime())} 估算夜間與晨昏區</div></div>`);
   b.innerHTML = blocks.length?blocks.join(''):'<div class="lg-block" style="border:none;margin:0;padding:0"><span class="lv">尚無啟用圖層</span></div>';
 }
 $('lgHead').addEventListener('click',()=>$('legend').classList.toggle('collapsed'));
@@ -862,6 +922,10 @@ function initMap(){
   S.map.getPane('seaPane').style.zIndex = 350;
   S.map.createPane('landPane');
   S.map.getPane('landPane').style.zIndex = 380;
+  S.map.createPane('daynight');
+  S.map.getPane('daynight').style.zIndex = 390;
+  S.map.getPane('daynight').style.pointerEvents = 'none';
+  dayNightLayer.addTo(S.map);
   L.control.zoom({position:'bottomleft'}).addTo(S.map);
   S.base=BASES[$('selBase').value||'osm']().addTo(S.map);
   $('selBase').addEventListener('change',e=>{
@@ -3034,6 +3098,7 @@ function loadHash(){
   }catch(e){ console.warn('hash',e); }
 }
 function renderAll(){
+  drawDayNight();
   renderLand(); renderSea(); renderBlue(); renderTide(); renderLeisure(); renderFreak(); renderPenghu(); renderWaveCur();
   /* 格點層不隨時間軸重繪（僅 0–1h） */
   renderLegend();
@@ -3079,6 +3144,11 @@ $('ckLeisure').addEventListener('change',async e=>{ S.pts.leisure=e.target.check
 $('selGrid').addEventListener('change',async e=>{ S.grid=e.target.value; saveHash(); updOpacRows();
   if(S.grid!=='none'){ await loadGrid(); } renderGrid(); });
 $('opGrid').addEventListener('input',()=>{ if(GRID.layer) GRID.layer.setOpacity((+$('opGrid').value)/100); });
+$('ckDayNight').addEventListener('change',e=>{
+  S.dayNight=e.target.checked;
+  try{ localStorage.setItem('cwa_forecast_daynight',S.dayNight?'1':'0'); }catch(_){}
+  renderAll();
+});
 $('tyChk').addEventListener('change',e=>loadTyphoon(e.target.checked,true));
 $('typChk').addEventListener('change',e=>loadTyProb(e.target.checked));
 $('btnShare').addEventListener('click',()=>{ saveHash();
@@ -3119,6 +3189,8 @@ function showKeyGate(force){
 }
 async function boot(){
   buildTimeline(); initMap(); buildLeisureChips(); loadHash(); updateTimeLabel();
+  try{ S.dayNight=localStorage.getItem('cwa_forecast_daynight')!=='0'; }catch(_){}
+  $('ckDayNight').checked=S.dayNight;
   updOpacRows(); setupAuto();
   await activate();
   setStatus('就緒 '+fmtTs(new Date()));
