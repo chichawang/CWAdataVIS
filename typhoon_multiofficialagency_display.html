@@ -423,11 +423,17 @@ function unwrapJSONP(txt){
 /* ═══════════ 通用工具 ═══════════ */
 const num = v=>{const n=parseFloat(v); return isFinite(n)?n:null;};
 const pad2 = n=>String(n).padStart(2,"0");
+/* 全頁時間一律以台灣時間（UTC+8，無日光節約時間）顯示。
+   不可使用 getHours() 等本地取值器 —— 那是「瀏覽器所在時區」，在國外開啟就會錯。
+   作法：把 UTC 時間戳位移 +8 小時後，改用 getUTC*() 取值。 */
+const TW_OFFSET_MS = 8*3600e3;
 function fmtTime(d){
   if(!d) return "—";
   const t = (d instanceof Date)?d:new Date(d);
   if(isNaN(t)) return String(d);
-  return t.getFullYear()+"/"+pad2(t.getMonth()+1)+"/"+pad2(t.getDate())+" "+pad2(t.getHours())+":"+pad2(t.getMinutes());
+  const z = new Date(t.getTime()+TW_OFFSET_MS);
+  return z.getUTCFullYear()+"/"+pad2(z.getUTCMonth()+1)+"/"+pad2(z.getUTCDate())+" "
+       + pad2(z.getUTCHours())+":"+pad2(z.getUTCMinutes());
 }
 function parseCMATime(s){
   const m = String(s||"").match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/);
@@ -1517,17 +1523,32 @@ function dayNightTime(list){
   });
   return cwaBest || best || new Date();
 }
-function solarDeclination(d){
-  const start=Date.UTC(d.getUTCFullYear(),0,1);
-  const day=(d.getTime()-start)/864e5+1;
-  const h=d.getUTCHours()+d.getUTCMinutes()/60+d.getUTCSeconds()/3600;
-  const g=2*Math.PI/365*(day-1+(h-12)/24);
-  return .006918-.399912*Math.cos(g)+.070257*Math.sin(g)-.006758*Math.cos(2*g)
-        +.000907*Math.sin(2*g)-.002697*Math.cos(3*g)+.00148*Math.sin(3*g);
+/* 太陽位置（NOAA Solar Calculator 演算法）：回傳赤緯（弧度）與均時差（分鐘）。
+   均時差不可省略，否則晨昏線最大會有 ±16 分鐘（約 4° 經度）的偏差。 */
+function solarPos(d){
+  const RAD=Math.PI/180;
+  const jc=(d.getTime()/864e5 + 2440587.5 - 2451545)/36525;      // 儒略世紀（J2000.0）
+  const L0=(280.46646+jc*(36000.76983+jc*.0003032))%360;         // 平黃經
+  const M=357.52911+jc*(35999.05029-.0001537*jc);                // 平近點角
+  const e=.016708634-jc*(.000042037+.0000001267*jc);             // 軌道離心率
+  const Mr=M*RAD;
+  const C=Math.sin(Mr)*(1.914602-jc*(.004817+.000014*jc))
+         +Math.sin(2*Mr)*(.019993-.000101*jc)+Math.sin(3*Mr)*.000289;
+  const om=(125.04-1934.136*jc)*RAD;
+  const lam=(L0+C-.00569-.00478*Math.sin(om))*RAD;               // 視黃經
+  const eps0=23+(26+(21.448-jc*(46.815+jc*(.00059-jc*.001813)))/60)/60;
+  const eps=(eps0+.00256*Math.cos(om))*RAD;                      // 黃赤交角
+  const dec=Math.asin(Math.sin(eps)*Math.sin(lam));              // 赤緯
+  const y=Math.tan(eps/2)**2, L0r=L0*RAD;
+  const eqTime=4/RAD*(y*Math.sin(2*L0r)-2*e*Math.sin(Mr)+4*e*y*Math.sin(Mr)*Math.cos(2*L0r)
+              -.5*y*y*Math.sin(4*L0r)-1.25*e*e*Math.sin(2*Mr)); // 均時差（分鐘）
+  return {dec:dec, eqTime:eqTime};
 }
-/* 晨昏線（terminator）：以像素級 alpha 連續漸層繪製，涵蓋全經度 0–360°、
-   全緯度（Mercator 可視範圍 ±85.05°，含極區永晝／永夜），不再使用方塊分格。 */
-const DN_W=1024, DN_H=768, DN_LATMAX=85.0511287798066, DN_MAXA=.42, DN_TWI=18;
+/* 晨昏線（terminator）：以像素級判斷太陽是否在地平線以上，僅分「亮／暗」兩區，
+   不使用漸層。涵蓋全經度 0–360°、全緯度（Mercator 可視範圍 ±85.05°，含極區永晝／永夜）。 */
+const DN_W=1024, DN_H=768, DN_LATMAX=85.0511287798066, DN_MAXA=.42;
+/* 日出／日沒判定高度角：-0.833°（含大氣折射 34' 與日面半徑 16'），與各國公布之日出日沒時刻一致 */
+const DN_ALT0=Math.sin(-.833*Math.PI/180);
 let dnCanvas=null, dnKey=null, dnURL=null;
 function dnPane(){
   if(!map.getPane("dnPane")){
@@ -1556,12 +1577,8 @@ function dnRender(dec,subLonDeg){
   for(let j=0;j<DN_H;j++){
     const A=sinLat[j]*sd, B=cosLat[j]*cd;
     for(let i=0;i<DN_W;i++){
-      let s=A+B*cosH[i];
-      if(s>1)s=1; else if(s<-1)s=-1;
-      const alt=Math.asin(s)/RAD;               // 太陽高度角（度）
-      let u=-alt/DN_TWI;                        // 0=地平線，1=天文暮光終點
-      if(u<0)u=0; else if(u>1)u=1;
-      const a=DN_MAXA*Math.pow(u,.7);           // 連續漸層，無分段
+      const s=A+B*cosH[i];                      // sin(太陽高度角)
+      const a=s<DN_ALT0?DN_MAXA:0;              // 硬邊界：日沒後為夜（暗），日出後為晝（亮）
       D[k]=2; D[k+1]=6; D[k+2]=23; D[k+3]=(a*255+.5)|0;
       k+=4;
     }
@@ -1571,9 +1588,11 @@ function dnRender(dec,subLonDeg){
 }
 function drawDayNight(list){
   const t=dayNightTime(list);
-  const utc=t.getUTCHours()+t.getUTCMinutes()/60+t.getUTCSeconds()/3600;
-  const subLon=mapLon((12-utc)*15);
-  const dec=solarDeclination(t);
+  const sp=solarPos(t);
+  const utcMin=t.getUTCHours()*60+t.getUTCMinutes()+t.getUTCSeconds()/60;
+  /* 太陽直下點經度：真太陽時正午（720 分）之經度，含均時差修正 */
+  const subLon=mapLon((720-utcMin-sp.eqTime)/4);
+  const dec=sp.dec;
   dnPane();
   const key=Math.round(subLon*20)+"|"+Math.round(dec*2000);
   if(key!==dnKey){ dnKey=key; dnURL=dnRender(dec,subLon); }
@@ -1834,8 +1853,8 @@ function updateLegend(){
   if($("ckDayNight").checked){
     const t=dayNightTime(shownStorms());
     h += '<div style="margin-top:6px;border-top:1px solid rgba(255,255,255,.12);padding-top:5px;color:#9fb0c8">'
-       + '<span style="display:inline-block;width:22px;height:10px;border-radius:8px;background:linear-gradient(90deg,rgba(2,6,23,.1),rgba(2,6,23,.42));border:1px solid rgba(255,255,255,.16);vertical-align:-1px;margin-right:5px"></span>'
-       + '日夜陰影＝依目前顯示資料時間估算的夜間與晨昏區'
+       + '<span style="display:inline-block;width:22px;height:10px;border-radius:3px;background:rgba(2,6,23,.42);border:1px solid rgba(255,255,255,.16);vertical-align:-1px;margin-right:5px"></span>'
+       + '日夜陰影＝依目前顯示資料時間估算的夜間區（晨昏線為硬邊界）'
        + (t?'（'+fmtTime(t)+'）':'') + '</div>';
   }
   $("lgBody").innerHTML = h;
@@ -1867,7 +1886,8 @@ function updateStatusBar(){
     + '<br>顯示中機構 <b>'+n+'</b> 個'
     + (v.t?'　發布時刻 '+fmtTime(v.t):'')
     + (curIssueIdx>=0?'　<span style="color:var(--warn)">（歷史發布時刻）</span>':'')
-    + '　資料源：'+(S.sources||[S.source]).join("、");
+    + '　資料源：'+(S.sources||[S.source]).join("、")
+    + '　<span style="color:var(--muted)">時間皆為台灣時間 UTC+8</span>';
 }
 function updateTags(){
   $("tagView").textContent = overview?"總覽":"單一颱風";
