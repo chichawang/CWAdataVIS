@@ -91,6 +91,10 @@
   a.go.aq-theme:hover{background:rgba(197,138,249,0.12);border-color:rgba(197,138,249,0.4);box-shadow:0 8px 24px rgba(0,0,0,0.3), 0 0 16px rgba(197,138,249,0.2)}
   a.go.aq-theme .title-row .arrow{color:#c58af9}
 
+  a.go.ty-theme::before{background:#ff9f43}
+  a.go.ty-theme:hover{background:rgba(255,159,67,0.12);border-color:rgba(255,159,67,0.4);box-shadow:0 8px 24px rgba(0,0,0,0.3), 0 0 16px rgba(255,159,67,0.2)}
+  a.go.ty-theme .title-row .arrow{color:#ff9f43}
+
   /* ===== 頁簽 ===== */
   .tabs{display:flex;gap:6px;margin-bottom:20px;padding:4px;background:rgba(255,255,255,0.04);
     border:1px solid var(--line);border-radius:16px}
@@ -132,7 +136,7 @@
         <span class="material-symbols-outlined">cloud</span> 氣象署觀測 <span class="cnt">7</span>
       </button>
       <button class="tab" role="tab" data-pane="other">
-        <span class="material-symbols-outlined">apps</span> 其他分頁 <span class="cnt">2</span>
+        <span class="material-symbols-outlined">apps</span> 其他分頁 <span class="cnt">3</span>
       </button>
     </div>
 
@@ -200,8 +204,18 @@
     </div><!-- /pane-cwa -->
 
     <div class="pane" id="pane-other">
-    <div class="pane-note">非氣象署資料來源的地圖頁面：公開影像串流整合與環境部空氣品質監測。</div>
+    <div class="pane-note">其他常用地圖頁面：全球官方颱風路徑整合、公開影像串流整合與環境部空氣品質監測。</div>
     <div class="links">
+      <a class="go ty-theme" href="typhoon_multiofficialagency_display.html">
+        <div class="title-row">
+          <span>全球官方颱風路徑整合圖</span>
+          <span class="material-symbols-outlined arrow">arrow_forward</span>
+        </div>
+        <span class="desc">彙整 CWA、JMA、JTWC、NHC、CMA、HKO、KMA 等官方氣象機構熱帶氣旋預報路徑，可總覽全部系統或切換單一颱風比較各機構預報。
+          <span class="key-tag need"><span class="material-symbols-outlined" style="font-size:13px">key</span> 內建 CWA 示範授權碼，可自備 API 授權碼</span>
+        </span>
+      </a>
+
       <a class="go cam-theme" href="台灣即時影像地圖.html">
         <div class="title-row">
           <span>台灣即時影像地圖</span>
@@ -229,7 +243,7 @@
     </div><!-- /pane-other -->
 
     <div class="foot">
-      <span>資料來源：<a href="https://opendata.cwa.gov.tw/" target="_blank" rel="noopener">中央氣象署</a> ‧ <a href="https://data.moenv.gov.tw/" target="_blank" rel="noopener">環境部</a> ‧ 公路局／水利署等公開影像</span>
+      <span>資料來源：<a href="https://opendata.cwa.gov.tw/" target="_blank" rel="noopener">中央氣象署</a> ‧ <a href="https://data.moenv.gov.tw/" target="_blank" rel="noopener">環境部</a> ‧ 公路局／水利署等公開影像 · 原始來源：<a href="https://github.com/chichawang/CWAdataVIS" target="_blank" rel="noopener">chichawang/CWAdataVIS</a></span>
       <span>金鑰僅存於您的瀏覽器，不會上傳。</span>
     </div>
   </div>

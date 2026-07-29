@@ -1,0 +1,2299 @@
+﻿<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>全球官方氣象機構 颱風路徑預報整合圖</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root{--bg:#0b1220;--card:#16213a;--line:#2a3a57;--txt:#e6edf6;--muted:#9fb0c8;
+        --accent:#3b82f6;--chip:#1e293b;--ok:#22c55e;--warn:#fbbf24;--bad:#ef4444;
+        --panelW:330px}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:"Segoe UI","Microsoft JhengHei",system-ui,sans-serif;
+    color:var(--txt);font-size:14px;background:var(--bg)}
+  #map{position:absolute;inset:0;background:#0b1220}
+
+  .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--card);color:var(--txt);border:1px solid var(--line)}
+  .leaflet-popup-content{margin:12px 14px;font-size:13px;line-height:1.55}
+  .leaflet-tile.tile-failed{opacity:0!important}
+  .pop h3{margin:0 0 6px;font-size:15px}
+  .pop .row{display:flex;justify-content:space-between;gap:18px;border-top:1px solid #22304d;padding:2.5px 0}
+  .pop .row:first-of-type{border-top:none}
+  .pop .k{color:var(--muted)}
+  .pop .big{font-size:18px;font-weight:700;color:#fff}
+  .windarrow,.tyicon,.lbl-icon{background:none!important;border:none!important}
+  .dnLayer{image-rendering:auto;-webkit-user-select:none;user-select:none}
+  .tyicon svg{animation:tyspin 6s linear infinite;transform-origin:50% 50%}
+  @keyframes tyspin{to{transform:rotate(-360deg)}}
+  .fcLabel{font-size:10px;font-weight:700;text-shadow:0 0 4px #000,0 0 2px #000;white-space:nowrap}
+  .stLabel{font-size:11px;font-weight:700;color:#fff;text-shadow:0 0 4px #000,0 0 2px #000;white-space:nowrap}
+
+  /* ═══ 控制面板：全高玻璃側欄 ═══ */
+  .panel{position:absolute;top:0;left:0;bottom:0;z-index:1000;background:rgba(16,24,42,.55);
+    backdrop-filter:blur(18px) saturate(1.5);-webkit-backdrop-filter:blur(18px) saturate(1.5);
+    border-right:1px solid rgba(255,255,255,.08);box-shadow:0 8px 32px rgba(0,0,0,.35);
+    padding:14px;width:var(--panelW);overflow-y:auto;transition:transform .2s ease}
+  .panel.collapsed{transform:translateX(-100%)}
+  .panel::-webkit-scrollbar{width:5px}
+  .panel::-webkit-scrollbar-track{background:transparent}
+  .panel::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px}
+  .panel h1{margin:0 0 2px;font-size:16px}
+  .panel .sub{color:var(--muted);font-size:11px;margin-bottom:12px;line-height:1.5}
+  #panelTab{position:absolute;top:50%;left:var(--panelW);transform:translateY(-50%);z-index:1001;
+    width:22px;height:56px;padding:0;background:rgba(16,24,42,.55);
+    backdrop-filter:blur(18px) saturate(1.5);-webkit-backdrop-filter:blur(18px) saturate(1.5);
+    border:1px solid rgba(255,255,255,.08);border-left:none;border-radius:0 8px 8px 0;
+    color:var(--muted);font-size:12px;cursor:pointer;transition:left .2s ease}
+  #panelTab:hover{color:var(--txt);border-color:var(--accent)}
+  #panelTab.collapsed{left:0}
+
+  /* ═══ 區塊卡片 ═══ */
+  .blk{border:1px solid rgba(255,255,255,.09);border-radius:12px;margin-bottom:10px;
+    background:rgba(13,21,38,.42);overflow:hidden}
+  .blk>.bh{display:flex;align-items:center;gap:7px;padding:9px 11px;cursor:pointer;user-select:none;
+    font-size:12.5px;font-weight:700;color:#dbe7f7;background:rgba(255,255,255,.045)}
+  .blk>.bh:hover{background:rgba(255,255,255,.08)}
+  .blk>.bh .ic{font-size:14px}
+  .blk>.bh .tag{margin-left:auto;font-size:10px;font-weight:600;color:var(--muted)}
+  .blk>.bh .arw{font-size:9px;color:var(--muted);transition:transform .2s;margin-left:6px}
+  .blk.closed>.bh .arw{transform:rotate(-90deg)}
+  .blk>.bb{padding:10px 11px 12px;border-top:1px solid rgba(255,255,255,.07)}
+  .blk.closed>.bb{display:none}
+
+  label.fl{display:block;font-size:11px;color:var(--muted);margin:9px 0 4px;font-weight:600}
+  label.fl:first-child{margin-top:0}
+  select,input[type=text],input[type=password],textarea{width:100%;padding:7px 8px;
+    background:rgba(13,21,38,.6);color:var(--txt);border:1px solid rgba(255,255,255,.12);
+    border-radius:7px;font-size:12.5px;font-family:inherit}
+  select:focus,input:focus,textarea:focus{outline:none;border-color:var(--accent)}
+  input[type=range]{width:100%;padding:0;height:22px;background:transparent;border:none;accent-color:var(--accent)}
+  button{padding:7px 9px;background:var(--accent);color:#fff;border:none;border-radius:7px;
+    font-size:12px;cursor:pointer;font-weight:600;font-family:inherit}
+  button.ghost{background:transparent;border:1px solid var(--line);color:var(--txt);font-weight:500}
+  button:hover{filter:brightness(1.14)}
+  .btns{display:flex;gap:7px;margin-top:9px}
+  .btns button{flex:1}
+  .ckrow{display:flex;align-items:center;gap:7px;margin:6px 0 0;font-size:12px;cursor:pointer;line-height:1.35}
+  .ckrow input{width:auto;accent-color:var(--accent);margin:0;flex:0 0 auto}
+  .hint{font-size:10.5px;color:var(--muted);line-height:1.55;margin-top:7px}
+  .hint a{color:#7fb3ff}
+  code{font-family:ui-monospace,Consolas,monospace;font-size:10px;background:rgba(255,255,255,.07);padding:0 3px;border-radius:3px}
+
+  /* 模式切換 */
+  .segs{display:flex;gap:6px;background:rgba(13,21,38,.6);border:1px solid rgba(255,255,255,.12);
+    border-radius:9px;padding:3px}
+  .segs button{flex:1;background:transparent;color:var(--muted);font-size:11.5px;padding:6px 4px;border-radius:6px}
+  .segs button.on{background:var(--accent);color:#fff}
+  .segs button:hover{filter:none;color:var(--txt)}
+
+  /* 機構分組 */
+  .agG{border:1px solid rgba(255,255,255,.09);border-radius:8px;overflow:hidden;margin-bottom:5px;background:rgba(255,255,255,.02)}
+  .agGh{display:flex;align-items:center;gap:6px;padding:5px 8px;font-size:11px;font-weight:700;
+    background:rgba(255,255,255,.05);cursor:pointer}
+  .agGh .flag{font-size:12px}
+  .agGh .cnt{margin-left:auto;font-size:9.5px;color:var(--muted);font-weight:500}
+  .agGh .arw{font-size:9px;color:var(--muted);transition:transform .18s}
+  .agG.collapsed .agGh .arw{transform:rotate(-90deg)}
+  .agG.collapsed .agR{display:none}
+  .agR{display:flex;align-items:center;gap:6px;padding:3px 8px;font-size:10.5px;cursor:pointer;line-height:1.15}
+  .agR:hover{background:rgba(255,255,255,.06)}
+  .agR input{width:auto;accent-color:var(--accent);margin:0;flex:0 0 auto}
+  .agR .sw{width:13px;height:3px;border-radius:2px;flex:0 0 auto}
+  .agR .nm{flex:1 1 auto;min-width:0}
+  .agR .nm b{font-weight:600}
+  .agR .nm small{color:var(--muted);font-size:9px;margin-left:4px;white-space:nowrap}
+  .agR .st{flex:0 0 auto;font-size:8.5px;padding:0 4px;border-radius:99px;border:1px solid var(--line);color:#6b7a92}
+  .agR .st.on{color:#0b1220;background:var(--ok);border-color:var(--ok);font-weight:700}
+  .agR.dim{opacity:.45}
+
+  /* 風暴清單 */
+  .sItem{display:flex;gap:8px;align-items:flex-start;padding:8px 9px;border:1px solid rgba(255,255,255,.09);
+    border-radius:9px;margin-bottom:6px;cursor:pointer;background:rgba(255,255,255,.02);font-size:12px}
+  .sItem:hover{background:rgba(59,130,246,.14)}
+  .sItem.sel{border-color:var(--accent);background:rgba(59,130,246,.2)}
+  .sItem .ico{font-size:17px;line-height:1.1}
+  .sItem .t1{font-weight:700}
+  .sItem .t2{font-size:10.5px;color:var(--muted);margin-top:2px;line-height:1.45}
+  .badge{display:inline-block;font-size:9.5px;padding:0 5px;border-radius:99px;margin:1px 3px 1px 0;
+    background:var(--chip);color:#bcd0ea;border:1px solid var(--line)}
+
+  /* ═══ 浮動資訊盒 ═══ */
+  .fbox{position:absolute;z-index:1000;background:rgba(16,24,42,.62);border:1px solid rgba(255,255,255,.1);
+    border-radius:12px;padding:10px 12px;backdrop-filter:blur(18px) saturate(1.5);
+    -webkit-backdrop-filter:blur(18px) saturate(1.5);box-shadow:0 8px 32px rgba(0,0,0,.35)}
+  .fbox .bhead{display:flex;align-items:center;gap:8px;cursor:pointer}
+  .fbox .bhead .btitle{flex:1;font-size:12px;font-weight:700}
+  .fbox .bhead .arw{font-size:9px;color:var(--muted)}
+  .fbox.collapsed .bbody{display:none}
+  #status{top:12px;left:calc(var(--panelW) + 34px);max-width:min(560px,calc(100vw - var(--panelW) - 70px));
+    font-size:11.5px;color:var(--muted);line-height:1.6;transition:left .2s ease}
+  #status.wide{left:46px}
+  #legend{bottom:22px;right:12px;width:250px;font-size:11px;line-height:1.6}
+  #cmp{bottom:22px;left:calc(var(--panelW) + 34px);max-width:min(720px,calc(100vw - var(--panelW) - 70px));
+    padding:0;overflow:hidden;display:none;transition:left .2s ease}
+  #cmp.wide{left:46px}
+  #cmp .bhead{padding:8px 12px;background:rgba(255,255,255,.05)}
+  #cmpBody{max-height:220px;overflow:auto}
+  table.tb{border-collapse:collapse;font-size:11px;width:100%;white-space:nowrap}
+  table.tb th,table.tb td{border:1px solid rgba(255,255,255,.09);padding:3px 7px;text-align:center}
+  table.tb th{background:rgba(30,41,59,.9);position:sticky;top:0;color:#cfe0f5;font-weight:600}
+  table.tb td.l{text-align:left;font-weight:600}
+  table.tb td.na{color:#5c6b84}
+  .lgLine{display:flex;align-items:center;gap:7px}
+  .lgLine i{width:22px;height:0;border-top-width:3px;border-top-style:solid;flex:0 0 auto;display:inline-block}
+
+  @media(max-width:820px){
+    :root{--panelW:min(290px,88vw)}
+    #legend{width:180px;font-size:10px}
+    #status,#cmp{left:46px;max-width:calc(100vw - 70px)}
+    #status{top:56px}
+  }
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<button type="button" id="panelTab" title="收合 / 展開面板">◀</button>
+
+<!-- ══════════════ 控制面板 ══════════════ -->
+<div class="panel" id="panel">
+  <h1>🌀 全球官方颱風路徑整合圖</h1>
+  <div class="sub">彙整美國、歐洲、日本、中國、台灣、韓國等官方氣象機構之熱帶氣旋預報路徑，於同一張 OpenStreetMap 上比較。</div>
+
+  <!-- 檢視模式 -->
+  <div class="blk" id="blkView">
+    <div class="bh"><span class="ic">🧭</span>檢視模式<span class="tag" id="tagView">總覽</span><span class="arw">▼</span></div>
+    <div class="bb">
+      <div class="segs">
+        <button id="modeAll" class="on">🌐 總覽（全部颱風 × 全部機構）</button>
+        <button id="modeOne">🎯 單一颱風</button>
+      </div>
+      <label class="fl">洋盆範圍<span style="font-weight:400">（切換時才載入該洋盆的來源）</span></label>
+      <select id="basinSel">
+        <option value="WP" selected>西北太平洋 / 南海</option>
+        <option value="ALL">全部洋盆（全球）</option>
+        <option value="AL">大西洋</option>
+        <option value="EP">東北太平洋</option>
+        <option value="IO">北印度洋</option>
+        <option value="SH">南半球</option>
+      </select>
+      <div class="btns">
+        <button id="btnFit" class="ghost">⛶ 縮放至系統</button>
+        <button id="btnReload">↻ 重新整理</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 颱風系統 -->
+  <div class="blk" id="blkStorm">
+    <div class="bh"><span class="ic">🌪️</span>熱帶氣旋系統<span class="tag" id="tagStorm">—</span><span class="arw">▼</span></div>
+    <div class="bb">
+      <div id="stormList"><div class="hint">載入中…</div></div>
+      <label class="fl">歷史事件回顧（中央氣象台資料庫）</label>
+      <div style="display:flex;gap:6px">
+        <select id="histYear" style="flex:0 0 90px"></select>
+        <select id="histStorm"><option value="">— 選擇颱風 —</option></select>
+      </div>
+      <div class="hint">非颱風季或無活躍系統時，可挑選歷年颱風檢視各國當時的預報路徑。</div>
+    </div>
+  </div>
+
+  <!-- 機構 -->
+  <div class="blk" id="blkAgency">
+    <div class="bh"><span class="ic">🏛️</span>官方氣象機構<span class="tag" id="tagAgency">—</span><span class="arw">▼</span></div>
+    <div class="bb">
+      <div id="agencyBox"></div>
+      <div class="btns">
+        <button id="btnAgAll" class="ghost">全選</button>
+        <button id="btnAgNone" class="ghost">全不選</button>
+      </div>
+      <div class="hint">綠色「有」表示該機構對目前系統有可用預報。灰色代表該機構未發布，或資料源未轉發。</div>
+    </div>
+  </div>
+
+  <!-- 圖層 -->
+  <div class="blk" id="blkLayer">
+    <div class="bh"><span class="ic">🗂️</span>圖層與顯示<span class="arw">▼</span></div>
+    <div class="bb">
+      <label class="ckrow"><input type="checkbox" id="ckPast" checked> 過去路徑（依強度上色）</label>
+      <label class="ckrow"><input type="checkbox" id="ckFcst" checked> 各機構預報路徑</label>
+      <label class="ckrow"><input type="checkbox" id="ckCone" checked> 預報不確定性範圍（機率圓）</label>
+      <label class="ckrow"><input type="checkbox" id="ckWind" checked> 暴風半徑圈（七級／十級風）</label>
+      <label class="ckrow"><input type="checkbox" id="ckTau" checked> 預報時距標籤（+24h…）</label>
+      <label class="ckrow"><input type="checkbox" id="ckName" checked> 颱風名稱標籤（總覽模式）</label>
+      <label class="ckrow"><input type="checkbox" id="ckCmp" checked> 比較表</label>
+      <label class="ckrow"><input type="checkbox" id="ckAuto"> 每 10 分鐘自動更新</label>
+      <label class="fl">底圖</label>
+      <select id="baseSel">
+        <option value="osm" selected>OpenStreetMap 街道圖</option>
+        <option value="hot">OSM Humanitarian</option>
+        <option value="dark">CARTO 深色</option>
+        <option value="light">CARTO 淺色</option>
+        <option value="sat">Esri 衛星影像</option>
+        <option value="topo">OpenTopoMap 地形</option>
+      </select>
+      <label class="fl">底圖亮度</label>
+      <input type="range" id="baseDim" min="20" max="100" value="100">
+    </div>
+  </div>
+
+  <!-- 發布時刻 -->
+  <div class="blk closed" id="blkTime">
+    <div class="bh"><span class="ic">🕒</span>預報發布時刻<span class="arw">▼</span></div>
+    <div class="bb">
+      <div id="issueLabel" class="hint" style="margin:0 0 6px">—</div>
+      <input type="range" id="issueSlider" min="0" max="0" value="0">
+      <div class="hint">拖曳可回顧各機構在不同發布時刻的預報，觀察預報隨時間的修正與收斂（僅單一颱風模式）。</div>
+    </div>
+  </div>
+
+  <!-- 資料來源 -->
+  <div class="blk closed" id="blkSrc">
+    <div class="bh"><span class="ic">⚙️</span>資料來源與連線<span class="arw">▼</span></div>
+    <div class="bb">
+      <label class="fl">中央氣象署（CWA）API 授權碼</label>
+      <input type="text" id="cwaKey" placeholder="CWA-XXXXXXXX-…" autocomplete="off" spellcheck="false">
+      <label class="ckrow"><input type="checkbox" id="rememberKey"> 記住金鑰（僅存於本機瀏覽器）</label>
+      <div class="btns"><button id="btnKeyReset" class="ghost">還原內建示範金鑰</button></div>
+      <div class="hint">已內建 CWA 開放資料平臺<b>公開示範授權碼</b>（<code>rdec-key-123-45678-011121314</code>），開箱即用。示範金鑰有流量限制，失敗時可改填自己的授權碼。
+        <a href="https://opendata.cwa.gov.tw/user/authkey" target="_blank" rel="noopener">免費申請</a></div>
+
+      <div class="hint" style="margin-top:8px">所有資料來源皆使用瀏覽器直連讀取；HKO／KMA 由 Cloudflare Pages JSON 端點提供。</div>
+    </div>
+  </div>
+
+  <!-- 診斷 -->
+  <div class="blk closed" id="blkDiag">
+    <div class="bh"><span class="ic">🔍</span>抓取診斷<span class="tag" id="tagDiag">—</span><span class="arw">▼</span></div>
+    <div class="bb">
+      <div id="diagBox" class="hint">尚未載入</div>
+      <div class="btns"><button id="btnDiag" class="ghost">↻ 重新檢測所有來源</button></div>
+    </div>
+  </div>
+
+  <!-- 說明 -->
+  <div class="blk closed" id="blkAbout">
+    <div class="bh"><span class="ic">ℹ️</span>資料來源<span class="arw">▼</span></div>
+    <div class="bb"><div class="hint" id="aboutBox"></div></div>
+  </div>
+</div>
+
+<!-- ══════════════ 浮動盒 ══════════════ -->
+<div class="fbox" id="status">初始化中…</div>
+
+<div class="fbox" id="legend">
+  <div class="bhead"><span class="btitle">🎨 圖例</span><span class="arw">▼</span></div>
+  <div class="bbody" id="lgBody"></div>
+</div>
+
+<div class="fbox" id="cmp">
+  <div class="bhead"><span class="btitle">📊 預報比較</span><span class="arw">▼</span></div>
+  <div class="bbody" id="cmpBody"></div>
+</div>
+
+<script>
+"use strict";
+/* ═══════════════════════════════════════════════════════════════════
+   全球官方氣象機構 颱風路徑預報整合圖
+   ─ 純前端單頁（Leaflet + OpenStreetMap），無後端
+   ─ 直接介接：CMA 中央氣象台、JMA bosai、NHC、JTWC 警報電文、CWA Open Data
+   ─ 其餘機構（ECMWF／UKMO／KMA／HKO…）取中央氣象台之轉發
+   Copyright (c) 2024-2026 王志嘉．AGPL-3.0
+   ═══════════════════════════════════════════════════════════════════ */
+
+const $ = id => document.getElementById(id);
+const LS = {key:"tyma_cwa_key",rem:"tyma_cwa_rem",agencies:"tyma_agencies",base:"tyma_base"};
+
+/* ─────────── 機構註冊表（code 為 WMO CCCC 電報代碼） ─────────── */
+const AGENCIES = [
+  {code:"KNHC",group:"us",zh:"美國國家颶風中心",en:"NHC",org:"NOAA/NWS National Hurricane Center",color:"#60a5fa",
+   alias:["NHC","US","美国","KNHC"],url:"https://www.nhc.noaa.gov/"},
+  {code:"PGTW",group:"us",zh:"美國聯合颱風警報中心",en:"JTWC",org:"Joint Typhoon Warning Center",color:"#3b82f6",
+   alias:["JTWC","PGTW"],url:"https://www.metoc.navy.mil/jtwc/jtwc.html"},
+  {code:"KWBC",group:"us",zh:"美國環境預報中心",en:"NCEP/GFS",org:"NOAA NCEP（GFS 全球模式）",color:"#93c5fd",
+   alias:["NCEP","GFS","KWBC"],url:"https://www.nco.ncep.noaa.gov/"},
+  {code:"ECMF",group:"eu",zh:"歐洲中期天氣預報中心",en:"ECMWF",org:"European Centre for Medium-Range Weather Forecasts",color:"#06b6d4",
+   alias:["ECMWF","EC","欧洲","歐洲","ECMF"],url:"https://charts.ecmwf.int/"},
+  {code:"EGRR",group:"eu",zh:"英國氣象局",en:"UKMO",org:"UK Met Office",color:"#14b8a6",
+   alias:["UKMO","UKMET","EGRR"],url:"https://www.metoffice.gov.uk/weather/warnings-and-advice/tropical-cyclone"},
+  {code:"LFPW",group:"eu",zh:"法國氣象局",en:"Météo-France",org:"Météo-France（含 RSMC La Réunion）",color:"#0ea5e9",
+   alias:["METEOFRANCE","LFPW","FMEE"],url:"https://meteofrance.re/fr/cyclone"},
+  {code:"RJTD",group:"jp",zh:"日本氣象廳",en:"JMA",org:"Japan Meteorological Agency（RSMC 東京颱風中心）",color:"#f59e0b",
+   alias:["JMA","日本","RJTD"],url:"https://www.jma.go.jp/bosai/map.html#contents=typhoon"},
+  {code:"BABJ",group:"cn",zh:"中國中央氣象台",en:"CMA",org:"China Meteorological Administration / NMC",color:"#ef4444",
+   alias:["CMA","中国","中央气象台","BABJ"],url:"https://typhoon.nmc.cn/web.html"},
+  {code:"RCTP",group:"tw",zh:"交通部中央氣象署",en:"CWA",org:"Central Weather Administration, Taiwan",color:"#22c55e",
+   alias:["CWA","CWB","台湾","臺灣","中国台湾","RCTP"],url:"https://www.cwa.gov.tw/V8/C/P/Typhoon/TY_NEWS.html"},
+  {code:"RKSL",group:"kr",zh:"韓國氣象廳",en:"KMA",org:"Korea Meteorological Administration 국가태풍센터",color:"#a855f7",
+   alias:["KMA","韩国","韓國","RKSL"],url:"https://www.weather.go.kr/w/typhoon/typ-info.do"},
+  {code:"VHHH",group:"cn",zh:"香港天文台",en:"HKO",org:"Hong Kong Observatory",color:"#ec4899",
+   alias:["HKO","香港","中国香港","VHHH"],url:"https://www.hko.gov.hk/tc/wxinfo/currwx/tc_gis.htm"},
+  {code:"RPMM",group:"other",zh:"菲律賓 PAGASA",en:"PAGASA",org:"PAGASA, Philippines",color:"#eab308",
+   alias:["PAGASA","菲律宾","菲律賓","RPMM"],url:"https://www.pagasa.dost.gov.ph/tropical-cyclone/severe-weather-bulletin"},
+  {code:"VVNB",group:"other",zh:"越南 NCHMF",en:"NCHMF",org:"National Centre for Hydro-Meteorological Forecasting, Vietnam",color:"#f97316",
+   alias:["BCVN","VIETNAM","越南","VVNB"],url:"https://nchmf.gov.vn/"},
+  {code:"DEMS",group:"other",zh:"印度氣象局",en:"IMD",org:"India Meteorological Department（RSMC 新德里）",color:"#84cc16",
+   alias:["IMD","印度","DEMS","VIDP"],url:"https://mausam.imd.gov.in/responsive/cycloneinformation.php"},
+  {code:"AMMC",group:"other",zh:"澳洲氣象局",en:"BoM",org:"Australian Bureau of Meteorology",color:"#fb7185",
+   alias:["BOM","澳大利亚","澳洲","AMMC"],url:"http://www.bom.gov.au/cyclone/"},
+  {code:"MISC",group:"other",zh:"其他機構／模式",en:"Other",org:"資料源中未列名之其他官方預報",color:"#94a3b8",alias:[],url:""}
+];
+const GROUPS = [
+  {id:"tw",   flag:"🇹🇼",name:"台灣"},
+  {id:"jp",   flag:"🇯🇵",name:"日本"},
+  {id:"kr",   flag:"🇰🇷",name:"韓國"},
+  {id:"cn",   flag:"🇨🇳",name:"中國（含香港）"},
+  {id:"us",   flag:"🇺🇸",name:"美國"},
+  {id:"eu",   flag:"🇪🇺",name:"歐洲"},
+  {id:"other",flag:"🌏",name:"其他國家／地區"}
+];
+const PANEL_GROUP_IDS = ["tw","jp","kr","cn","us"];
+const PANEL_GROUPS = GROUPS.filter(g=>PANEL_GROUP_IDS.includes(g.id));
+const PANEL_AGENCY_CODES = new Set(AGENCIES.filter(a=>PANEL_GROUP_IDS.includes(a.group)).map(a=>a.code));
+/* 圖層繪製、比較表與圖例的機構順序一律依上方分組順序 */
+const AG_ORDER = [];
+GROUPS.forEach(g=>AGENCIES.filter(a=>a.group===g.id).forEach(a=>AG_ORDER.push(a.code)));
+const AG_BY_CODE = Object.fromEntries(AGENCIES.map(a=>[a.code,a]));
+const AG_ALIAS = {};
+AGENCIES.forEach(a=>{
+  AG_ALIAS[a.code.toUpperCase()] = a.code;
+  (a.alias||[]).forEach(x=>{AG_ALIAS[String(x).toUpperCase()] = a.code;});
+});
+function normAgency(k){
+  if(!k) return "MISC";
+  const u = String(k).trim().toUpperCase();
+  if(AG_ALIAS[u]) return AG_ALIAS[u];
+  for(const key in AG_ALIAS){ if(key.length>=3 && u.includes(key)) return AG_ALIAS[key]; }
+  return "MISC";
+}
+const DEFAULT_ON = ["KNHC","PGTW","ECMF","RJTD","BABJ","RCTP","RKSL","VHHH"];
+let agencyOn = {};
+try{ const s = JSON.parse(localStorage.getItem(LS.agencies)||"null"); if(s&&typeof s==="object") agencyOn=s; }catch(e){}
+AGENCIES.forEach(a=>{ if(!(a.code in agencyOn)) agencyOn[a.code] = DEFAULT_ON.includes(a.code); });
+
+/* ═══════════ 跨網域取資料：直連 ═══════════ */
+const diag = {sources:{}, rawKeys:{}, at:null};
+function diagSet(name,o){ diag.sources[name] = Object.assign({},diag.sources[name],o); }
+
+async function pfetch(url,{type="text",timeout=22000}={}){
+  const ctl = new AbortController();
+  const tid = setTimeout(()=>ctl.abort(), timeout);
+  try{
+    const r = await fetch(url,{signal:ctl.signal,cache:"no-store",referrerPolicy:"no-referrer"});
+    clearTimeout(tid);
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const txt = await r.text();
+    if(!txt || !txt.trim()) throw new Error("空回應");
+    return type==="json" ? JSON.parse(txt) : txt;
+  }catch(e){
+    clearTimeout(tid);
+    if(e && e.name==="AbortError") throw new Error("逾時");
+    throw e;
+  }
+}
+async function pfetchAny(urls,opts){
+  const all=[];
+  let last=null;
+  for(const u of urls){
+    try{ return await pfetch(u,opts||{}); }
+    catch(e){
+      last=e;
+      all.push(u.replace(/^https?:\/\//,"").split("/")[0]+"→"+((e&&e.message)||"失敗"));
+    }
+  }
+  const err = new Error(all.join("｜"));
+  err.tries = (last&&last.tries)||[];
+  throw err;
+}
+function unwrapJSONP(txt){
+  if(txt==null) return null;
+  const s = String(txt).trim();
+  try{ return JSON.parse(s); }catch(e){}
+  const i = s.indexOf("("), j = s.lastIndexOf(")");
+  if(i>=0 && j>i){ try{ return JSON.parse(s.slice(i+1,j)); }catch(e){} }
+  const m = s.match(/[\{\[][\s\S]*[\}\]]/);
+  if(m){ try{ return JSON.parse(m[0]); }catch(e){} }
+  return null;
+}
+
+/* ═══════════ 通用工具 ═══════════ */
+const num = v=>{const n=parseFloat(v); return isFinite(n)?n:null;};
+const pad2 = n=>String(n).padStart(2,"0");
+function fmtTime(d){
+  if(!d) return "—";
+  const t = (d instanceof Date)?d:new Date(d);
+  if(isNaN(t)) return String(d);
+  return t.getFullYear()+"/"+pad2(t.getMonth()+1)+"/"+pad2(t.getDate())+" "+pad2(t.getHours())+":"+pad2(t.getMinutes());
+}
+function parseCMATime(s){
+  const m = String(s||"").match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/);
+  return m ? new Date(Date.UTC(+m[1],+m[2]-1,+m[3],+m[4],+m[5])) : null;
+}
+const MAP_CENTER_LON = 180;
+const GLOBAL_BOUNDS = [[-60,0],[60,360]];
+function mapLon(lon){
+  let x = num(lon);
+  if(x==null) return lon;
+  x = ((x%360)+360)%360;
+  return x;
+}
+function mapLL(p){ return [p.lat,mapLon(p.lon)]; }
+function unwrapLng(pts){
+  const out=[]; let prev=null;
+  for(const p of pts){
+    if(!p) continue;
+    let lat=p[0], lng=mapLon(p[1]);
+    if(prev!=null){ while(lng-prev>180) lng-=360; while(lng-prev<-180) lng+=360; }
+    prev=lng; out.push([lat,lng]);
+  }
+  return out;
+}
+const fmtLL = (lat,lon)=>{
+  const lo = ((lon+540)%360)-180;
+  return lat.toFixed(1)+"°"+(lat>=0?"N":"S")+" "+Math.abs(lo).toFixed(1)+"°"+(lo>=0?"E":"W");
+};
+/* 強度分類（近中心最大風速 m/s；沿用 CWA 颱風路徑潛勢預測圖圖例） */
+function tyCat(ws){
+  if(ws==null) return {name:"—",short:"—",color:"#9fb0c8"};
+  if(ws<17.2)  return {name:"熱帶性低氣壓",short:"TD",color:"#29c5e0"};
+  if(ws<32.7)  return {name:"輕度颱風",short:"TS",color:"#a3c832"};
+  if(ws<51.0)  return {name:"中度颱風",short:"TY",color:"#ffa726"};
+  return {name:"強烈颱風",short:"STY",color:"#f0507a"};
+}
+const KT2MS = 0.514444, NM2KM = 1.852;
+const GRADE_MS = {TD:15,TS:20,STS:28,TY:38,STY:45,SuperTY:55};
+function tyIconSVG(col,size){
+  return '<svg viewBox="0 0 24 24" width="'+size+'" height="'+size+'">'
+    +'<path d="M12 1.6 C6.6 1.6 2.9 5.4 2.9 10.6 C4.6 7.4 8 5.9 12 5.9 Z" fill="'+col+'" stroke="#0b1220" stroke-width="0.6"/>'
+    +'<path d="M12 22.4 C17.4 22.4 21.1 18.6 21.1 13.4 C19.4 16.6 16 18.1 12 18.1 Z" fill="'+col+'" stroke="#0b1220" stroke-width="0.6"/>'
+    +'<circle cx="12" cy="12" r="5.2" fill="'+col+'" stroke="#0b1220" stroke-width="0.8"/>'
+    +'<circle cx="12" cy="12" r="2" fill="#0b1220"/></svg>';
+}
+function basinOf(lat,lon){
+  let x = lon; while(x>180) x-=360; while(x<-180) x+=360;
+  if(lat<0) return "SH";
+  if(x>=100 && x<=180) return "WP";
+  if(x>=40  && x<100)  return "IO";
+  if(x>=-180&& x<-140) return "WP";
+  if(x>=-140&& x<-100) return "EP";
+  return "AL";
+}
+const BASIN_NAME={WP:"西北太平洋／南海",AL:"大西洋",EP:"東北太平洋",IO:"北印度洋",SH:"南半球",XX:"—"};
+const BASIN_VIEW={WP:[[0,100],[45,260]],AL:[[5,260],[45,345]],EP:[[5,200],[35,270]],
+                  IO:[[0,45],[28,110]],SH:[[-45,20],[-5,340]],ALL:GLOBAL_BOUNDS};
+function haversineKm(a,b){
+  const R=6371,r=Math.PI/180;
+  const dLat=(b[0]-a[0])*r, dLon=(b[1]-a[1])*r;
+  const s=Math.sin(dLat/2)**2+Math.cos(a[0]*r)*Math.cos(b[0]*r)*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.min(1,Math.sqrt(s)));
+}
+
+/* ═══════════ 地圖 ═══════════ */
+const BASEMAPS = {
+  osm:{u:"https://tile.openstreetmap.org/{z}/{x}/{y}.png",a:"© OpenStreetMap contributors",max:19},
+  hot:{u:"https://tile-a.openstreetmap.fr/hot/{z}/{x}/{y}.png",a:"© OpenStreetMap contributors, HOT",max:19},
+  dark:{u:"https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",a:"© OpenStreetMap contributors © CARTO",max:20},
+  light:{u:"https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",a:"© OpenStreetMap contributors © CARTO",max:20},
+  sat:{u:"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",a:"Esri World Imagery",max:19},
+  topo:{u:"https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",a:"© OpenStreetMap contributors, OpenTopoMap",max:17}
+};
+const EMPTY_TILE = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
+const map = L.map("map",{
+  center:[5,MAP_CENTER_LON],
+  zoom:2,
+  minZoom:1,
+  worldCopyJump:false,
+  zoomControl:false,
+  maxBounds:[[-85,-360],[85,720]],
+  maxBoundsViscosity:.35
+});
+L.control.zoom({position:"topright"}).addTo(map);
+L.control.scale({imperial:false,position:"bottomleft"}).addTo(map);
+let baseLayer=null;
+function setBase(k){
+  const b = BASEMAPS[k]||BASEMAPS.osm;
+  if(baseLayer) map.removeLayer(baseLayer);
+  baseLayer = L.tileLayer(b.u,{
+    attribution:b.a,
+    maxZoom:b.max,
+    errorTileUrl:EMPTY_TILE,
+    updateWhenIdle:true,
+    keepBuffer:2
+  }).addTo(map);
+  baseLayer.on("tileerror", e=>{
+    if(e && e.tile) e.tile.classList.add("tile-failed");
+    diagSet("地圖圖磚",{ok:false,err:"底圖圖磚載入失敗，已以透明圖磚代替"});
+  });
+  setTimeout(applyDim,60);
+  try{ localStorage.setItem(LS.base,k); }catch(e){}
+}
+function applyDim(){
+  const v=(+$("baseDim").value)/100;
+  const c = baseLayer && baseLayer.getContainer && baseLayer.getContainer();
+  if(c) c.style.filter = "brightness("+v.toFixed(2)+") saturate(.9)";
+}
+setBase(localStorage.getItem(LS.base)||"osm");
+const layDayNight=L.layerGroup().addTo(map),
+      layPast=L.layerGroup().addTo(map), layFcst=L.layerGroup().addTo(map),
+      layCone=L.layerGroup().addTo(map), layWind=L.layerGroup().addTo(map),
+      layMark=L.layerGroup().addTo(map);
+
+/* ═══════════ 資料模型 ═══════════ */
+let storms=[], curStorm=null, curIssueIdx=-1, overview=true;
+
+/* ─── 來源 1：中國中央氣象台 typhoon.nmc.cn（含各國預報轉發） ─── */
+const CMA_BASE = "https://typhoon.nmc.cn/weatherservice/typhoon/jsons/";
+async function cmaList(y){
+  const txt = await pfetch(CMA_BASE+"list_"+y+"?t="+Date.now()+"&callback=cb");
+  const j = unwrapJSONP(txt);
+  const arr = (j&&(j.typhoonList||j.typhoonlist))||[];
+  return arr.map(r=>({id:r[0],nameEn:r[1]||"",nameZh:(r[2]&&r[2]!=="null")?r[2]:"",
+                      no:(r[4]||r[3]||"")+"",state:r[7]||""})).filter(x=>x.id);
+}
+function pickLatLon(a,iLon,iLat){
+  let lon=num(a[iLon]), lat=num(a[iLat]);
+  if(lat==null||lon==null) return null;
+  if(Math.abs(lat)>90 && Math.abs(lon)<=90){ const t=lat; lat=lon; lon=t; }
+  return Math.abs(lat)>90 ? null : [lat,lon];
+}
+async function cmaStorm(id){
+  const txt = await pfetch(CMA_BASE+"view_"+id+"?t="+Date.now()+"&callback=cb",{timeout:30000});
+  const j = unwrapJSONP(txt);
+  const d = j && (j.typhoon||j.Typhoon);
+  if(!d || !Array.isArray(d)) throw new Error("查無此系統資料");
+  const nameEn=d[1]||"", nameZh=(d[2]&&d[2]!=="null")?d[2]:"", no=(d[4]||d[3]||"")+"";
+  let pts = (Array.isArray(d[8])&&Array.isArray(d[8][0])) ? d[8] : null;
+  if(!pts){ for(const v of d){ if(Array.isArray(v)&&v.length>2&&Array.isArray(v[0])){ if(!pts||v.length>pts.length) pts=v; } } }
+  pts = pts||[];
+
+  const past=[], issues=[];
+  pts.forEach(v=>{
+    if(!Array.isArray(v)) return;
+    const t = parseCMATime(v[1]);
+    const ll = pickLatLon(v,4,5);
+    if(!ll) return;
+    const grade = typeof v[3]==="string"?v[3]:"";
+    let ws = num(v[7]);
+    if(ws==null && GRADE_MS[grade]!=null) ws = GRADE_MS[grade];
+    past.push({t,lat:ll[0],lon:ll[1],ws,pres:num(v[6]),grade,
+               mvDir:(typeof v[8]==="string"?v[8]:null),mvSpd:num(v[9]),r15:null,r25:null});
+    // 掃描該定位點內所有「機構 → 預報陣列」物件並合併
+    let fd=null;
+    for(let k=0;k<v.length;k++){
+      const x=v[k];
+      if(x && typeof x==="object" && !Array.isArray(x)){
+        if(Object.keys(x).some(kk=>Array.isArray(x[kk])&&x[kk].length&&Array.isArray(x[kk][0]))) fd=Object.assign(fd||{},x);
+      }
+    }
+    if(fd && t){
+      const agencies={};
+      Object.keys(fd).forEach(rawKey=>{
+        const rows = fd[rawKey];
+        const dk = diag.rawKeys[rawKey] || (diag.rawKeys[rawKey]={code:normAgency(rawKey),n:0});
+        dk.n++;
+        if(!Array.isArray(rows)||!rows.length) return;
+        const code = normAgency(rawKey), fpts=[];
+        rows.forEach(r=>{
+          if(!Array.isArray(r)) return;
+          const l2 = pickLatLon(r,2,3); if(!l2) return;
+          const tau = num(r[0]);
+          const g = typeof r[7]==="string"?r[7]:(typeof r[6]==="string"?r[6]:"");
+          let w = num(r[5]);
+          if(w==null && GRADE_MS[g]!=null) w = GRADE_MS[g];
+          fpts.push({tau,lat:l2[0],lon:l2[1],pres:num(r[4]),ws:w,grade:g,
+                     vt: tau!=null?new Date(t.getTime()+tau*3600e3):null});
+        });
+        if(!fpts.length) return;
+        fpts.sort((a,b)=>(a.tau??0)-(b.tau??0));
+        if(!agencies[code]||fpts.length>agencies[code].pts.length) agencies[code]={pts:fpts,rawKey};
+      });
+      if(Object.keys(agencies).length) issues.push({t,agencies,from:"CMA"});
+    }
+  });
+  past.sort((a,b)=>(a.t?a.t.getTime():0)-(b.t?b.t.getTime():0));
+  issues.sort((a,b)=>a.t-b.t);
+  const last = past[past.length-1];
+  return {key:"CMA:"+id,cmaId:id,nameEn,nameZh,no,
+          basin:last?basinOf(last.lat,last.lon):"WP",source:"CMA",past,issues};
+}
+
+/* ─── 來源 2：日本氣象廳 JMA（bosai） ─── */
+const JMA_BASE = "https://www.jma.go.jp/bosai/typhoon/data/";
+function jmaLL(o){
+  if(!o) return null;
+  const p = o.position||o.center||o, deg = p&&(p.deg||p);
+  if(Array.isArray(deg)&&deg.length>=2){
+    const lat=num(deg[0]), lon=num(deg[1]);
+    if(lat!=null&&lon!=null&&Math.abs(lat)<=90) return [lat,lon];
+  }
+  return null;
+}
+function jmaKm(o){
+  if(o==null) return null;
+  if(typeof o==="object"){
+    const r = o.radius!=null?o.radius:o;
+    if(typeof r==="object") return num(r["km"]!=null?r["km"]:(r.long!=null?r.long:r.value));
+    return num(r);
+  }
+  return num(o);
+}
+async function jmaStorms(onOne){
+  const list = await pfetch(JMA_BASE+"targetTc.json",{type:"json"});
+  const out=[];
+  for(const it of (Array.isArray(list)?list:[])){
+    const id = it.tropicalCyclone; if(!id) continue;
+    try{
+      const [fc,sp] = await Promise.all([
+        pfetch(JMA_BASE+id+"/forecast.json",{type:"json"}).catch(()=>null),
+        pfetch(JMA_BASE+id+"/specifications.json",{type:"json"}).catch(()=>null)
+      ]);
+      const past=[]; const issueT = it.issue?new Date(it.issue):null;
+      if(Array.isArray(fc)) fc.forEach(e=>{
+        if(e&&e.track){
+          [].concat(e.track.preTyphoon||[],e.track.typhoon||[]).forEach(p=>{
+            const lat=num(p[0]),lon=num(p[1]);
+            if(lat!=null&&lon!=null) past.push({t:null,lat,lon,ws:null,pres:null,grade:""});
+          });
+        }
+      });
+      const fpts=[]; let cur=null;
+      if(Array.isArray(sp)) sp.forEach(e=>{
+        if(!e||e.part==="title") return;
+        const ll = jmaLL(e); if(!ll) return;
+        const ah = num(e.advancedHours);
+        const mw = e.maximumWind||e.maximumWindSpeed;
+        let ws = mw?num(mw["m/s"]||mw.ms):null;
+        if(ws==null && mw && (mw.kt||mw.knot)) ws = num(mw.kt||mw.knot)*KT2MS;
+        const rec={tau:ah,lat:ll[0],lon:ll[1],pres:num(e.pressure),ws,
+          grade:(e.category&&(e.category.en||e.category))||"",
+          r70:jmaKm(e.circleOfProbability),r15:jmaKm(e.galeWarningArea||e.warningArea),
+          r25:jmaKm(e.stormWarningArea),
+          vt:e.validtime&&e.validtime.UTC?new Date(e.validtime.UTC):null};
+        if(!ah) cur=rec;
+        if(ah!=null&&ah>0) fpts.push(rec);
+      });
+      if(cur) past.push({t:cur.vt,lat:cur.lat,lon:cur.lon,ws:cur.ws,pres:cur.pres,
+                         grade:cur.grade,r15:cur.r15,r25:cur.r25});
+      if(!past.length&&!fpts.length) continue;
+      fpts.sort((a,b)=>(a.tau??0)-(b.tau??0));
+      const last = past[past.length-1];
+      const s = {key:"JMA:"+id,jmaId:id,nameEn:(it.typhoonName||"").toString(),nameZh:"",
+        no:(it.typhoonNumber&&/^\d+$/.test(it.typhoonNumber))?it.typhoonNumber:"",
+        basin:last?basinOf(last.lat,last.lon):"WP",source:"JMA",past,
+        issues:fpts.length?[{t:issueT||(cur&&cur.vt)||new Date(),agencies:{RJTD:{pts:fpts,rawKey:"JMA"}},from:"JMA"}]:[]};
+      out.push(s);
+      if(onOne) onOne(out.slice());
+    }catch(e){}
+  }
+  return out;
+}
+
+/* ─── 來源 3：美國 NHC（CurrentStorms.json ＋ TCM 預報單） ─── */
+function parseTCM(txt){
+  const t = String(txt).replace(/<[^>]+>/g," ");
+  const pts=[]; const TAUS=[12,24,36,48,60,72,96,120];
+  const re=/(?:FORECAST|OUTLOOK)\s+VALID\s+(\d{2})\/(\d{4})Z\s+([\d.]+)([NS])\s+([\d.]+)([EW])([\s\S]{0,160}?)MAX\s+WIND\s+(\d+)\s*KT/gi;
+  let r,i=0;
+  while((r=re.exec(t))!==null){
+    pts.push({tau:TAUS[i]!=null?TAUS[i]:12*(i+1),
+      lat:(r[4].toUpperCase()==="S"?-1:1)*parseFloat(r[3]),
+      lon:(r[6].toUpperCase()==="W"?-1:1)*parseFloat(r[5]),
+      ws:parseInt(r[8],10)*KT2MS,pres:null,grade:""});
+    i++;
+  }
+  return pts;
+}
+async function nhcStorms(onOne){
+  const j = await pfetch("https://www.nhc.noaa.gov/CurrentStorms.json",{type:"json"});
+  const arr = (j&&j.activeStorms)||[];
+  const out=[];
+  for(const s of arr){
+    const lat=num(s.latitudeNumeric), lon=num(s.longitudeNumeric);
+    if(lat==null||lon==null) continue;
+    const ws = num(s.intensity)!=null?num(s.intensity)*KT2MS:null;
+    const past=[{t:s.lastUpdate?new Date(s.lastUpdate):null,lat,lon,ws,pres:num(s.pressure),
+      grade:s.classification||"",mvDir:s.movementDir!=null?s.movementDir+"°":null,
+      mvSpd:num(s.movementSpeed)!=null?num(s.movementSpeed)*NM2KM:null}];
+    let fpts=[];
+    const issueT = s.forecastAdvisory&&s.forecastAdvisory.issuance?new Date(s.forecastAdvisory.issuance):new Date();
+    try{ if(s.forecastAdvisory&&s.forecastAdvisory.url) fpts = parseTCM(await pfetch(s.forecastAdvisory.url)); }catch(e){}
+    out.push({key:"NHC:"+s.id,nhcId:s.id,nameEn:s.name||"",nameZh:"",no:"",
+      basin:basinOf(lat,lon),source:"NHC",past,
+      issues:fpts.length?[{t:issueT,agencies:{KNHC:{pts:fpts,rawKey:"NHC"}},from:"NHC"}]:[]});
+    if(onOne) onOne(out.slice());
+  }
+  return out;
+}
+
+/* ─── 來源 4：美國 JTWC 官方警報電文 ─── */
+function parseJTWC(txt){
+  const t = String(txt).replace(/\r/g,"");
+  const out={name:"",id:"",init:null,cur:null,pts:[]};
+  const m = t.match(/SUBJ\/([A-Z \-]*?)\s*(\d{2}[A-Z])\s*(?:\(([^)]+)\))?\s*WARNING\s+NR\s*(\d+)/i);
+  if(m){ out.id=m[2]; out.name=(m[3]||"").trim(); }
+  const now = new Date();
+  const mkTime=(dd,hh,mm)=>{
+    const d = new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),+dd,+hh,+mm));
+    if(d.getTime()-now.getTime() >  15*86400e3) d.setUTCMonth(d.getUTCMonth()-1);
+    if(now.getTime()-d.getTime() >  15*86400e3) d.setUTCMonth(d.getUTCMonth()+1);
+    return d;
+  };
+  const hd = t.match(/^\s*WT\w{2}\d{2}\s+PGTW\s+(\d{2})(\d{2})(\d{2})/m);
+  if(hd) out.init = mkTime(hd[1],hd[2],hd[3]);
+  const radii = block=>{
+    const g = re=>{
+      const mm = block.match(re); if(!mm) return null;
+      const nums = (mm[1].match(/(\d{2,3})\s*NM/g)||[]).map(x=>parseInt(x,10));
+      return nums.length ? Math.round(nums.reduce((a,b)=>a+b,0)/nums.length*NM2KM) : null;
+    };
+    return {r34:g(/RADIUS OF 034 KT WINDS([\s\S]{0,260}?)(?:RADIUS OF|VECTOR|---|REMARKS|$)/),
+            r50:g(/RADIUS OF 050 KT WINDS([\s\S]{0,260}?)(?:RADIUS OF|VECTOR|---|REMARKS|$)/)};
+  };
+  const cm = t.match(/WARNING POSITION:\s*\n\s*(\d{2})(\d{2})(\d{2})Z\s*-+\s*NEAR\s+([\d.]+)([NS])\s+([\d.]+)([EW])([\s\S]{0,1400}?)(?:\n\s*---|FORECASTS:)/i);
+  if(cm){
+    const wsm = cm[8].match(/MAX SUSTAINED WINDS\s*-\s*(\d+)\s*KT/i);
+    const gm  = cm[8].match(/GUSTS\s+(\d+)\s*KT/i);
+    const rr  = radii(cm[8]);
+    out.cur = {t:mkTime(cm[1],cm[2],cm[3]),
+      lat:(cm[5].toUpperCase()==="S"?-1:1)*parseFloat(cm[4]),
+      lon:(cm[7].toUpperCase()==="W"?-1:1)*parseFloat(cm[6]),
+      ws:wsm?parseInt(wsm[1],10)*KT2MS:null,
+      gust:gm?Math.round(parseInt(gm[1],10)*KT2MS):null,
+      r15:rr.r34,r25:rr.r50};
+    const pm = t.match(/MINIMUM CENTRAL PRESSURE[^\d]{0,40}(\d{3,4})\s*MB/i);
+    if(pm) out.cur.pres = parseInt(pm[1],10);
+  }
+  const re = /(\d{1,3})\s+HRS,\s*VALID AT:\s*\n\s*(\d{2})(\d{2})(\d{2})Z\s*-+\s*([\d.]+)([NS])\s+([\d.]+)([EW])([\s\S]{0,1400}?)(?=\n\s*---|\n\s*\d{1,3}\s+HRS,|REMARKS:|$)/gi;
+  let r;
+  while((r=re.exec(t))!==null){
+    const wsm = r[9].match(/MAX SUSTAINED WINDS\s*-\s*(\d+)\s*KT/i);
+    const rr  = radii(r[9]);
+    out.pts.push({tau:parseInt(r[1],10),vt:mkTime(r[2],r[3],r[4]),
+      lat:(r[6].toUpperCase()==="S"?-1:1)*parseFloat(r[5]),
+      lon:(r[8].toUpperCase()==="W"?-1:1)*parseFloat(r[7]),
+      ws:wsm?parseInt(wsm[1],10)*KT2MS:null,pres:null,grade:"",r15:rr.r34,r25:rr.r50});
+  }
+  out.pts.sort((a,b)=>a.tau-b.tau);
+  return out;
+}
+async function jtwcStorms(onOne){
+  const rss = await pfetch("https://www.metoc.navy.mil/jtwc/rss/jtwc.rss?tropics");
+  const urls = Array.from(new Set(rss.match(/https?:\/\/[^\s'"<>]*?\/products\/[a-z]{2}\d{4}web\.txt/gi)||[]));
+  diagSet("美國 JTWC 警報中心",{listed:urls.length});
+  const out=[];
+  for(const u of urls.slice(0,8)){
+    try{
+      const p = parseJTWC(await pfetch(u));
+      if(!p.cur) continue;
+      out.push({key:"JTWC:"+(p.id||u),nameEn:p.name||p.id,nameZh:"",no:"",
+        basin:basinOf(p.cur.lat,p.cur.lon),source:"JTWC",
+        past:[{t:p.cur.t,lat:p.cur.lat,lon:p.cur.lon,ws:p.cur.ws,gust:p.cur.gust,
+               pres:p.cur.pres,grade:"",r15:p.cur.r15,r25:p.cur.r25}],
+        issues:p.pts.length?[{t:p.init||p.cur.t,agencies:{PGTW:{pts:p.pts,rawKey:"JTWC"}},from:"JTWC"}]:[]});
+      if(onOne) onOne(out.slice());
+    }catch(e){}
+  }
+  return out;
+}
+
+/* ─── 來源 5：台灣中央氣象署 CWA Open Data W-C0034-005 ─── */
+const CWA_KEY_DEFAULT = "rdec-key-123-45678-011121314";
+let CWA_KEY = CWA_KEY_DEFAULT;
+try{
+  if(localStorage.getItem(LS.rem)==="1"){
+    const k = localStorage.getItem(LS.key);
+    if(k&&k.trim()) CWA_KEY = k.trim();
+  }
+}catch(e){}
+const cwaK=(o,re)=>{ if(!o||typeof o!=="object") return undefined;
+  for(const k of Object.keys(o)){ if(re.test(k)) return o[k]; } return undefined; };
+function cwaLL(fix){
+  const c = cwaK(fix,/^coordinates?$/i);
+  let lat=null,lon=null;
+  if(typeof c==="string"){
+    const p=c.split(",").map(parseFloat);
+    if(p.length>=2&&isFinite(p[0])&&isFinite(p[1])){ if(p[0]>60){lon=p[0];lat=p[1];}else{lat=p[0];lon=p[1];} }
+  }else if(c&&typeof c==="object"){ lat=num(cwaK(c,/lat/i)); lon=num(cwaK(c,/lon/i)); }
+  else { lat=num(cwaK(fix,/latitude/i)); lon=num(cwaK(fix,/longitude/i)); }
+  return (lat!=null&&lon!=null)?[lat,lon]:null;
+}
+function cwaRad(fix,re){
+  const c = cwaK(fix,re);
+  if(c==null) return null;
+  if(typeof c==="object"){ const r=cwaK(c,/^radius$/i); return r!=null?num(r):num(cwaK(c,/radius/i)); }
+  return num(c);
+}
+/* datastore API 網址：與 CWA_opendata_10min_display.html 之 dataApi() 相同格式 */
+function cwaApi(id){
+  return "https://opendata.cwa.gov.tw/api/v1/rest/datastore/"+id
+       + "?Authorization="+encodeURIComponent(CWA_KEY)+"&format=JSON&_t="+Date.now();
+}
+async function cwaStorms(){
+  const url = cwaApi("W-C0034-005");
+  const j = await pfetch(url,{type:"json"});
+  if(j && String(j.success)==="false") throw new Error("API 回應 success=false，請確認授權碼是否有效或已被限流");
+
+  // 欄位路徑容錯：camelCase 與 snake_case 皆可（同 10 分鐘觀測地圖之 tyParse）
+  let list = (j && j.records && (j.records.tropicalCyclones||j.records.tropical_cyclones||{}));
+  list = (list && (list.tropicalCyclone || list.tropical_cyclone))
+      || cwaK(cwaK((j&&j.records)||{}, /tropical_?cyclones/i)||{}, /tropical_?cyclone$/i)
+      || [];
+  if(list && !Array.isArray(list)) list=[list];
+  const isDemo = CWA_KEY === CWA_KEY_DEFAULT;
+  diagSet("台灣 CWA 氣象署",{
+    note:"records 欄位："+Object.keys((j&&j.records)||{}).join("／")
+       + "｜熱帶氣旋 "+((list&&list.length)||0)+" 筆"
+       + (isDemo?"｜使用官方示範金鑰":"｜使用自訂金鑰")});
+  const out=[];
+  (list||[]).forEach(tc=>{
+    const nameEn = cwaK(tc,/^typhoon_?name$/i)||"", nameZh = cwaK(tc,/cwa_?typhoon_?name/i)||"";
+    const no = cwaK(tc,/cwa_?ty_?no/i)||cwaK(tc,/cwa_?td_?no/i)||"";
+    const norm = x=>{ let f = x?(cwaK(x,/^fix(es)?$/i)||[]):[]; if(f&&!Array.isArray(f)) f=[f]; return f||[]; };
+    const past = norm(cwaK(tc,/analysis_?data/i)).map(f=>{
+      const ll = cwaLL(f); if(!ll) return null;
+      const mv = cwaK(f,/^movement$/i)||f;
+      return {t:new Date(cwaK(f,/fix_?time|^date_?time$/i)),lat:ll[0],lon:ll[1],
+        ws:num(cwaK(f,/max_?wind/i)),gust:num(cwaK(f,/max_?gust/i)),pres:num(cwaK(f,/pressure/i)),
+        r15:cwaRad(f,/15\s*ms|of_?15/i),r25:cwaRad(f,/25\s*ms|of_?25/i),grade:"",
+        mvDir:cwaK(mv,/moving_?direction/i),mvSpd:num(cwaK(mv,/moving_?speed|^speed$/i))};
+    }).filter(Boolean);
+    past.sort((a,b)=>(a.t?a.t.getTime():0)-(b.t?b.t.getTime():0));
+    const fpts = norm(cwaK(tc,/forecast_?data/i)).map(f=>{
+      const ll = cwaLL(f); if(!ll) return null;
+      return {tau:num(cwaK(f,/^tau$|forecast_?hour/i)),lat:ll[0],lon:ll[1],
+        ws:num(cwaK(f,/max_?wind/i)),pres:num(cwaK(f,/pressure/i)),grade:"",
+        r70:cwaRad(f,/70\s*percent|probability/i),
+        r15:cwaRad(f,/15\s*ms|of_?15/i),r25:cwaRad(f,/25\s*ms|of_?25/i)};
+    }).filter(Boolean);
+    fpts.sort((a,b)=>(a.tau??0)-(b.tau??0));
+    if(!past.length&&!fpts.length) return;
+    const last = past[past.length-1];
+    out.push({key:"CWA:"+(no||nameEn),nameEn,nameZh,no:no+"",
+      basin:last?basinOf(last.lat,last.lon):"WP",source:"CWA",past,
+      issues:fpts.length?[{t:last?last.t:new Date(),agencies:{RCTP:{pts:fpts,rawKey:"CWA"}},from:"CWA"}]:[]});
+  });
+  return out;
+}
+
+/* ───────────────────────────────────────────────────────────────────
+   來源 6：香港天文台 HKO — 熱帶氣旋路徑資訊（Open Data）
+   後端流程（tc_gis.htm 為前端 SPA，資料來自以下兩層靜態 XML）：
+     ① 清單  https://www.weather.gov.hk/wxinfo/currwx/tc_list.xml
+             → 目前位於 7–36°N、100–140°E 範圍內之熱帶氣旋，含中英文名稱與 4 位數編號（如 2617）
+     ② 路徑  https://www.weather.gov.hk/wxinfo/currwx/hko_tctrack_{id}.xml
+             → 該氣旋之過去路徑、分析位置與預測位置（強度分級、中心附近最高持續風速 km/h）
+     ③ 前端再套官方色階，並依預測時距套 70% 可能路徑範圍半徑
+   HKO 監測範圍外（或無熱帶氣旋）時 tc_list.xml 為空，屬正常情形。
+   解析採「命名優先＋容錯遍歷」：優先辨識 PastInformation／AnalysisInformation／
+   ForecastInformation 節點，找不到時退回「任何同時具 Latitude/Longitude 子節點者即為路徑點」。
+   ─────────────────────────────────────────────────────────────────── */
+/* weather.gov.hk 與 hko.gov.hk 為同一份內容的兩個主機名，互為備援 */
+const HKO_HOSTS = ["https://www.weather.gov.hk","https://www.hko.gov.hk"];
+const HKO_BASE  = HKO_HOSTS[0] + "/wxinfo/currwx/";
+const HKO_TRACK = id => "/wxinfo/currwx/hko_tctrack_" + id + ".xml";
+/* 由任一形式的網址產生「各主機名」的候選清單。
+   GIS 版檔案（tc_gis_*）只掛在 hko.gov.hk，故該類優先用 hko.gov.hk。 */
+function hkoUrls(pathOrUrl){
+  const path = /^https?:\/\//i.test(pathOrUrl)
+    ? (pathOrUrl.replace(/^https?:\/\/[^\/]+/i,"")) : pathOrUrl;
+  const hosts = /tc_gis/i.test(path) ? HKO_HOSTS.slice().reverse() : HKO_HOSTS;
+  return hosts.map(h=>h+path);
+}
+/* HKO 強度分級 → 中心附近最高持續風速概值（m/s），僅在 XML 未帶風速時作為備援 */
+const HKO_CLASS_MS = [
+  [/super\s*typhoon|超強颱風/i, 55],
+  [/severe\s*typhoon|強颱風/i,  46],
+  [/typhoon|颱風/i,             37],
+  [/severe\s*tropical\s*storm|強烈熱帶風暴/i, 28],
+  [/tropical\s*storm|熱帶風暴/i, 21],
+  [/tropical\s*depression|熱帶低氣壓/i, 15],
+  [/low\s*pressure|低壓區|extratropical|溫帶/i, 12]
+];
+function hkoClassMs(txt){
+  if(!txt) return null;
+  for(const [re,v] of HKO_CLASS_MS) if(re.test(txt)) return v;
+  return null;
+}
+/* HKO 官方 70% 可能路徑範圍半徑（2022 年更新之統計值，km） */
+const HKO_R70 = {0:15,24:100,48:170,72:255,96:345,120:465};
+function xKid(el,re){ for(const c of Array.from(el.children||[])) if(re.test(c.tagName)) return c; return null; }
+function xVal(el,re){
+  const d = xKid(el,re);
+  if(d && d.textContent.trim()) return d.textContent.trim();
+  const f = Array.from(el.getElementsByTagName("*")).find(n=>re.test(n.tagName) && n.textContent.trim());
+  return f?f.textContent.trim():null;
+}
+function xNum(el,re){
+  const t = xVal(el,re);
+  if(t==null) return null;
+  const n = parseFloat(String(t).replace(/[^\d.\-]/g,""));
+  return isFinite(n)?n:null;
+}
+function xAncestor(el,re){
+  let p=el;
+  while(p && p.tagName){ if(re.test(p.tagName)) return p.tagName; p=p.parentElement; }
+  return null;
+}
+/* 取子節點文字（XML 標籤大小寫敏感，以正則比對較保險） */
+function hkoTag(el,name){
+  const t = xKid(el,new RegExp("^"+name+"$","i"));
+  return t ? t.textContent.trim() : null;
+}
+/* "15.00N" / "130.20E" / "12.3S" → 帶正負號之十進位度數 */
+function hkoLL(txt){
+  const m = String(txt||"").trim().match(/^(-?[\d.]+)\s*([NSEW])?$/i);
+  if(!m) return null;
+  let v = parseFloat(m[1]);
+  if(!isFinite(v)) return null;
+  const h = (m[2]||"").toUpperCase();
+  if(h==="S"||h==="W") v = -v;
+  return v;
+}
+/* "45km/h" → m/s（HKO 標準單位為 km/h；若標示 m/s 或 kt 則依其換算） */
+function hkoWind(txt){
+  const s = String(txt||"");
+  const n = parseFloat(s.replace(/[^\d.\-]/g,""));
+  if(!isFinite(n)) return null;
+  if(/m\s*\/?\s*s|mps/i.test(s)) return n;
+  if(/\bkts?\b|knot/i.test(s))   return n*KT2MS;
+  return n/3.6;
+}
+
+/* ① tc_list.xml → [{id, nameEn, nameZh, url}]
+   <TropicalCycloneList><TropicalCyclone>
+     <TropicalCycloneID>2617</TropicalCycloneID>
+     <TropicalCycloneChineseName>紅霞</TropicalCycloneChineseName>
+     <TropicalCycloneEnglishName>NOUL</TropicalCycloneEnglishName>
+     <TropicalCycloneURL>http://…/hko_tctrack_2617.xml</TropicalCycloneURL>
+   </TropicalCyclone></TropicalCycloneList>                                        */
+function parseHKOList(xmlStr){
+  const out = [];
+  const add = (id,en,zh,url)=>{
+    id = String(id||"").trim();
+    if(!/^\d{3,5}$/.test(id) || out.some(x=>x.id===id)) return;
+    // 清單給的是 http，於 https 頁面會被當混合內容阻擋 → 升級並展開為各主機名候選
+    out.push({id, nameEn:(en||"").trim(), nameZh:(zh||"").trim(),
+              urls: hkoUrls((url||HKO_TRACK(id)).trim())});
+  };
+  let doc = null;
+  try{ doc = new DOMParser().parseFromString(xmlStr,"application/xml"); }catch(e){}
+  if(doc && !doc.getElementsByTagName("parsererror").length){
+    Array.from(doc.getElementsByTagName("*"))
+      .filter(el=>/^tropicalcyclone$/i.test(el.tagName))
+      .forEach(el=>add(hkoTag(el,"TropicalCycloneID"),
+                       hkoTag(el,"TropicalCycloneEnglishName"),
+                       hkoTag(el,"TropicalCycloneChineseName"),
+                       hkoTag(el,"TropicalCycloneURL")));
+  }
+  // 備援：直接由檔名取編號
+  if(!out.length)
+    (String(xmlStr).match(/hko_tctrack_(\d{3,5})\.xml/gi)||[])
+      .forEach(f=>add((f.match(/(\d{3,5})/)||[])[1]));
+  return out;
+}
+
+/* ② hko_tctrack_{id}.xml → 過去路徑 / 分析位置 / 預測位置
+   <TropicalCycloneTrack tcid="2617">
+     <BulletinHeader><BulletinTime>2026-07-27T11:31:51+08:00</BulletinTime>…</BulletinHeader>
+     <WeatherReport>
+       <TropicalCycloneName>NOUL</TropicalCycloneName>
+       <PastInformation>     <Index/><Intensity/><MaximumWind>45km/h</MaximumWind>
+                             <Time>…+00:00</Time><Latitude>15.00N</Latitude><Longitude>130.20E</Longitude>
+       </PastInformation>  … （逐筆重複）
+       <AnalysisInformation>…同欄位，為目前定位…</AnalysisInformation>
+       <ForecastInformation>…同欄位，為各預測時刻…</ForecastInformation>
+     </WeatherReport>
+   </TropicalCycloneTrack>                                                          */
+function parseHKO(xmlStr){
+  const doc = new DOMParser().parseFromString(xmlStr,"application/xml");
+  if(doc.getElementsByTagName("parsererror").length) throw new Error("XML 解析失敗");
+  const root = doc.documentElement;
+  const tcid = (root.getAttribute && root.getAttribute("tcid")) || "";
+  let nameEn = "", bulletin = null;
+  Array.from(doc.getElementsByTagName("*")).forEach(el=>{
+    if(/^tropicalcyclonename$/i.test(el.tagName) && !nameEn) nameEn = el.textContent.trim();
+    if(/^bulletintime$/i.test(el.tagName) && !bulletin){
+      const d = new Date(el.textContent.trim());
+      if(!isNaN(d)) bulletin = d;
+    }
+  });
+
+  /* 先找子元素，找不到再找同名屬性（GIS 版 XML 常以屬性存放座標） */
+  const fld = (el,names)=>{
+    for(const n of names){
+      const v = hkoTag(el,n);
+      if(v) return v;
+    }
+    if(el.attributes) for(const n of names){
+      for(const a of Array.from(el.attributes))
+        if(new RegExp("^"+n+"$","i").test(a.name) && a.value.trim()) return a.value.trim();
+    }
+    return null;
+  };
+  const toRec = el=>{
+    const lat = hkoLL(fld(el,["Latitude","lat","y"]));
+    const lon = hkoLL(fld(el,["Longitude","lon","lng","x"]));
+    if(lat==null||lon==null||Math.abs(lat)>90) return null;
+    const cls = fld(el,["Intensity","Class","Category","Type"])||"";
+    let ws = hkoWind(fld(el,["MaximumWind","MaxWind","Wind","WindSpeed"]));
+    if(ws==null) ws = hkoClassMs(cls) ?? (HKO_CLS[cls.toUpperCase().replace(/[^A-Z]/g,"")]||{}).ms ?? null;
+    const ts = fld(el,["Time","DateTime","ValidTime","Date"]);
+    const d  = ts ? new Date(ts) : null;
+    const gi = HKO_CLS[cls.toUpperCase().replace(/[^A-Z]/g,"")];
+    return {t:(d&&!isNaN(d))?d:null, lat, lon, ws, grade:(gi&&gi.zh)||cls,
+            pres: xNum(el,/pressure/i),
+            idx:  xNum(el,/^index$/i),
+            tau:  (()=>{ const v=fld(el,["Tau","ForecastHour","LeadTime","Hour"]); return v!=null?parseFloat(v):null; })(),
+            r70:  xNum(el,/probab|radius/i)};
+  };
+
+  const past=[], fcst=[];
+  let named = 0;
+  Array.from(doc.getElementsByTagName("*")).forEach(el=>{
+    const tag = el.tagName;
+    if(/^(past|analysis)information$/i.test(tag)){
+      const r = toRec(el);
+      if(r){ r.kind = /^analysis/i.test(tag)?"A":"P"; past.push(r); named++; }
+    }else if(/^forecast(ed)?information$/i.test(tag)){
+      const r = toRec(el);
+      if(r){ r.kind="F"; fcst.push(r); named++; }
+    }
+  });
+  // 容錯：schema 若有異動，改用「具 Latitude/Longitude 子節點」的通則
+  if(!named){
+    Array.from(doc.getElementsByTagName("*")).forEach(el=>{
+      if(!xKid(el,/^latitude$/i)||!xKid(el,/^longitude$/i)) return;
+      const isF = !!xAncestor(el,/forecast|predict|fcst/i);
+      const r = toRec(el);
+      if(r){ r.kind = isF?"F":"P"; (isF?fcst:past).push(r); }
+    });
+  }
+  const byT = (a,b)=>(a.t?a.t.getTime():0)-(b.t?b.t.getTime():0);
+  past.sort((a,b)=>{
+    // AnalysisInformation（目前定位）永遠排在 PastInformation 之後
+    if(a.kind!==b.kind && (a.kind==="A"||b.kind==="A")) return a.kind==="A"?1:-1;
+    if(a.idx!=null&&b.idx!=null&&a.kind===b.kind) return a.idx-b.idx;
+    return byT(a,b);
+  });
+  fcst.sort(byT);
+
+  // 由分析時刻推算預報時距，並補上官方 70% 可能路徑範圍半徑
+  const t0 = past.length ? past[past.length-1].t : bulletin;
+  fcst.forEach(f=>{
+    if(f.t && t0) f.tau = Math.round((f.t-t0)/3600e3);
+    f.vt = f.t;
+    if(f.r70==null && f.tau!=null){
+      const k = [0,24,48,72,96,120].reduce((a,b)=>Math.abs(b-f.tau)<Math.abs(a-f.tau)?b:a,0);
+      f.r70 = HKO_R70[k];
+    }
+  });
+  return {nameEn,tcid,bulletin,past,fcst};
+}
+
+/* ═══ HKO GIS 版後端（tc_gis.htm 實際使用的資料） ═══
+   ① 清單 https://www.hko.gov.hk/wxinfo/currwx/tc_gis_list.js
+      —— 是 .js 檔，可用 <script> 注入載入，<b>不受同源政策限制</b>，免代理即可取得編號
+   ② 定位 https://www.hko.gov.hk/wxinfo/currwx/tc_gis_posinfo_15a_{id}.txt
+      —— 首行為 TC 編號，其後為逗號分隔資料列：
+         0 類別 P=過去 A=分析(目前) F=預測
+         1 來源（HKOO＝香港天文台）      2 強度分級碼（LOW/TD/TS/STS/T/ST/SuperT）
+         3 時間 UTC（YYYYMMDDHH）        4 時間 香港時間
+         5 預報時距（小時）              6 緯度   7 經度
+         8 中心附近最高持續風速（km/h）  12 距香港距離(km)   13 距香港方位
+         其餘欄位與缺測值皆以 -9999 表示                                        */
+const HKO_GIS_LIST = "/wxinfo/currwx/tc_gis_list.js";
+const CF_TY_API = "https://hko-typhoon.pages.dev/";
+const CF_HKO_JSON = CF_TY_API + "hk_typhoon.json";
+const CF_KMA_JSON = CF_TY_API + "kma_typhoon.json";
+/* 路徑資料的候選檔（依序嘗試，取第一個成功者）：
+   ① GIS 定位檔（CSV）② GIS 路徑檔（XML）③ Open Data 路徑檔（XML） */
+const HKO_TRACK_FILES = id => [
+  "/wxinfo/currwx/tc_gis_posinfo_15a_" + id + ".txt",
+  "/wxinfo/currwx/tc_gis_track_15a_"   + id + ".xml",
+  "/wxinfo/currwx/hko_tctrack_"        + id + ".xml"
+];
+const HKO_CLS = {
+  LOW:{zh:"低壓區",ms:11}, ET:{zh:"溫帶氣旋",ms:12}, TD:{zh:"熱帶低氣壓",ms:15},
+  TS:{zh:"熱帶風暴",ms:21}, STS:{zh:"強烈熱帶風暴",ms:28}, T:{zh:"颱風",ms:37},
+  ST:{zh:"強颱風",ms:46}, SVT:{zh:"強颱風",ms:46}, SUPERT:{zh:"超強颱風",ms:55},
+  SUPER:{zh:"超強颱風",ms:55}
+};
+/* -9999 為缺測 */
+const BEAR_ZH = {N:"北",NNE:"東北偏北",NE:"東北",ENE:"東北偏東",E:"東",ESE:"東南偏東",
+  SE:"東南",SSE:"東南偏南",S:"南",SSW:"西南偏南",SW:"西南",WSW:"西南偏西",
+  W:"西",WNW:"西北偏西",NW:"西北",NNW:"西北偏北"};
+function hkoVal(v){
+  if(v==null) return null;
+  const s = String(v).trim();
+  if(!s) return null;
+  const n = parseFloat(s);
+  if(isFinite(n) && Math.abs(n+9999)<0.5) return null;
+  return s;
+}
+function hkoPosTime(s){
+  const m = String(s||"").match(/^(\d{4})(\d{2})(\d{2})(\d{2})/);
+  return m ? new Date(Date.UTC(+m[1],+m[2]-1,+m[3],+m[4])) : null;
+}
+function parseHKOPos(txt){
+  const lines = String(txt).split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  if(!lines.length) return null;
+  const tcid = /^\d{3,5}$/.test(lines[0]) ? lines[0] : "";
+  const past=[], fcst=[];
+  lines.forEach(ln=>{
+    const c = ln.split(",").map(x=>x.trim());
+    if(c.length < 9) return;
+    const type = (c[0]||"").toUpperCase();
+    if(!/^[PAF]$/.test(type)) return;
+    const lat = parseFloat(c[6]), lon = parseFloat(c[7]);
+    if(!isFinite(lat) || !isFinite(lon) || Math.abs(lat)>90) return;
+    const cls  = (c[2]||"").toUpperCase().replace(/[^A-Z]/g,"");
+    const info = HKO_CLS[cls] || {zh:c[2]||"", ms:null};
+    const kmh  = hkoVal(c[8]);
+    const tau  = hkoVal(c[5]);
+    const rec = {
+      kind:type, t:hkoPosTime(c[3]), lat, lon,
+      ws: kmh!=null ? parseFloat(kmh)/3.6 : info.ms,     // km/h → m/s
+      kmh: kmh!=null ? parseFloat(kmh) : null,
+      grade: info.zh, clsCode: cls, agency:(c[1]||"").toUpperCase(),
+      tau: tau!=null ? parseFloat(tau) : null,
+      distHK: hkoVal(c[12])!=null ? parseFloat(hkoVal(c[12])) : null,
+      bearHK: (()=>{ const b=hkoVal(c[13]); return (b&&/^[NSEW]{1,3}$/i.test(b))?b.toUpperCase():null; })()
+    };
+    (type==="F" ? fcst : past).push(rec);
+  });
+  if(!past.length && !fcst.length) return null;
+  const byT=(a,b)=>(a.t?a.t.getTime():0)-(b.t?b.t.getTime():0);
+  // A（分析／目前定位）永遠排在 P（過去路徑）之後
+  past.sort((a,b)=>(a.kind!==b.kind && (a.kind==="A"||b.kind==="A"))
+                    ? (a.kind==="A"?1:-1) : byT(a,b));
+  fcst.sort((a,b)=>(a.tau!=null&&b.tau!=null)?a.tau-b.tau:byT(a,b));
+  const t0 = past.length ? past[past.length-1].t : null;
+  fcst.forEach(f=>{
+    if((f.tau==null||f.tau===0) && f.t && t0) f.tau = Math.round((f.t-t0)/3600e3);
+    f.vt = f.t;
+    // 可能路徑範圍（70% 機率圓）：依 HKO 官方公布之時距半徑表
+    const k = [0,24,48,72,96,120].reduce((a,b)=>Math.abs(b-(f.tau||0))<Math.abs(a-(f.tau||0))?b:a,0);
+    f.r70 = HKO_R70[k];
+  });
+  return {tcid,past,fcst};
+}
+
+/* 以 <script> 注入載入 .js 並取回它新增的全域變數（不受 CORS 限制） */
+function loadScriptGlobals(url,timeout){
+  return new Promise((resolve,reject)=>{
+    const before = new Set(Object.getOwnPropertyNames(window));
+    const s = document.createElement("script");
+    let settled = false;
+    const finish = ok=>{
+      if(settled) return; settled = true;
+      clearTimeout(tid);
+      try{ s.remove(); }catch(e){}
+      if(!ok) return reject(new Error("script 載入失敗"));
+      const added = {};
+      Object.getOwnPropertyNames(window).forEach(k=>{ if(!before.has(k)) added[k]=window[k]; });
+      resolve(added);
+    };
+    const tid = setTimeout(()=>finish(false), timeout||15000);
+    s.src = url; s.async = true;
+    s.onload = ()=>finish(true);
+    s.onerror = ()=>finish(false);
+    document.head.appendChild(s);
+  });
+}
+/* 由 tc_gis_list.js 取出熱帶氣旋編號（形如 2617：前兩碼為年份後兩碼） */
+function harvestHKOIds(blob){
+  const yy  = String(new Date().getUTCFullYear()).slice(2);
+  const yy0 = String(new Date().getUTCFullYear()-1).slice(2);
+  const ids = [];
+  (String(blob).match(/\b\d{4}\b/g)||[]).forEach(v=>{
+    const p = v.slice(0,2);
+    if((p===yy||p===yy0) && ids.indexOf(v)<0) ids.push(v);
+  });
+  return ids;
+}
+function parseHKOGisList(blob){
+  const ids = harvestHKOIds(blob);
+  const items = [];
+  const add = (id,en,zh)=>{
+    id = String(id||"").trim();
+    if(!/^\d{3,5}$/.test(id) || items.some(x=>x.id===id)) return;
+    items.push({id, nameEn:(en||"").trim(), nameZh:(zh||"").trim()});
+  };
+  const parseRow = row=>{
+    const c = String(row||"").split(",").map(x=>x.trim());
+    if(c.length) add(c[0], c[1]||"", c[2]||"");
+  };
+  if(Array.isArray(window.tc)) window.tc.forEach(parseRow);
+  String(blob).replace(/tc\s*\[\s*\d+\s*\]\s*=\s*["']([^"']+)["']/g, (_,row)=>{ parseRow(row); return ""; });
+  ids.forEach(id=>add(id,"",""));
+  return items;
+}
+async function hkoGisList(opt){
+  let blob = "", via = "";
+  // ① <script> 注入：免代理
+  try{
+    const added = await loadScriptGlobals(HKO_HOSTS[1]+HKO_GIS_LIST+"?_="+Date.now(), 12000);
+    if(Array.isArray(window.tc)) blob += "tc="+JSON.stringify(window.tc)+"\n";
+    Object.keys(added).forEach(k=>{
+      let v; try{ v = JSON.stringify(added[k]); }catch(e){ v = String(added[k]); }
+      blob += k+"="+v+"\n";
+    });
+    if(blob.trim()) via = "script 注入（免代理）";
+  }catch(e){}
+  // ② 退回一般抓取
+  if(!parseHKOGisList(blob).length){
+    try{ blob = await pfetchAny(hkoUrls(HKO_GIS_LIST),opt); via = "文字抓取"; }catch(e){}
+  }
+  return {ids:harvestHKOIds(blob), items:parseHKOGisList(blob), blob, via};
+}
+
+function cfDate(v){
+  if(!v) return null;
+  const d = new Date(v);
+  return isNaN(d) ? null : d;
+}
+function cfPt(r){
+  if(!r) return null;
+  const lat = num(r.lat), lon = num(r.lon);
+  if(lat==null || lon==null || Math.abs(lat)>90) return null;
+  const ws = r.max_wind_ms!=null ? num(r.max_wind_ms)
+           : (r.max_wind_kmh!=null ? num(r.max_wind_kmh)/3.6 : null);
+  const p = {
+    t: cfDate(r.time_utc || r.time_hkt),
+    lat, lon, ws,
+    pres: num(r.pressure_hpa),
+    grade: r.class_zh || r.grade || r.class_en || r.class_code || "",
+    tau: r.tau_hours!=null ? num(r.tau_hours) : null,
+    vt: cfDate(r.time_utc || r.time_hkt),
+    r70: r.r70_km!=null ? num(r.r70_km) : null,
+    distHK: r.distance_hk_km!=null ? num(r.distance_hk_km) : null,
+    bearHK: r.bearing_hk || null,
+    mvDir: r.moving_dir || null,
+    mvSpd: r.moving_speed_kmh!=null ? num(r.moving_speed_kmh) : null,
+    r15: r.r15_km!=null ? num(r.r15_km) : null,
+    r25: r.r25_km!=null ? num(r.r25_km) : null
+  };
+  if(p.tau==null && p.t && r.kind==="F") p.tau = 0;
+  return p;
+}
+function cfStormPoints(arr){
+  return (Array.isArray(arr)?arr:[]).map(cfPt).filter(Boolean);
+}
+
+async function hkoStorms(onOne){
+  const data = await pfetch(CF_HKO_JSON + "?t=" + Date.now(), {type:"json", timeout:30000});
+  const storms = Array.isArray(data&&data.storms) ? data.storms : [];
+  diagSet("香港 HKO 天文台",{listed:storms.length,
+    note:"Cloudflare JSON："+CF_HKO_JSON+"｜產生時間："+((data&&data.generated_at_hkt)||data&&data.generated_at||"—")});
+  if(!storms.length){
+    diagSet("香港 HKO 天文台",{listed:0,
+      note:"Cloudflare JSON："+CF_HKO_JSON+"｜目前無 HKO 監測範圍內熱帶氣旋"});
+    return [];
+  }
+
+  const out=[];
+  for(const s of storms.slice(0,8)){
+    const id = s.id || s.tcid || s.hko_id || "";
+    const past = cfStormPoints((s.past&&s.past.length)?s.past:(s.current?[s.current]:[]));
+    const fcst = cfStormPoints(s.forecast);
+    const last = past[past.length-1] || fcst[0];
+    if(!last) continue;
+    out.push({key:"HKO:"+id, hkoId:id, hkoSrc:"Cloudflare hk_typhoon.json",
+      nameEn:s.name_en||s.nameEn||"", nameZh:s.name_zh||s.nameZh||"", no:"",
+      basin:last?basinOf(last.lat,last.lon):"WP", source:"HKO",
+      past:past.map(x=>({t:x.t,lat:x.lat,lon:x.lon,ws:x.ws,pres:x.pres,grade:x.grade,
+                           distHK:x.distHK,bearHK:x.bearHK})),
+      issues:fcst.length?[{t:(last&&last.t)||new Date(),
+        agencies:{VHHH:{pts:fcst,rawKey:"HKO"}},from:"HKO"}]:[],
+      hkoUrl:s.hko_url||("https://www.hko.gov.hk/tc/wxinfo/currwx/tc_gis.htm?tcid="+id)});
+    if(onOne) onOne(out.slice());
+  }
+  diagSet("香港 HKO 天文台",{listed:out.length,
+    note:"Cloudflare JSON："+CF_HKO_JSON+"｜實際轉入地圖："+out.length+" 筆"});
+  return out;
+}
+
+/* ───────────────────────────────────────────────────────────────────
+   來源 7：韓國氣象廳 KMA 국가태풍센터 — 台风 天气图
+   後端流程：typhoon-information.do 為「伺服器端渲染」頁面，資料直接在 HTML 表格中
+     ① GET https://www.kma.go.kr/nchn/typhoon/typhoon-information.do
+        → 頁內以 <a href="...?tIdx=N"> 列出目前所有熱帶氣旋分頁（含 No.編號 與名稱）
+     ② GET 同一網址帶 ?tIdx=N
+        → 表格欄位依序為：日期時間(UTC)／強度／最大風速(m/s、km/h)／中心氣壓(hPa)／
+          中心位置(緯度 N、經度 E)／移動方向／移動速度(km/h)／15 m/s 半徑／25 m/s 半徑／70% 機率半徑
+          列尾標示「分析」或「預報」，另有官方路徑圖 PNG 連結
+     ③ 已結束之系統該分頁顯示「目前没有正在进行中的台风信息。」
+   以 DOMParser 解析 HTML，欄位以位置取值並輔以經緯度合理性檢核。
+   ─────────────────────────────────────────────────────────────────── */
+/* 中文版與英文版為同一份資料的不同語系頁，互為備援 */
+const KMA_URLS = ["https://www.kma.go.kr/nchn/typhoon/typhoon-information.do",
+                  "https://www.kma.go.kr/neng/typhoon/typhoon-information.do"];
+const KMA_URL  = KMA_URLS[0];
+function kmaRowTime(txt,year){
+  const m = String(txt).match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*(\d{1,2}):(\d{2})/)
+        || String(txt).match(/(\d{1,2})[\/\-](\d{1,2})\D{0,4}(\d{1,2}):(\d{2})/);
+  if(!m) return null;
+  const d = new Date(Date.UTC(year,+m[1]-1,+m[2],+m[3],+m[4]));   // 表格時間為 UTC
+  const now = Date.now();                                          // 跨年修正
+  if(d.getTime()-now >  180*86400e3) d.setUTCFullYear(year-1);
+  if(now-d.getTime() >  180*86400e3) d.setUTCFullYear(year+1);
+  return d;
+}
+/* 由分頁標籤文字（例如 "No.23 Tropical depression"、"No.12 NOUL"）取出編號與名稱 */
+function kmaLabel(label){
+  const m = String(label||"").match(/No\.?\s*(\d+)\s+(Tropical\s*Depression|热带低压|熱帶低壓|열대저압부|[A-Za-z][A-Za-z\-]*)/i);
+  if(!m) return {no:"",nameEn:""};
+  const nm = (m[2]||"").trim();
+  return {no:m[1], nameEn:/tropical\s*depression|热带低压|熱帶低壓|열대저압부/i.test(nm)?"":nm};
+}
+function parseKMA(html,year,label){
+  const doc = new DOMParser().parseFromString(html,"text/html");
+  const bodyTxt = doc.body?doc.body.textContent:"";
+  if(/没有正在进行中|없습니다|No typhoon|not in progress/i.test(bodyTxt) && !/hPa/.test(bodyTxt)) return null;
+
+  // 系統名稱與發布時刻
+  const head = ((doc.querySelector("#container")||doc.body||{}).textContent)||"";
+  let {no,nameEn} = kmaLabel(label);
+  if(!no){ const k = kmaLabel(head); no = k.no; nameEn = k.nameEn; }
+  const im = head.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日[^\d]*(\d{1,2}):(\d{2})/);
+  const issue = im ? new Date(Date.UTC(+im[1],+im[2]-1,+im[3],+im[4]-9,+im[5])) : null;  // 韓國時間 → UTC
+  const img = (html.match(/https?:\/\/[^\s"']*repositary\/image\/typ\/[^\s"']+\.png/i)||[])[0]||null;
+
+  const past=[], fcst=[];
+  Array.from(doc.querySelectorAll("table tr")).forEach(tr=>{
+    const c = Array.from(tr.querySelectorAll("td,th")).map(x=>x.textContent.replace(/\s+/g," ").trim());
+    if(c.length<9) return;
+    const t = kmaRowTime(c[0],year);
+    if(!t) return;
+    let lat = num(c[5]), lon = num(c[6]);
+    // 欄位位置若與預期不符，改以數值合理範圍搜尋經緯度配對
+    if(!(lat!=null&&lon!=null&&Math.abs(lat)<=70&&lon>=90&&lon<=200)){
+      lat=lon=null;
+      for(let i=1;i<c.length-1;i++){
+        const a=num(c[i]), b=num(c[i+1]);
+        if(a!=null&&b!=null&&Math.abs(a)<=70&&b>=90&&b<=200&&/\./.test(c[i])&&/\./.test(c[i+1])){ lat=a; lon=b; break; }
+      }
+    }
+    if(lat==null||lon==null) return;
+    const isFcst = /预报|預報|예상|forecast/i.test(c[0]);
+    const first = s=>{ const m=String(s||"").match(/\d+/); return m?parseInt(m[0],10):null; };
+    const rec = {t, lat, lon,
+      ws: num(c[2]), pres: num(c[4]), grade: (c[1]||"").trim(),
+      mvDir: c[7]||null, mvSpd: num(c[8]),
+      r15: first(c[9]), r25: first(c[10]), r70: first(c[11])};
+    (isFcst?fcst:past).push(rec);
+  });
+  if(!past.length && !fcst.length) return null;
+  past.sort((a,b)=>a.t-b.t);
+  fcst.sort((a,b)=>a.t-b.t);
+  const t0 = past.length?past[past.length-1].t:(issue||fcst[0].t);
+  fcst.forEach(f=>{ f.tau = Math.round((f.t-t0)/3600e3); f.vt = f.t; });
+  return {no,nameEn,issue,img,past,fcst};
+}
+async function kmaStorms(onOne){
+  const data = await pfetch(CF_KMA_JSON + "?t=" + Date.now(), {type:"json", timeout:30000});
+  const storms = Array.isArray(data&&data.storms) ? data.storms : [];
+  diagSet("韓國 KMA 氣象廳",{listed:storms.length,
+    note:"Cloudflare JSON："+CF_KMA_JSON+"｜產生時間："+((data&&data.generated_at_hkt)||data&&data.generated_at||"—")});
+  const out=[];
+  for(const s of storms.slice(0,6)){
+    const id = s.id || s.kma_no || s.no || "";
+    const past = cfStormPoints((s.past&&s.past.length)?s.past:(s.current?[s.current]:[]));
+    const fcst = cfStormPoints(s.forecast);
+    const last = past[past.length-1] || fcst[0];
+    if(!last) continue;
+    out.push({key:"KMA:"+(s.kma_no||id),nameEn:s.name_en||s.nameEn||"",nameZh:s.name_zh||"",no:id,
+      basin:last?basinOf(last.lat,last.lon):"WP",source:"KMA",
+      past:past.map(x=>({t:x.t,lat:x.lat,lon:x.lon,ws:x.ws,pres:x.pres,grade:x.grade,
+                             mvDir:x.mvDir,mvSpd:x.mvSpd,r15:x.r15,r25:x.r25})),
+      issues:fcst.length?[{t:cfDate(s.issue_time_utc||s.issue_time_hkt)||(last&&last.t)||new Date(),
+        agencies:{RKSL:{pts:fcst,rawKey:"KMA"}},from:"KMA"}]:[],
+      kmaImg:s.kma_image_url||s.kmaImg||null});
+    if(onOne) onOne(out.slice());
+  }
+  diagSet("韓國 KMA 氣象廳",{listed:out.length,
+    note:"Cloudflare JSON："+CF_KMA_JSON+"｜實際轉入地圖："+out.length+" 筆"});
+  return out;
+}
+
+/* ═══════════ 跨來源合併 ═══════════ */
+function lastPos(s){ const p=s.past&&s.past[s.past.length-1]; return p?[p.lat,p.lon]:null; }
+function pastScore(s){
+  const p=s.past||[]; if(!p.length) return 0;
+  return p.length * (p.some(x=>x.t instanceof Date && !isNaN(x.t))?3:1) * (p.some(x=>x.ws!=null)?1.5:1);
+}
+function sameStorm(a,b){
+  const na=(a.nameEn||"").toUpperCase().replace(/[^A-Z]/g,"");
+  const nb=(b.nameEn||"").toUpperCase().replace(/[^A-Z]/g,"");
+  if(na&&nb&&na===nb&&na!=="NAMELESS"&&na!=="UNNAMED") return true;
+  if(a.no&&b.no&&a.no===b.no) return true;
+  const pa=lastPos(a), pb=lastPos(b);
+  return !!(pa&&pb&&haversineKm(pa,pb)<350);
+}
+function mergeStorms(groups){
+  const all=[].concat.apply([],groups), out=[];
+  all.forEach(s=>{
+    const hit = out.find(o=>sameStorm(o,s));
+    if(!hit){ out.push(Object.assign({sources:[s.source]},s)); return; }
+    hit.sources = Array.from(new Set(hit.sources.concat([s.source])));
+    if(pastScore(s)>pastScore(hit)) hit.past = s.past;
+    const hl=hit.past[hit.past.length-1], sl=s.past&&s.past[s.past.length-1];
+    if(hl&&sl) ["r15","r25","gust","pres","ws"].forEach(k=>{ if(hl[k]==null&&sl[k]!=null) hl[k]=sl[k]; });
+    hit.issues = (hit.issues||[]).concat(s.issues||[]);
+    hit.nameEn = hit.nameEn||s.nameEn;
+    hit.nameZh = hit.nameZh||s.nameZh;
+    hit.no     = hit.no||s.no;
+    if(s.cmaId)  hit.cmaId  = s.cmaId;
+    if(s.kmaImg) hit.kmaImg = s.kmaImg;
+    if(s.hkoUrl) hit.hkoUrl = s.hkoUrl;
+  });
+  out.forEach(s=>{ s.issueList = buildIssues(s); });
+  return out;
+}
+function buildIssues(storm){
+  const m = new Map();
+  (storm.issues||[]).forEach(is=>{
+    if(!is||!is.agencies) return;
+    const ms = (is.t instanceof Date && !isNaN(is.t)) ? is.t.getTime() : Date.now();
+    const k = Math.round(ms/3600e3)*3600e3;
+    if(!m.has(k)) m.set(k,{t:new Date(k),agencies:{}});
+    const e = m.get(k);
+    Object.keys(is.agencies).forEach(c=>{
+      const v = is.agencies[c];
+      if(!v||!v.pts||!v.pts.length) return;
+      if(!e.agencies[c]||v.pts.length>e.agencies[c].pts.length)
+        e.agencies[c] = {pts:v.pts,rawKey:v.rawKey,from:is.from};
+    });
+  });
+  return Array.from(m.values()).filter(x=>Object.keys(x.agencies).length).sort((a,b)=>a.t-b.t);
+}
+function latestAgencies(storm){
+  const res={};
+  (storm.issueList||[]).forEach(is=>{
+    Object.keys(is.agencies).forEach(c=>{ res[c]=Object.assign({issue:is.t},is.agencies[c]); });
+  });
+  return res;
+}
+function viewOf(storm){
+  if(!storm) return {t:null,agencies:{}};
+  const IL = storm.issueList||[];
+  if(storm===curStorm && curIssueIdx>=0 && IL[curIssueIdx]){
+    const is=IL[curIssueIdx], ag={};
+    Object.keys(is.agencies).forEach(c=>{ ag[c]=Object.assign({issue:is.t},is.agencies[c]); });
+    return {t:is.t,agencies:ag};
+  }
+  const ag = latestAgencies(storm);
+  let t=null;
+  Object.keys(ag).forEach(c=>{ if(!t||ag[c].issue>t) t=ag[c].issue; });
+  return {t,agencies:ag};
+}
+const activeView = ()=>viewOf(curStorm);
+function shownStorms(){
+  const b = $("basinSel").value;
+  if(overview) return storms.filter(s=>b==="ALL"||s.basin===b);
+  return curStorm?[curStorm]:[];
+}
+
+/* ═══════════ 繪圖 ═══════════ */
+function clearAll(){ [layDayNight,layPast,layFcst,layCone,layWind,layMark].forEach(l=>l.clearLayers()); }
+function dayNightTime(list){
+  let cwaBest=null, best=null;
+  const take=(t,isCwa)=>{
+    const d=t instanceof Date?t:new Date(t);
+    if(isNaN(d)) return;
+    if(isCwa){ if(!cwaBest||d>cwaBest) cwaBest=d; }
+    else if(!best||d>best) best=d;
+  };
+  (list||[]).forEach(S=>{
+    const v=viewOf(S);
+    if(v.agencies && v.agencies.RCTP) take(v.agencies.RCTP.issue,true);
+    take(v.t,false);
+    const cur=S.past&&S.past[S.past.length-1];
+    if(cur) take(cur.t,false);
+  });
+  return cwaBest || best || new Date();
+}
+function solarDeclination(d){
+  const start=Date.UTC(d.getUTCFullYear(),0,1);
+  const day=(d.getTime()-start)/864e5+1;
+  const h=d.getUTCHours()+d.getUTCMinutes()/60+d.getUTCSeconds()/3600;
+  const g=2*Math.PI/365*(day-1+(h-12)/24);
+  return .006918-.399912*Math.cos(g)+.070257*Math.sin(g)-.006758*Math.cos(2*g)
+        +.000907*Math.sin(2*g)-.002697*Math.cos(3*g)+.00148*Math.sin(3*g);
+}
+/* 晨昏線（terminator）：以像素級 alpha 連續漸層繪製，涵蓋全經度 0–360°、
+   全緯度（Mercator 可視範圍 ±85.05°，含極區永晝／永夜），不再使用方塊分格。 */
+const DN_W=1024, DN_H=768, DN_LATMAX=85.0511287798066, DN_MAXA=.42, DN_TWI=18;
+let dnCanvas=null, dnKey=null, dnURL=null;
+function dnPane(){
+  if(!map.getPane("dnPane")){
+    map.createPane("dnPane");
+    const p=map.getPane("dnPane");
+    p.style.zIndex=350;
+    p.style.pointerEvents="none";
+  }
+}
+function dnRender(dec,subLonDeg){
+  if(!dnCanvas){ dnCanvas=document.createElement("canvas"); dnCanvas.width=DN_W; dnCanvas.height=DN_H; }
+  const ctx=dnCanvas.getContext("2d");
+  const img=ctx.createImageData(DN_W,DN_H), D=img.data;
+  const RAD=Math.PI/180, sd=Math.sin(dec), cd=Math.cos(dec);
+  /* 每一列像素對應之緯度：Mercator 反投影（南北極方向逐列非線性） */
+  const sinLat=new Float64Array(DN_H), cosLat=new Float64Array(DN_H);
+  for(let j=0;j<DN_H;j++){
+    const y=(1-2*(j+.5)/DN_H)*Math.PI;
+    const la=2*Math.atan(Math.exp(y))-Math.PI/2;
+    sinLat[j]=Math.sin(la); cosLat[j]=Math.cos(la);
+  }
+  /* 每一行像素對應之時角餘弦：經度 0–360° 全覆蓋 */
+  const cosH=new Float64Array(DN_W);
+  for(let i=0;i<DN_W;i++) cosH[i]=Math.cos(((i+.5)*360/DN_W-subLonDeg)*RAD);
+  let k=0;
+  for(let j=0;j<DN_H;j++){
+    const A=sinLat[j]*sd, B=cosLat[j]*cd;
+    for(let i=0;i<DN_W;i++){
+      let s=A+B*cosH[i];
+      if(s>1)s=1; else if(s<-1)s=-1;
+      const alt=Math.asin(s)/RAD;               // 太陽高度角（度）
+      let u=-alt/DN_TWI;                        // 0=地平線，1=天文暮光終點
+      if(u<0)u=0; else if(u>1)u=1;
+      const a=DN_MAXA*Math.pow(u,.7);           // 連續漸層，無分段
+      D[k]=2; D[k+1]=6; D[k+2]=23; D[k+3]=(a*255+.5)|0;
+      k+=4;
+    }
+  }
+  ctx.putImageData(img,0,0);
+  return dnCanvas.toDataURL("image/png");
+}
+function drawDayNight(list){
+  const t=dayNightTime(list);
+  const utc=t.getUTCHours()+t.getUTCMinutes()/60+t.getUTCSeconds()/3600;
+  const subLon=mapLon((12-utc)*15);
+  const dec=solarDeclination(t);
+  dnPane();
+  const key=Math.round(subLon*20)+"|"+Math.round(dec*2000);
+  if(key!==dnKey){ dnKey=key; dnURL=dnRender(dec,subLon); }
+  /* 對應地圖 maxBounds（-360°～720°）之三份世界副本 */
+  for(let w=-360; w<=360; w+=360){
+    L.imageOverlay(dnURL,[[-DN_LATMAX,w],[DN_LATMAX,w+360]],{
+      pane:"dnPane", opacity:1, interactive:false, className:"dnLayer"
+    }).addTo(layDayNight);
+  }
+}
+
+function drawStorm(S,opt){
+  const pts=[];
+  const showPast=$("ckPast").checked, showFc=$("ckFcst").checked, showCone=$("ckCone").checked,
+        showWind=$("ckWind").checked, showTau=$("ckTau").checked, showName=$("ckName").checked;
+  const thin = !!opt.thin;
+  const past = S.past||[];
+
+  if(showPast && past.length){
+    const line = unwrapLng(past.map(p=>[p.lat,p.lon]));
+    if(line.length>1) L.polyline(line,{color:"#e6edf6",weight:thin?1.6:2,opacity:thin?.55:.72}).addTo(layPast);
+    line.forEach((ll,i)=>{
+      const p = past[i];
+      if(i<past.length-1)
+        L.circleMarker(ll,{radius:thin?2.6:3.6,fillColor:tyCat(p.ws).color,color:"#0b1220",weight:1,fillOpacity:.95})
+         .bindPopup(()=>fixPopup(S,p,"past")).addTo(layPast);
+      pts.push(ll);
+    });
+  }
+
+  const cur = past[past.length-1];
+  if(cur){
+    const cll=mapLL(cur);
+    if(showWind){
+      if(cur.r15) L.circle(cll,{radius:cur.r15*1000,color:"#ff8fb0",weight:1.4,fillColor:"#ff8fb0",fillOpacity:.15})
+        .bindTooltip("七級風暴風半徑 "+cur.r15+" km").addTo(layWind);
+      if(cur.r25) L.circle(cll,{radius:cur.r25*1000,color:"#e8447a",weight:1.4,fillColor:"#e8447a",fillOpacity:.13})
+        .bindTooltip("十級風暴風半徑 "+cur.r25+" km").addTo(layWind);
+    }
+    const cat = tyCat(cur.ws);
+    const sz = thin?28:36;
+    L.marker(cll,{icon:L.divIcon({className:"tyicon",iconSize:[sz,sz],iconAnchor:[sz/2,sz/2],html:tyIconSVG(cat.color,sz)}),zIndexOffset:900})
+      .bindPopup(()=>fixPopup(S,cur,"now")).addTo(layMark);
+    if(showName && overview)
+      L.marker(cll,{icon:L.divIcon({className:"lbl-icon",iconSize:[130,16],iconAnchor:[-14,8],
+        html:'<div class="stLabel">'+stormTitle(S)+'</div>'})}).addTo(layMark);
+    pts.push(cll);
+  }
+
+  const view = viewOf(S);
+  const drawn=[];
+  if(showFc){
+    AG_ORDER.filter(c=>view.agencies[c]&&agencyOn[c]).forEach(code=>{
+      const A=AG_BY_CODE[code], v=view.agencies[code];
+      const line = unwrapLng((cur?[[cur.lat,cur.lon]]:[]).concat(v.pts.map(p=>[p.lat,p.lon])));
+      if(line.length>1)
+        L.polyline(line,{color:A.color,weight:thin?2:2.6,opacity:.95,dashArray:"7 5",lineCap:"round"})
+          .bindTooltip(A.zh+"（"+A.en+"）"+(overview?" · "+stormTitle(S):"")+" 預報路徑",{sticky:true}).addTo(layFcst);
+      const fLine = line.slice(cur?1:0);
+      v.pts.forEach((p,i)=>{
+        const ll = fLine[i]||mapLL(p);
+        // 預報不確定性範圍（70% 機率圓／預報圓）
+        if(showCone && p.r70)
+          L.circle(ll,{radius:p.r70*1000,color:A.color,weight:1,dashArray:"3 4",fillColor:A.color,fillOpacity:.06})
+            .bindTooltip(A.en+" +"+(p.tau!=null?p.tau+"h":"")+" 70% 機率圓 "+p.r70+" km").addTo(layCone);
+        // 預報時刻之暴風半徑（JMA 暴風/強風警戒域、KMA 15/25 m/s、JTWC 34/50kt、CWA 七級/十級風）
+        if(showWind && !thin){
+          if(p.r15) L.circle(ll,{radius:p.r15*1000,color:"#ff8fb0",weight:1,opacity:.7,dashArray:"2 4",
+            fillColor:"#ff8fb0",fillOpacity:.05})
+            .bindTooltip(A.en+" +"+(p.tau!=null?p.tau+"h":"")+" 七級風半徑 "+p.r15+" km").addTo(layWind);
+          if(p.r25) L.circle(ll,{radius:p.r25*1000,color:"#e8447a",weight:1,opacity:.7,dashArray:"2 4",
+            fillColor:"#e8447a",fillOpacity:.05})
+            .bindTooltip(A.en+" +"+(p.tau!=null?p.tau+"h":"")+" 十級風半徑 "+p.r25+" km").addTo(layWind);
+        }
+        L.circleMarker(ll,{radius:thin?3.4:4.6,fillColor:"#fff",color:A.color,weight:2.4,fillOpacity:1})
+          .bindPopup(()=>fcPopup(S,A,p,v.issue)).addTo(layFcst);
+        pts.push(ll);
+      });
+      const end = fLine[fLine.length-1];
+      if(end) L.marker(end,{icon:L.divIcon({className:"lbl-icon",iconSize:[64,14],iconAnchor:[-6,7],
+        html:'<div class="fcLabel" style="color:'+A.color+'">'+A.en+'</div>'})}).addTo(layFcst);
+      drawn.push({A,v});
+    });
+    if(showTau && drawn.length && !thin){
+      const ref = drawn.reduce((a,b)=>b.v.pts.length>a.v.pts.length?b:a);
+      const rl = unwrapLng((cur?[[cur.lat,cur.lon]]:[]).concat(ref.v.pts.map(p=>[p.lat,p.lon]))).slice(cur?1:0);
+      ref.v.pts.forEach((p,i)=>{
+        if(p.tau==null) return;
+        L.marker(rl[i]||mapLL(p),{icon:L.divIcon({className:"lbl-icon",iconSize:[46,14],iconAnchor:[24,-4],
+          html:'<div class="fcLabel" style="color:#e6edf6">+'+p.tau+'h</div>'})}).addTo(layFcst);
+      });
+    }
+  }
+  return pts;
+}
+
+function render(fit){
+  clearAll();
+  const list = shownStorms();
+  drawDayNight(list);
+  const all=[];
+  list.forEach(S=>{ all.push.apply(all,drawStorm(S,{thin:overview&&list.length>1})); });
+  updateAgencyStatus();
+  updateCmpTable();
+  updateLegend();
+  updateStatusBar();
+  updateTags();
+  if(diag.at) renderDiag();
+  if(fit){
+    if(overview && $("basinSel").value==="ALL") fitBasin();
+    else if(all.length){ try{ map.fitBounds(L.latLngBounds(all).pad(.14)); }catch(e){} }
+    else fitBasin();
+  }
+}
+function fitBasin(){
+  const b = BASIN_VIEW[$("basinSel").value] || BASIN_VIEW.WP;
+  try{ map.fitBounds(L.latLngBounds(b)); }catch(e){}
+}
+
+function fixPopup(S,p,kind){
+  const cat = tyCat(p.ws);
+  let h = '<div class="pop"><h3>🌀 '+stormTitle(S)+' <small style="color:#9fb0c8">'+(kind==="now"?"目前位置":"過去位置")+'</small></h3>';
+  h += '<div class="row"><span class="k">強度分類</span><span class="big" style="color:'+cat.color+'">'+cat.name+'</span></div>';
+  h += row("定位時間",p.t?fmtTime(p.t):"—");
+  h += row("位置",fmtLL(p.lat,p.lon));
+  h += row("近中心最大風速",p.ws!=null?p.ws.toFixed(0)+" m/s（"+(p.ws/KT2MS).toFixed(0)+" kt）":"—");
+  if(p.gust!=null) h += row("最大陣風",p.gust+" m/s");
+  h += row("中心氣壓",p.pres!=null?p.pres+" hPa":"—");
+  if(p.r15!=null) h += row("七級風暴風半徑",p.r15+" km");
+  if(p.r25!=null) h += row("十級風暴風半徑",p.r25+" km");
+  if(p.mvDir||p.mvSpd!=null) h += row("移向 / 移速",(p.mvDir||"—")+" / "+(p.mvSpd!=null?p.mvSpd.toFixed(0)+" km/h":"—"));
+  if(p.distHK!=null) h += row("距香港",(p.bearHK?(BEAR_ZH[p.bearHK]||p.bearHK)+"方 ":"")+p.distHK+" 公里");
+  h += '<div style="color:#9fb0c8;font-size:11px;margin-top:5px">資料來源：'+(S.sources||[S.source]).join("、")
+     + (S.kmaImg?'<br><a href="'+S.kmaImg+'" target="_blank" rel="noopener" style="color:#7fb3ff">KMA 官方路徑圖 ↗</a>':'')
+     + (S.hkoUrl?'<br><a href="'+S.hkoUrl+'" target="_blank" rel="noopener" style="color:#7fb3ff">HKO 官方路徑圖 ↗</a>':'')
+     + '</div></div>';
+  return h;
+}
+function fcPopup(S,A,p,issue){
+  const cat = tyCat(p.ws);
+  let h = '<div class="pop"><h3 style="color:'+A.color+'">'+A.zh+'　<small style="color:#9fb0c8">'+A.en+' 預報</small></h3>';
+  h += row("熱帶氣旋",stormTitle(S));
+  h += row("預報時距",p.tau!=null?"+"+p.tau+" 小時":"—");
+  h += row("發布時刻",issue?fmtTime(issue):"—");
+  h += row("有效時刻",p.vt?fmtTime(p.vt):(issue&&p.tau!=null?fmtTime(new Date(issue.getTime()+p.tau*3600e3)):"—"));
+  h += row("預報位置",fmtLL(p.lat,p.lon));
+  h += '<div class="row"><span class="k">預報強度</span><span style="color:'+cat.color+'">'
+     + (p.ws!=null?p.ws.toFixed(0)+" m/s（"+cat.name+"）":(p.grade||"—"))+'</span></div>';
+  h += row("中心氣壓",p.pres!=null?p.pres+" hPa":"—");
+  if(p.r15!=null) h += row("七級風暴風半徑",p.r15+" km");
+  if(p.r25!=null) h += row("十級風暴風半徑",p.r25+" km");
+  if(p.r70!=null) h += row("70% 機率圓半徑",p.r70+" km");
+  h += '<div style="color:#9fb0c8;font-size:11px;margin-top:5px">'+A.org
+     + (A.url?'<br><a href="'+A.url+'" target="_blank" rel="noopener" style="color:#7fb3ff">前往官方頁面 ↗</a>':'')+'</div></div>';
+  return h;
+}
+function row(k,v){ return '<div class="row"><span class="k">'+k+'</span><span>'+v+'</span></div>'; }
+function stormTitle(S){
+  const p=[];
+  if(S.no) p.push(String(S.no).length>=4?String(S.no).slice(-4):S.no);
+  if(S.nameZh) p.push(S.nameZh);
+  if(S.nameEn) p.push(S.nameEn);
+  return p.join(" ")||"熱帶氣旋";
+}
+
+/* ═══════════ 比較表 ═══════════ */
+const CMP_TAUS=[24,48,72,96,120];
+function nearestPt(pts,tau){
+  let best=null,bd=1e9;
+  (pts||[]).forEach(p=>{ if(p.tau==null) return; const d=Math.abs(p.tau-tau); if(d<bd){bd=d;best=p;} });
+  return (best&&bd<=6)?best:null;
+}
+function spreadKm(S,tau){
+  const v = viewOf(S), ps=[];
+  Object.keys(v.agencies).forEach(c=>{
+    if(!agencyOn[c]) return;
+    const p = nearestPt(v.agencies[c].pts,tau);
+    if(p) ps.push([p.lat,p.lon]);
+  });
+  let mx=0;
+  for(let i=0;i<ps.length;i++) for(let j=i+1;j<ps.length;j++) mx=Math.max(mx,haversineKm(ps[i],ps[j]));
+  return ps.length>1?Math.round(mx):null;
+}
+function updateCmpTable(){
+  const box=$("cmp");
+  if(!$("ckCmp").checked){ box.style.display="none"; return; }
+  const list = shownStorms();
+  if(!list.length){ box.style.display="none"; return; }
+  let h="";
+  if(overview){
+    box.querySelector(".btitle").textContent = "📊 各系統 × 機構分歧總覽";
+    h = '<table class="tb"><thead><tr><th style="text-align:left">熱帶氣旋</th><th>強度</th><th>洋盆</th><th>機構</th>'
+      + CMP_TAUS.map(t=>'<th>+'+t+'h 分歧</th>').join("") + '</tr></thead><tbody>';
+    list.forEach(S=>{
+      const cur=S.past[S.past.length-1], cat=tyCat(cur?cur.ws:null);
+      const v=viewOf(S);
+      const codes = AG_ORDER.filter(c=>v.agencies[c]&&agencyOn[c]);
+      h += '<tr><td class="l" style="cursor:pointer" data-pick="'+S.key+'">'+stormTitle(S)+'</td>'
+        + '<td style="color:'+cat.color+'">'+cat.short+(cur&&cur.ws!=null?" "+cur.ws.toFixed(0):"")+'</td>'
+        + '<td>'+BASIN_NAME[S.basin||"XX"]+'</td>'
+        + '<td>'+(codes.length?codes.map(c=>'<span style="color:'+AG_BY_CODE[c].color+'">●</span>').join(""):"–")+' '+codes.length+'</td>';
+      CMP_TAUS.forEach(t=>{
+        const sp=spreadKm(S,t);
+        h += sp==null?'<td class="na">—</td>'
+          :'<td style="color:'+(sp>500?"#f0507a":sp>250?"#ffa726":"#a3c832")+'">'+sp+' km</td>';
+      });
+      h += '</tr>';
+    });
+    h += '</tbody></table>';
+  }else{
+    const S=list[0], v=viewOf(S);
+    const codes = AG_ORDER.filter(c=>v.agencies[c]&&agencyOn[c]);
+    if(!codes.length){ box.style.display="none"; return; }
+    box.querySelector(".btitle").textContent = "📊 "+stormTitle(S)+" 多機構預報比較";
+    h = '<table class="tb"><thead><tr><th style="text-align:left">機構</th><th>發布時刻</th>'
+      + CMP_TAUS.map(t=>'<th>+'+t+'h</th>').join("")+'</tr></thead><tbody>';
+    codes.forEach(c=>{
+      const A=AG_BY_CODE[c], v2=v.agencies[c];
+      h += '<tr><td class="l" style="color:'+A.color+'">'+A.zh+' <span style="color:#9fb0c8;font-weight:400">'+A.en+'</span></td>'
+        + '<td>'+(v2.issue?fmtTime(v2.issue).slice(5):"—")+'</td>';
+      CMP_TAUS.forEach(t=>{
+        const p=nearestPt(v2.pts,t);
+        if(!p){ h+='<td class="na">—</td>'; return; }
+        const cat=tyCat(p.ws);
+        h += '<td>'+fmtLL(p.lat,p.lon)+'<br><span style="color:'+cat.color+'">'
+           + (p.ws!=null?p.ws.toFixed(0)+"m/s":cat.short)+'</span></td>';
+      });
+      h += '</tr>';
+    });
+    h += '</tbody></table>';
+  }
+  $("cmpBody").innerHTML = h;
+  box.style.display = "block";
+  $("cmpBody").querySelectorAll("[data-pick]").forEach(td=>{
+    td.onclick = ()=>{ setMode(false); selectStorm(td.dataset.pick,true); };
+  });
+}
+
+/* ═══════════ 圖例 / 狀態 ═══════════ */
+function updateLegend(){
+  let h = '<div style="margin-bottom:5px;color:#cfe0f5;font-weight:600">強度（過去路徑點色）</div>';
+  [["熱帶性低氣壓","#29c5e0"],["輕度颱風","#a3c832"],["中度颱風","#ffa726"],["強烈颱風","#f0507a"]].forEach(x=>{
+    h += '<span style="display:inline-block;margin-right:9px"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:'+x[1]+';margin-right:4px"></span>'+x[0]+'</span>';
+  });
+  const seen = {};
+  shownStorms().forEach(S=>{ const v=viewOf(S); Object.keys(v.agencies).forEach(c=>{ if(agencyOn[c]) seen[c]=1; }); });
+  const codes = AG_ORDER.filter(c=>seen[c]);
+  if(codes.length){
+    h += '<div style="margin:7px 0 4px;border-top:1px solid rgba(255,255,255,.12);padding-top:6px;color:#cfe0f5;font-weight:600">預報路徑（虛線）</div>';
+    codes.forEach(c=>{
+      const A=AG_BY_CODE[c];
+      h += '<div class="lgLine"><i style="border-top-color:'+A.color+';border-top-style:dashed"></i>'+A.zh+' <span style="color:#9fb0c8">'+A.en+'</span></div>';
+    });
+  }
+  h += '<div style="margin-top:6px;border-top:1px solid rgba(255,255,255,.12);padding-top:5px;color:#9fb0c8">'
+     + '<span style="color:#ff8fb0">粉紅圈</span>＝七級風暴風半徑｜<span style="color:#e8447a">深粉圈</span>＝十級風'
+     + '（實線＝目前，虛線＝各預報時刻）<br>機構色虛圓＝該機構之預報機率圓／預報圓</div>';
+  $("lgBody").innerHTML = h;
+}
+function updateStatusBar(){
+  const el = $("status");
+  const list = shownStorms();
+  if(!list.length){
+    el.innerHTML = "🌀 目前"+(($("basinSel").value==="ALL")?"":BASIN_NAME[$("basinSel").value])
+      +"無可顯示的熱帶氣旋　<span style='color:var(--muted)'>（可切換洋盆或使用左側「歷史事件回顧」）</span>";
+    return;
+  }
+  if(overview){
+    const seen={};
+    list.forEach(S=>{ const v=viewOf(S); Object.keys(v.agencies).forEach(c=>{ if(agencyOn[c]) seen[c]=1; }); });
+    el.innerHTML = '🌐 <b>總覽模式</b>　📍 '+((($("basinSel").value==="ALL"))?"全球":BASIN_NAME[$("basinSel").value])
+      + '　🌀 <b>'+list.length+'</b> 個系統　🏛️ <b>'+Object.keys(seen).length+'</b> 個機構預報'
+      + '<br>' + list.map(S=>{
+          const cur=S.past[S.past.length-1], cat=tyCat(cur?cur.ws:null);
+          return '<b style="color:'+cat.color+'">'+stormTitle(S)+'</b>';
+        }).join("　") + '　<span style="color:var(--muted)">點左側清單可切換為單一颱風檢視</span>';
+    return;
+  }
+  const S=curStorm, cur=S.past[S.past.length-1], cat=tyCat(cur?cur.ws:null), v=viewOf(S);
+  const n = Object.keys(v.agencies).filter(c=>agencyOn[c]).length;
+  el.innerHTML = '🌀 <b>'+stormTitle(S)+'</b>（<b style="color:'+cat.color+'">'+cat.name+'</b>）'
+    + '　📍 '+BASIN_NAME[S.basin||"XX"]
+    + (cur&&cur.t?'　🕒 定位 '+fmtTime(cur.t):'')
+    + '<br>顯示中機構 <b>'+n+'</b> 個'
+    + (v.t?'　發布時刻 '+fmtTime(v.t):'')
+    + (curIssueIdx>=0?'　<span style="color:var(--warn)">（歷史發布時刻）</span>':'')
+    + '　資料源：'+(S.sources||[S.source]).join("、");
+}
+function updateTags(){
+  $("tagView").textContent = overview?"總覽":"單一颱風";
+  $("tagStorm").textContent = storms.length?(storms.length+" 個系統"):"—";
+  const seen={};
+  shownStorms().forEach(S=>{ const v=viewOf(S); Object.keys(v.agencies).forEach(c=>{ if(PANEL_AGENCY_CODES.has(c)) seen[c]=1; }); });
+  const on = Object.keys(seen).filter(c=>agencyOn[c]).length;
+  $("tagAgency").textContent = on+" / "+Object.keys(seen).length+" 有資料";
+}
+
+/* ═══════════ 側欄：機構 ═══════════ */
+function buildAgencyBox(){
+  let h="";
+  PANEL_GROUPS.forEach(g=>{
+    h += '<div class="agG"><div class="agGh" data-gtoggle="'+g.id+'"><span class="flag">'+g.flag+'</span>'+g.name
+       + '<span class="cnt" data-cnt="'+g.id+'"></span><span class="arw">▼</span></div>';
+    AGENCIES.filter(a=>a.group===g.id).forEach(a=>{
+      h += '<label class="agR" data-code="'+a.code+'">'
+         + '<input type="checkbox" data-ag="'+a.code+'"'+(agencyOn[a.code]?" checked":"")+'>'
+         + '<span class="sw" style="background:'+a.color+'"></span>'
+         + '<span class="nm"><b>'+a.zh+'</b><small>'+a.en+'　'+a.code+'</small></span>'
+         + '<span class="st" data-st="'+a.code+'">—</span></label>';
+    });
+    h += '</div>';
+  });
+  $("agencyBox").innerHTML = h;
+  $("agencyBox").querySelectorAll("input[data-ag]").forEach(inp=>{
+    inp.onchange = ()=>{
+      agencyOn[inp.dataset.ag] = inp.checked;
+      try{ localStorage.setItem(LS.agencies,JSON.stringify(agencyOn)); }catch(e){}
+      render(false);
+    };
+  });
+  // 分組標題：收合／展開該組機構
+  $("agencyBox").querySelectorAll("[data-gtoggle]").forEach(el=>{
+    el.onclick = ()=>{
+      el.closest(".agG").classList.toggle("collapsed");
+    };
+  });
+}
+function updateAgencyStatus(){
+  const seen={};
+  shownStorms().forEach(S=>{ const v=viewOf(S); Object.keys(v.agencies).forEach(c=>{ seen[c]=(seen[c]||0)+1; }); });
+  PANEL_GROUPS.forEach(g=>{
+    let n=0;
+    AGENCIES.filter(a=>a.group===g.id).forEach(a=>{
+      const el=document.querySelector('[data-st="'+a.code+'"]');
+      const rw=document.querySelector('.agR[data-code="'+a.code+'"]');
+      const has=!!seen[a.code];
+      if(has) n++;
+      if(el){ el.textContent = has?"有":"無"; el.className = "st"+(has?" on":""); }
+      if(rw) rw.classList.toggle("dim",!has);
+    });
+    const c=document.querySelector('[data-cnt="'+g.id+'"]');
+    if(c) c.textContent = n?(n+" 家有資料"):"無資料";
+  });
+}
+function syncAgencyChecks(){
+  document.querySelectorAll("input[data-ag]").forEach(i=>{ i.checked = !!agencyOn[i.dataset.ag]; });
+  try{ localStorage.setItem(LS.agencies,JSON.stringify(agencyOn)); }catch(e){}
+  render(false);
+}
+
+/* ═══════════ 側欄：風暴清單 ═══════════ */
+function renderStormList(){
+  const el=$("stormList"), b=$("basinSel").value;
+  const list = storms.filter(s=>b==="ALL"||s.basin===b);
+  let h = '<div class="sItem'+(overview?" sel":"")+'" data-k="__ALL__">'
+        + '<span class="ico">🌐</span><span><span class="t1">總覽目前所有颱風／所有單位路徑</span>'
+        + '<span class="t2">'+((b==="ALL")?"全球":BASIN_NAME[b])+'　共 '+list.length+' 個系統，各機構預報一次呈現</span></span></div>';
+  if(!list.length){
+    h += '<div class="hint">目前'+((b==="ALL")?"":BASIN_NAME[b])+'無活躍熱帶氣旋，或資料仍在載入／來源暫時無法連線。<br>可切換洋盆，或用下方「歷史事件回顧」檢視歷年颱風。</div>';
+  }else{
+    h += list.map(s=>{
+      const cur=s.past[s.past.length-1], cat=tyCat(cur?cur.ws:null);
+      const nAg = Object.keys(latestAgencies(s)).length;
+      return '<div class="sItem'+((!overview&&curStorm&&curStorm.key===s.key)?" sel":"")+'" data-k="'+s.key+'">'
+        + '<span class="ico" style="color:'+cat.color+'">🌀</span><span>'
+        + '<span class="t1">'+stormTitle(s)+'</span><span class="t2">'
+        + '<span class="badge" style="color:'+cat.color+'">'+cat.name+'</span>'
+        + '<span class="badge">'+BASIN_NAME[s.basin||"XX"]+'</span>'
+        + '<span class="badge">'+nAg+' 機構</span>'
+        + (cur&&cur.t?'<br>🕒 '+fmtTime(cur.t):'')
+        + (cur&&cur.ws!=null?'　💨 '+cur.ws.toFixed(0)+' m/s':'')
+        + (cur&&cur.pres!=null?'　🔻 '+cur.pres+' hPa':'')
+        + '</span></span></div>';
+    }).join("");
+  }
+  el.innerHTML = h;
+  el.querySelectorAll(".sItem").forEach(d=>{
+    d.onclick = ()=>{
+      if(d.dataset.k==="__ALL__"){ setMode(true); render(true); }
+      else { setMode(false); selectStorm(d.dataset.k,true); }
+    };
+  });
+}
+function setMode(isOverview){
+  overview = !!isOverview;
+  $("modeAll").classList.toggle("on",overview);
+  $("modeOne").classList.toggle("on",!overview);
+  $("blkTime").classList.toggle("closed",overview);
+  renderStormList();
+  updateTags();
+}
+function selectStorm(key,fit){
+  const s = storms.find(x=>x.key===key);
+  if(!s) return;
+  curStorm=s; curIssueIdx=-1;
+  buildIssueSlider();
+  renderStormList();
+  render(fit!==false);
+}
+function buildIssueSlider(){
+  const sl=$("issueSlider"), lb=$("issueLabel");
+  const IL=(curStorm&&curStorm.issueList)||[];
+  if(IL.length<=1){
+    sl.min=0; sl.max=0; sl.value=0; sl.disabled=true;
+    lb.textContent = IL.length?("僅有 1 個發布時刻："+fmtTime(IL[0].t)):"此系統無多時刻預報資料";
+    return;
+  }
+  sl.disabled=false; sl.min=0; sl.max=IL.length-1; sl.value=IL.length-1;
+  curIssueIdx=-1;
+  lb.innerHTML = "最新發布：<b>"+fmtTime(IL[IL.length-1].t)+"</b>　（共 "+IL.length+" 個時刻）";
+}
+function onIssueChange(){
+  const IL=(curStorm&&curStorm.issueList)||[];
+  const i=+$("issueSlider").value;
+  if(!IL.length) return;
+  curIssueIdx = (i===IL.length-1)?-1:i;
+  $("issueLabel").innerHTML = (curIssueIdx<0?"最新發布：<b>":"發布時刻：<b>")
+    + fmtTime(IL[Math.min(i,IL.length-1)].t)+"</b>　（"+(i+1)+" / "+IL.length+"）";
+  render(false);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   載入流程：各來源獨立進行，先到先繪，即時回報進度
+   ═══════════════════════════════════════════════════════════ */
+/* basins：該來源涵蓋的洋盆。預設只載入目前洋盆需要的來源，
+   切換到其他洋盆時才追加載入，避免開頁就對七個站台發請求。 */
+const SOURCES = [
+  {id:"cma", name:"中國 CMA 中央氣象台", note:"含各國預報轉發",        basins:["WP"]},
+  {id:"jma", name:"日本 JMA 氣象廳",     note:"bosai 官方 JSON",       basins:["WP"]},
+  {id:"jtwc",name:"美國 JTWC 警報中心",  note:"警報電文解析",          basins:["WP","IO","SH"]},
+  {id:"cwa", name:"台灣 CWA 氣象署",     note:"Open Data W-C0034-005", basins:["WP"]},
+  {id:"hko", name:"香港 HKO 天文台",     note:"Cloudflare JSON",       basins:["WP"]},
+  {id:"kma", name:"韓國 KMA 氣象廳",     note:"Cloudflare JSON",       basins:["WP"]},
+  {id:"nhc", name:"美國 NHC 颶風中心",   note:"大西洋／東太平洋",      basins:["AL","EP"]}
+];
+const loadedIds = new Set();
+function sourcesForBasin(b){
+  return (b==="ALL") ? SOURCES.map(s=>s.id)
+                     : SOURCES.filter(s=>s.basins.indexOf(b)>=0).map(s=>s.id);
+}
+const bucket = {};           // sourceId → storms[]
+const loadStat = {};         // sourceId → {state,ms,n,err}
+let loading=false;
+let pendingLoad=null;
+
+function publish(id,list){
+  bucket[id] = list||[];
+  const prevKey = curStorm && curStorm.key;
+  storms = mergeStorms(Object.keys(bucket).map(k=>bucket[k]));
+  storms.sort((a,b)=>{
+    const wa=(a.past[a.past.length-1]||{}).ws||0, wb=(b.past[b.past.length-1]||{}).ws||0;
+    return wb-wa;
+  });
+  if(!overview){
+    const keep = prevKey && storms.find(s=>s.key===prevKey);
+    if(keep) curStorm = keep;
+    else if(storms.length){ curStorm = storms[0]; buildIssueSlider(); }
+    else curStorm = null;
+  }
+  renderStormList();
+  render(false);
+}
+/* onlyIds：僅載入指定來源（洋盆切換時的增量載入）；省略則載入目前洋盆所需的全部來源 */
+async function loadAll(fit, onlyIds){
+  if(loading){ pendingLoad={fit,onlyIds}; return; }
+  const want = onlyIds && onlyIds.length ? onlyIds : sourcesForBasin($("basinSel").value);
+  if(!want.length){ render(fit!==false); return; }
+  loading = true;
+  try{
+    diag.rawKeys={};
+    if(!onlyIds) diag.sources={};
+    diag.at=new Date();
+    SOURCES.forEach(s=>{
+        if(want.indexOf(s.id)>=0) loadStat[s.id]={state:"wait",ms:null};
+        else if(!loadedIds.has(s.id)) loadStat[s.id]={state:"idle",ms:null};
+    });
+
+  const year = new Date().getUTCFullYear();
+  const runSrc = (id,fn)=>{
+    const t0=Date.now();
+    loadStat[id]={state:"run",ms:null};
+    return Promise.resolve().then(()=>fn(list=>publish(id,list))).then(v=>{
+      loadStat[id]={state:"ok",ms:Date.now()-t0,n:(v||[]).length};
+      diagSet(SOURCES.find(s=>s.id===id).name,{ok:true,n:(v||[]).length,ms:Date.now()-t0,
+        names:(v||[]).map(s=>s.nameEn||s.no||"?").slice(0,6)});
+      publish(id,v||[]);
+      return v||[];
+    }).catch(e=>{
+      const full  = (e&&e.message)||String(e);
+      const short = full.length>34 ? (full.split("｜")[0]||full).slice(0,34) : full;
+      loadStat[id]={state:"err",ms:Date.now()-t0,err:short};
+      diagSet(SOURCES.find(s=>s.id===id).name,{ok:false,n:0,ms:Date.now()-t0,err:full});
+      publish(id,[]);
+      return [];
+    });
+  };
+
+  const FN = {
+    cma: async(onPartial)=>{
+      let lst=[];
+      try{ lst = await cmaList("default"); }catch(e){}
+      if(!lst.length){ try{ lst = await cmaList(year); }catch(e){} }
+      let act = lst.filter(x=>!x.state||x.state==="start");
+      diagSet("中國 CMA 中央氣象台",{listed:lst.length,active:act.length});
+      if(!act.length && lst.length) act = lst.slice(0,1);   // 非颱風季：改抓最近一個系統
+      const out=[];
+      for(const x of act.slice(0,8)){
+        try{ out.push(await cmaStorm(x.id)); onPartial(out.slice()); }catch(e){}
+      }
+      return out;
+    },
+    jma:  onP=>jmaStorms(onP),
+    nhc:  onP=>nhcStorms(onP),
+    jtwc: onP=>jtwcStorms(onP),
+    cwa:  ()=>cwaStorms(),
+    hko:  onP=>hkoStorms(onP),
+    kma:  onP=>kmaStorms(onP)
+  };
+  // 僅成功的來源標記為已載入；失敗者留待下次切換洋盆或重新整理時再試
+    await Promise.all(want.map(id=>runSrc(id,FN[id]).then(v=>{
+      if(loadStat[id] && loadStat[id].state==="ok") loadedIds.add(id);
+      return v;
+    })));
+
+    diagSet("合併結果",{ok:true,n:storms.length,names:storms.map(s=>stormTitle(s)).slice(0,8)});
+    render(fit!==false);
+    renderDiag();
+  }finally{
+    loading=false;
+    if(pendingLoad){
+      const next=pendingLoad;
+      pendingLoad=null;
+      setTimeout(()=>loadAll(next.fit,next.onlyIds),0);
+    }
+  }
+}
+
+/* ═══════════ 抓取診斷 ═══════════ */
+function renderDiag(){
+  const box=$("diagBox");
+  const names=Object.keys(diag.sources);
+  $("tagDiag").textContent = names.length
+    ? (names.filter(n=>diag.sources[n].ok).length+" / "+names.length+" 成功") : "—";
+  if(!names.length){ box.innerHTML="尚未載入"; return; }
+  let h = '<div style="color:#cfe0f5;font-weight:700;margin-bottom:4px">來源實際回傳（'+(diag.at?fmtTime(diag.at):"—")+'）</div>'
+    + '<table class="tb" style="white-space:normal"><thead><tr><th style="text-align:left">來源</th><th>狀態</th><th>系統</th><th>耗時</th></tr></thead><tbody>';
+  names.forEach(n=>{
+    const d=diag.sources[n];
+    h += '<tr><td class="l">'+n
+      + (d.names&&d.names.length?'<br><span style="color:#9fb0c8;font-weight:400">'+d.names.join("、")+'</span>':'')
+      + (d.err?'<br><span style="color:#fbbf24;font-weight:400">'+d.err+'</span>':'')
+      + (d.note?'<br><span style="color:#9fb0c8;font-weight:400">'+d.note+'</span>':'')
+      + (d.listed!=null?'<br><span style="color:#9fb0c8;font-weight:400">清單 '+d.listed+' 筆'+(d.active!=null?'，編號中 '+d.active+' 筆':'')+'</span>':'')
+      + '</td><td style="color:'+(d.ok?"#22c55e":"#ef4444")+'">'+(d.ok?"✅":"❌")+'</td>'
+      + '<td>'+(d.n!=null?d.n:"—")+'</td><td>'+(d.ms!=null?(d.ms/1000).toFixed(1)+"s":"—")+'</td></tr>';
+  });
+  h += '</tbody></table>';
+
+  const rk=Object.keys(diag.rawKeys);
+  h += '<div style="color:#cfe0f5;font-weight:700;margin:9px 0 4px">中央氣象台資料中出現的機構代碼</div>';
+  h += rk.length
+    ? rk.map(k=>{ const d=diag.rawKeys[k], A=AG_BY_CODE[d.code];
+        return '<span class="badge" style="color:'+(A?A.color:"#9fb0c8")+'">'+k+' → '+(A?A.zh:"未知")+'（'+d.n+'）</span>'; }).join(" ")
+    : '<div style="color:#fbbf24">未偵測到機構預報欄位——代表本次抓到的系統中，中央氣象台並未轉發其他國家的預報。其他機構的路徑則來自各自的官方端點。</div>';
+
+  const list = shownStorms();
+  if(list.length){
+    h += '<div style="color:#cfe0f5;font-weight:700;margin:9px 0 4px">'
+       + (overview?"目前顯示的系統":"「"+stormTitle(list[0])+"」")+' 各機構預報</div>';
+    const agg={};
+    list.forEach(S=>{ const v=viewOf(S);
+      Object.keys(v.agencies).forEach(c=>{ agg[c]=(agg[c]||0)+v.agencies[c].pts.length; }); });
+    h += AG_ORDER.map(code=>{
+      const a=AG_BY_CODE[code], n=agg[code]||0;
+      return '<div style="color:'+(n?a.color:"#6b7a92")+'">'+(n?"✅":"–")+' '+a.zh+'（'+a.en+'）：'
+        + (n?n+" 個預報點":"無資料")+'</div>';
+    }).join("");
+  }
+  h += '<div style="margin-top:8px;color:#9fb0c8">若多數來源為 ❌，通常是來源端暫時無回應、未開放跨網域，或目前網路環境阻擋。</div>';
+  box.innerHTML = h;
+}
+
+/* ═══════════ 歷史事件回顧 ═══════════ */
+(function buildHistYears(){
+  const now=new Date().getUTCFullYear();
+  let h='<option value="">年份</option>';
+  for(let y=now;y>=2010;y--) h+='<option value="'+y+'">'+y+'</option>';
+  $("histYear").innerHTML=h;
+})();
+$("histYear").onchange = async ()=>{
+  const y=$("histYear").value, sel=$("histStorm");
+  if(!y){ sel.innerHTML='<option value="">— 選擇颱風 —</option>'; return; }
+  sel.innerHTML='<option value="">載入中…</option>';
+  try{
+    const lst = await cmaList(y);
+    sel.innerHTML = '<option value="">— 選擇颱風（'+lst.length+'）—</option>'
+      + lst.map(x=>'<option value="'+x.id+'">'+(x.no?String(x.no).slice(-4)+" ":"")+(x.nameZh||"")+" "+x.nameEn+'</option>').join("");
+  }catch(e){ sel.innerHTML='<option value="">載入失敗：'+e.message+'</option>'; }
+};
+$("histStorm").onchange = async ()=>{
+  const id=$("histStorm").value;
+  if(!id) return;
+  $("status").innerHTML = "⏳ 載入歷史颱風資料…";
+  try{
+    const s = await cmaStorm(id);
+    s.sources=["CMA"]; s.issueList=buildIssues(s);
+    const i = storms.findIndex(x=>x.key===s.key);
+    if(i>=0) storms[i]=s; else storms.push(s);
+    $("basinSel").value="ALL";
+    setMode(false);
+    selectStorm(s.key,true);
+    const IL=s.issueList||[];
+    if(IL.length){ curIssueIdx=IL.length-1; $("issueSlider").value=IL.length-1; onIssueChange(); }
+    $("blkTime").classList.remove("closed");
+  }catch(e){ $("status").innerHTML = "⚠️ 歷史資料載入失敗："+e.message; }
+  renderDiag();
+};
+
+/* ═══════════ UI 事件 ═══════════ */
+document.querySelectorAll(".blk>.bh").forEach(h=>{ h.onclick=()=>h.parentElement.classList.toggle("closed"); });
+$("legend").querySelector(".bhead").onclick = ()=>$("legend").classList.toggle("collapsed");
+$("cmp").querySelector(".bhead").onclick = ()=>$("cmp").classList.toggle("collapsed");
+$("panelTab").onclick = ()=>{
+  const c = $("panel").classList.toggle("collapsed");
+  $("panelTab").classList.toggle("collapsed",c);
+  $("panelTab").textContent = c?"▶":"◀";
+  $("status").classList.toggle("wide",c);
+  $("cmp").classList.toggle("wide",c);
+  setTimeout(()=>map.invalidateSize(),240);
+};
+$("modeAll").onclick = ()=>{ setMode(true); render(true); };
+$("modeOne").onclick = ()=>{
+  if(!curStorm && storms.length) curStorm = storms[0];
+  setMode(false);
+  if(curStorm) buildIssueSlider();
+  render(true);
+};
+["ckPast","ckFcst","ckCone","ckWind","ckTau","ckName","ckCmp"].forEach(id=>{ $(id).onchange=()=>render(false); });
+$("basinSel").onchange = ()=>{
+  renderStormList();
+  if(!overview){
+    const b=$("basinSel").value;
+    if(curStorm && b!=="ALL" && curStorm.basin!==b){
+      const f = storms.find(s=>s.basin===b);
+      if(f) selectStorm(f.key,true);
+    }
+  }
+  render(true);
+  // 該洋盆需要、但尚未載入過的來源 → 此時才載入
+  const missing = sourcesForBasin($("basinSel").value).filter(id=>!loadedIds.has(id));
+  if(missing.length) loadAll(true, missing);
+};
+$("baseSel").onchange = e=>setBase(e.target.value);
+$("baseDim").oninput = applyDim;
+$("btnReload").onclick = ()=>loadAll(false);
+$("btnDiag").onclick   = ()=>loadAll(false);
+$("btnFit").onclick    = ()=>render(true);
+$("btnAgAll").onclick  = ()=>{ AGENCIES.filter(a=>PANEL_AGENCY_CODES.has(a.code)).forEach(a=>agencyOn[a.code]=true);  syncAgencyChecks(); };
+$("btnAgNone").onclick = ()=>{ AGENCIES.filter(a=>PANEL_AGENCY_CODES.has(a.code)).forEach(a=>agencyOn[a.code]=false); syncAgencyChecks(); };
+$("issueSlider").oninput = onIssueChange;
+
+$("cwaKey").value = CWA_KEY;
+$("rememberKey").checked = localStorage.getItem(LS.rem)==="1";
+$("cwaKey").onchange = ()=>{
+  CWA_KEY = $("cwaKey").value.trim()||CWA_KEY_DEFAULT;
+  $("cwaKey").value = CWA_KEY;
+  if($("rememberKey").checked){ try{ localStorage.setItem(LS.key,CWA_KEY); localStorage.setItem(LS.rem,"1"); }catch(e){} }
+  loadAll(false);
+};
+$("rememberKey").onchange = ()=>{
+  try{
+    if($("rememberKey").checked){ localStorage.setItem(LS.rem,"1"); localStorage.setItem(LS.key,$("cwaKey").value.trim()); }
+    else { localStorage.removeItem(LS.rem); localStorage.removeItem(LS.key); }
+  }catch(e){}
+};
+$("btnKeyReset").onclick = ()=>{
+  CWA_KEY = CWA_KEY_DEFAULT; $("cwaKey").value = CWA_KEY;
+  try{ localStorage.removeItem(LS.key); localStorage.removeItem(LS.rem); }catch(e){}
+  $("rememberKey").checked = false;
+  loadAll(false);
+};
+
+let autoTimer=null;
+$("ckAuto").onchange = ()=>{
+  if(autoTimer){ clearInterval(autoTimer); autoTimer=null; }
+  if($("ckAuto").checked) autoTimer = setInterval(()=>loadAll(false), 10*60*1000);
+};
+
+$("aboutBox").innerHTML = [
+  '<ul style="margin:0 0 8px;padding-left:16px;line-height:1.85">',
+  '<li>🇹🇼 <a href="https://opendata.cwa.gov.tw/dataset/warning/W-C0034-005" target="_blank" rel="noopener">中央氣象署 W-C0034-005</a></li>',
+  '<li>🇯🇵 <a href="https://www.jma.go.jp/bosai/map.html#contents=typhoon" target="_blank" rel="noopener">日本氣象廳 bosai</a></li>',
+  '<li>🇰🇷 <a href="https://www.kma.go.kr/nchn/typhoon/typhoon-information.do" target="_blank" rel="noopener">韓國氣象廳 국가태풍센터</a></li>',
+  '<li>🇨🇳 <a href="https://typhoon.nmc.cn/web.html" target="_blank" rel="noopener">中央氣象台颱風網</a>（並轉發各國預報）</li>',
+  '<li>🇭🇰 <a href="https://www.hko.gov.hk/tc/wxinfo/currwx/tc_gis.htm" target="_blank" rel="noopener">香港天文台 熱帶氣旋路徑（GIS 版）</a></li>',
+  '<li>🇺🇸 <a href="https://www.nhc.noaa.gov/" target="_blank" rel="noopener">國家颶風中心 NHC</a>、',
+       '<a href="https://www.metoc.navy.mil/jtwc/jtwc.html" target="_blank" rel="noopener">聯合颱風警報中心 JTWC</a></li>',
+  '<li>🇪🇺 <a href="https://charts.ecmwf.int/" target="_blank" rel="noopener">ECMWF</a>、',
+       '<a href="https://www.metoffice.gov.uk/" target="_blank" rel="noopener">UKMO</a>、',
+       '🇵🇭 <a href="https://www.pagasa.dost.gov.ph/tropical-cyclone/severe-weather-bulletin" target="_blank" rel="noopener">PAGASA</a> 等（經中央氣象台轉發）</li>',
+  '</ul>',
+  '各機構強度定義不一（JMA／CWA 為 10 分鐘平均風、NHC／JTWC 為 1 分鐘平均風），數值不可直接比較。',
+  '本頁僅供參考，防災請依各地官方最新警報。<br>',
+  '地圖圖磚 © OpenStreetMap contributors｜程式碼 AGPL-3.0'
+].join("");
+
+/* ═══════════ 啟動 ═══════════ */
+$("baseSel").value = localStorage.getItem(LS.base)||"osm";
+$("baseDim").value = 100;
+buildAgencyBox();
+setMode(true);                    // 預設：總覽所有颱風 × 所有單位
+$("basinSel").value = "ALL";      // 預設：全球平面，顯示南北緯 60 度
+fitBasin();
+updateLegend();
+applyDim();
+loadAll(true);
+window.addEventListener("resize",()=>map.invalidateSize());
+</script>
+</body>
+</html>
+
+
+
+
