@@ -308,6 +308,7 @@ input[type=range]{accent-color:var(--acc);width:100%}
       <label class="chk"><input type="checkbox" id="cMean" checked><span>集合平均路徑</span></label>
       <label class="chk"><input type="checkbox" id="cCtl"><span>控制報 / 決定性預報</span></label>
       <label class="chk"><input type="checkbox" id="cProb"><span>侵襲機率場（strike probability）</span></label>
+      <label class="chk"><input type="checkbox" id="cDayNight" checked><span>日夜變化陰影區（晨昏線）</span></label>
       <div class="row"><label style="font-size:11px;color:var(--fg2);width:74px">成員線粗細</label>
         <input type="range" id="rWid" min="0.5" max="4" step="0.5" value="1.4"></div>
       <div class="row"><label style="font-size:11px;color:var(--fg2);width:74px">成員線透明</label>
@@ -417,7 +418,7 @@ const MODELS = [
 ];
 const DEFAULT_ON = MODELS.filter(m=>m.ens).map(m=>m.code);
 
-const LS = {models:"nwpens.models", base:"nwpens.base", layers:"nwpens.layers"};
+const LS = {models:"nwpens.models", base:"nwpens.base", layers:"nwpens.layers", dayNight:"nwpens.daynight"};
 
 /* ───────── 取檔管道 ───────── */
 function routesFor(url){
@@ -921,6 +922,86 @@ function strikeProb(tracks, radKm, resDeg, hMin, hMax){
   return {nx:nx, ny:ny, lat0:la0, lon0:lo0, res:resDeg, prob:prob, n:N, pmax:pmax};
 }
 
+/* ───────── 日夜變化陰影區（晨昏線） ───────── */
+function dayNightTime(){
+  const init = initDateUTC();
+  const h = +$("#tSlider").value || 0;
+  return new Date(init.getTime()+h*3600000);
+}
+function solarPos(d){
+  const RAD=Math.PI/180;
+  const jc=(d.getTime()/864e5 + 2440587.5 - 2451545)/36525;
+  const L0=(280.46646+jc*(36000.76983+jc*.0003032))%360;
+  const M=357.52911+jc*(35999.05029-.0001537*jc);
+  const e=.016708634-jc*(.000042037+.0000001267*jc);
+  const Mr=M*RAD;
+  const C=Math.sin(Mr)*(1.914602-jc*(.004817+.000014*jc))
+         +Math.sin(2*Mr)*(.019993-.000101*jc)+Math.sin(3*Mr)*.000289;
+  const om=(125.04-1934.136*jc)*RAD;
+  const lam=(L0+C-.00569-.00478*Math.sin(om))*RAD;
+  const eps0=23+(26+(21.448-jc*(46.815+jc*(.00059-jc*.001813)))/60)/60;
+  const eps=(eps0+.00256*Math.cos(om))*RAD;
+  const dec=Math.asin(Math.sin(eps)*Math.sin(lam));
+  const y=Math.tan(eps/2)**2, L0r=L0*RAD;
+  const eqTime=4/RAD*(y*Math.sin(2*L0r)-2*e*Math.sin(Mr)+4*e*y*Math.sin(Mr)*Math.cos(2*L0r)
+              -.5*y*y*Math.sin(4*L0r)-1.25*e*e*Math.sin(2*Mr));
+  return {dec:dec, eqTime:eqTime};
+}
+const DN_W=1024, DN_H=768, DN_LATMAX=85.0511287798066, DN_MAXA=.34;
+const DN_ALT0=Math.sin(-.833*Math.PI/180);
+let dnCanvas=null, dnKey=null, dnURL=null;
+function dnPane(){
+  if(!map.getPane("dnPane")){
+    map.createPane("dnPane");
+    const p=map.getPane("dnPane");
+    p.style.zIndex=350;
+    p.style.pointerEvents="none";
+  }
+}
+function dnRender(dec, subLonDeg){
+  if(!dnCanvas){ dnCanvas=document.createElement("canvas"); dnCanvas.width=DN_W; dnCanvas.height=DN_H; }
+  const ctx=dnCanvas.getContext("2d");
+  const img=ctx.createImageData(DN_W,DN_H), D=img.data;
+  const RAD=Math.PI/180, sd=Math.sin(dec), cd=Math.cos(dec);
+  const sinLat=new Float64Array(DN_H), cosLat=new Float64Array(DN_H);
+  for(let j=0;j<DN_H;j++){
+    const y=(1-2*(j+.5)/DN_H)*Math.PI;
+    const la=2*Math.atan(Math.exp(y))-Math.PI/2;
+    sinLat[j]=Math.sin(la); cosLat[j]=Math.cos(la);
+  }
+  const cosH=new Float64Array(DN_W);
+  for(let i=0;i<DN_W;i++) cosH[i]=Math.cos(((i+.5)*360/DN_W-subLonDeg)*RAD);
+  let k=0;
+  for(let j=0;j<DN_H;j++){
+    const A=sinLat[j]*sd, B=cosLat[j]*cd;
+    for(let i=0;i<DN_W;i++){
+      const s=A+B*cosH[i];
+      const a=s<DN_ALT0?DN_MAXA:0;
+      D[k]=2; D[k+1]=6; D[k+2]=23; D[k+3]=(a*255+.5)|0;
+      k+=4;
+    }
+  }
+  ctx.putImageData(img,0,0);
+  return dnCanvas.toDataURL("image/png");
+}
+function drawDayNight(){
+  gDayNight.clearLayers();
+  const ck=$("#cDayNight");
+  if(!ck || !ck.checked) return;
+  const t=dayNightTime();
+  const sp=solarPos(t);
+  const utcMin=t.getUTCHours()*60+t.getUTCMinutes()+t.getUTCSeconds()/60;
+  const subLon=norm180((720-utcMin-sp.eqTime)/4);
+  dnPane();
+  const key=Math.round(subLon*20)+"|"+Math.round(sp.dec*2000);
+  if(key!==dnKey){ dnKey=key; dnURL=dnRender(sp.dec,subLon); }
+  for(let w=-360; w<=360; w+=360){
+    L.imageOverlay(dnURL,[[-DN_LATMAX,w],[DN_LATMAX,w+360]],{
+      pane:"dnPane", opacity:1, interactive:false, className:"dnLayer"
+    }).addTo(gDayNight);
+  }
+}
+
 const PROB_STOPS = [
   [0.05,"#1e3a8a"],[0.10,"#1d4ed8"],[0.20,"#0ea5e9"],[0.30,"#14b8a6"],
   [0.40,"#22c55e"],[0.50,"#a3e635"],[0.60,"#fde047"],[0.70,"#fb923c"],
@@ -1031,6 +1112,7 @@ function setBase(k){
 }
 setBase(localStorage.getItem(LS.base)||"light");
 
+const gDayNight = L.layerGroup().addTo(map);
 const gMem  = L.layerGroup().addTo(map);
 const gMean = L.layerGroup().addTo(map);
 const gCtl  = L.layerGroup().addTo(map);
@@ -1391,7 +1473,7 @@ $("#cAllStorms").onchange = e=>{ S.allStorms=e.target.checked; applyStormFilter(
 /* ───────── 選定颱風並繪製 ───────── */
 function selectStorm(g, refit){
   S.storm = g;
-  if(!g){ clearAll(); S.infoHtml="無可顯示的系統"; drawLegend(); drawChart(); return; }
+  if(!g){ clearAll(); drawDayNight(); S.infoHtml="無可顯示的系統"; drawLegend(); drawChart(); return; }
   // 每個模式的集合平均
   g.byModel = {};
   for(const t of g.tracks){
@@ -1409,12 +1491,13 @@ function selectStorm(g, refit){
   if(+sl.value>+sl.max) sl.value = sl.max;
   draw(refit);
 }
-function clearAll(){ gMem.clearLayers(); gMean.clearLayers(); gCtl.clearLayers(); gDots.clearLayers(); }
+function clearAll(){ gDayNight.clearLayers(); gMem.clearLayers(); gMean.clearLayers(); gCtl.clearLayers(); gDots.clearLayers(); }
 
 function ll(p){ return [p.lat, (p.lonF!==undefined?p.lonF:p.lon)]; }
 
 function draw(refit){
   clearAll();
+  drawDayNight();
   const g=S.storm; if(!g) return;
   const showMem=$("#cMem").checked, showMean=$("#cMean").checked,
         showCtl=$("#cCtl").checked, showProb=$("#cProb").checked, showDots=S.showDots;
@@ -1544,10 +1627,12 @@ function stepForecast(dir, fromTimer){
     else v=min;
   }
   sl.value = v;
+  drawDayNight();
   drawDots();
   drawChart();
+  drawLegend();
 }
-$("#tSlider").addEventListener("input",()=>{ drawDots(); drawChart(); });
+$("#tSlider").addEventListener("input",()=>{ drawDayNight(); drawDots(); drawChart(); drawLegend(); });
 $("#tPrev").addEventListener("click",()=>stepForecast(-1, false));
 $("#tNext").addEventListener("click",()=>stepForecast(1, false));
 $("#tPlay").addEventListener("click",()=>setPlaying(!S.playing));
@@ -1603,7 +1688,10 @@ function drawLegend(){
   const icon = `<span class="material-symbols-outlined">info</span>`;
   if(!g){
     L2.classList.toggle("mini", S.legendMini);
-    L2.innerHTML = `<div class="lghead">${icon}<span class="lgtitle">資訊 / 圖例</span><button class="lgmini" id="legendMini" title="縮小"><span class="material-symbols-outlined">remove</span></button></div><div class="lgbody"><div class="infoContent">${S.infoHtml}</div></div>`;
+    const dn = $("#cDayNight")?.checked
+      ? `<h4 style="margin-top:8px">日夜陰影</h4><div class="lgrow"><span style="width:26px;height:13px;border-radius:4px;background:rgba(15,23,42,.28);display:inline-block"></span>夜間區（${fmtUTC(dayNightTime())}）</div>`
+      : "";
+    L2.innerHTML = `<div class="lghead">${icon}<span class="lgtitle">資訊 / 圖例</span><button class="lgmini" id="legendMini" title="縮小"><span class="material-symbols-outlined">remove</span></button></div><div class="lgbody"><div class="infoContent">${S.infoHtml}</div>${dn}</div>`;
     bindLegendMini();
     return;
   }
@@ -1621,6 +1709,11 @@ function drawLegend(){
     h += `<h4 style="margin-top:8px">侵襲機率 (%)</h4><div id="probbar">`;
     h += PROB_STOPS.map(s=>`<i style="background:${s[1]}"></i>`).join("");
     h += `</div><div style="display:flex;justify-content:space-between;color:var(--fg3);font-size:10px"><span>5</span><span>50</span><span>90+</span></div>`;
+  }
+  if($("#cDayNight")?.checked){
+    const t = dayNightTime();
+    h += `<h4 style="margin-top:8px">日夜陰影</h4>`;
+    h += `<div class="lgrow"><span style="width:26px;height:13px;border-radius:4px;background:rgba(15,23,42,.28);display:inline-block"></span>夜間區（${fmtUTC(t)}）</div>`;
   }
   h += `</div>`;
   L2.classList.toggle("mini", S.legendMini);
@@ -1808,6 +1901,11 @@ function syncModelChecks(){
 ["cMem","cMean","cCtl"].forEach(id=>$("#"+id).addEventListener("change",()=>draw(false)));
 $("#cProb").addEventListener("change",()=>{ if($("#cProb").checked) computeProb();
   else if(map.hasLayer(probLayer)) map.removeLayer(probLayer); drawLegend(); updateInfo(); });
+try{ $("#cDayNight").checked = localStorage.getItem(LS.dayNight)!=="0"; }catch(e){}
+$("#cDayNight").addEventListener("change",()=>{
+  try{ localStorage.setItem(LS.dayNight, $("#cDayNight").checked ? "1" : "0"); }catch(e){}
+  draw(false);
+});
 ["rWid","rOpa"].forEach(id=>$("#"+id).addEventListener("input",()=>draw(false)));
 $("#baseSel").addEventListener("change",e=>setBase(e.target.value));
 $("#baseSel").value = localStorage.getItem(LS.base)||"light";
