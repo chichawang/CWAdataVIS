@@ -184,7 +184,40 @@
   #gate .hint{color:var(--muted);font-size:11px;margin-top:14px;line-height:1.5}
   #gate a{color:var(--accent)}
 
-  /* ===== 手機 ===== */
+  /* ===== 手機直式專用元件（預設隱藏） ===== */
+  #mFabs,#mStatus,#sheetHandle,#mCloseBtn{display:none}
+  #mStatus{position:fixed;top:10px;right:12px;z-index:2100;align-items:center;gap:6px;
+    padding:6px 10px;border-radius:999px;background:rgba(14,18,23,0.55);
+    backdrop-filter:blur(16px) saturate(1.6);-webkit-backdrop-filter:blur(16px) saturate(1.6);
+    border:1px solid var(--line);font-size:11px;color:var(--muted);cursor:pointer;
+    box-shadow:0 4px 16px rgba(0,0,0,.35);max-width:calc(100% - 24px);flex-wrap:wrap}
+  #mDot{width:8px;height:8px;border-radius:50%;background:#81c995;flex:0 0 auto;box-shadow:0 0 6px #81c995}
+  #mSec{font-variant-numeric:tabular-nums;font-weight:600}
+  #mStatus.loading #mDot{background:#fdd663;box-shadow:0 0 7px #fdd663;animation:dotPulse 1s infinite}
+  #mStatus.alert #mDot{background:#f28b82;box-shadow:0 0 9px #f28b82;animation:dotPulse .7s infinite}
+  #mStatus.err #mDot{background:#f28b82;box-shadow:0 0 7px #f28b82}
+  #mDetail,#mReload{display:none}
+  #mStatus.exp{border-radius:14px;width:min(272px,calc(100% - 24px))}
+  #mStatus.exp #mDetail{display:block;flex:1 1 100%;font-size:10.5px;line-height:1.5;color:var(--muted)}
+  #mStatus.exp #mReload{display:inline-block;flex:1 1 100%;margin-top:2px;padding:5px 0;
+    background:var(--accent);color:#041e49;border:none;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer}
+  @keyframes dotPulse{0%,100%{opacity:1}50%{opacity:.22}}
+
+  #mFabs{position:fixed;top:10px;left:12px;z-index:2100;gap:6px}
+  #mFabs button{width:38px;height:38px;border-radius:12px;background:rgba(14,18,23,0.55);
+    backdrop-filter:blur(16px) saturate(1.6);-webkit-backdrop-filter:blur(16px) saturate(1.6);
+    border:1px solid var(--line);color:var(--txt);font-size:15px;cursor:pointer;
+    box-shadow:0 4px 16px rgba(0,0,0,.35);padding:0}
+  #mFabs button.on{border-color:var(--accent);color:var(--accent)}
+
+  #sheetHandle{position:sticky;top:0;z-index:3;padding:7px 0 9px;margin:0 -14px;
+    background:rgba(14,18,23,0.96);border-radius:20px 20px 0 0;cursor:grab;
+    touch-action:none;-webkit-user-select:none;user-select:none}
+  #sheetHandle .bar{width:38px;height:4px;border-radius:3px;background:rgba(255,255,255,.28);margin:0 auto 6px}
+  #sheetHandle .txt{text-align:center;font-size:12px;color:var(--txt);white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis;padding:0 14px}
+
+  /* ===== 手機（橫式 / 一般窄螢幕） ===== */
   @media(max-width:860px){
     #topbar{padding:6px 10px}
     #topbar h1{font-size:13.5px}
@@ -194,6 +227,64 @@
     #side{flex:0 0 auto;overflow-y:visible;height:auto;border-left:none;border-top:1px solid var(--line);padding:10px 10px 24px}
     .legend{width:150px;padding:7px 9px}
     #kpiPane{grid-template-columns:repeat(2,1fr)}
+  }
+
+  /* ===== 手機直式：滿版地圖 + 底部抽屜 + 浮動面板 ===== */
+  @media(max-width:860px) and (orientation:portrait){
+    #mFabs{display:flex;z-index:2300}
+    #mStatus{display:flex;z-index:2300}
+    #sheetHandle,#mCloseBtn{display:block}
+
+    #wrap{display:block;position:relative;overflow:hidden;height:100%}
+    #mapPane{position:absolute;inset:0;height:auto;flex:none;display:block}
+    #map{position:absolute;inset:0;height:auto}
+
+    /* 頂部工具列 → 下拉浮動面板 */
+    #topbar{position:fixed;top:0;left:0;right:0;z-index:2200;flex-direction:column;
+      align-items:stretch;gap:11px;padding:56px 16px 16px;border-radius:0 0 20px 20px;
+      transform:translateY(-118%);transition:transform .3s cubic-bezier(.4,0,.2,1);
+      max-height:82vh;overflow-y:auto;background:rgba(14,18,23,0.94)}
+    #topbar.open{transform:none}
+    #topbar h1{display:none}
+    #topbar label.ck{justify-content:space-between;font-size:13px;gap:10px}
+    #topbar #magFilter,#topbar #depthExg{width:120px}
+    #topbar #obsTime,#topbar #countdownTimer{white-space:normal;line-height:1.5}
+    #topbar button{padding:10px 14px;font-size:13px;justify-content:center}
+    #mCloseBtn{width:100%;text-align:center}
+
+    /* 地圖右上工具：讓位給狀態圓點 */
+    #mapTools{top:56px;right:12px;gap:5px}
+    #mapTools button{padding:7px 9px;font-size:11.5px}
+    #mapTools select{padding:6px 8px;font-size:11.5px;max-width:112px}
+
+    /* 圖例：縮到抽屜上方，預設收合 */
+    .legend{bottom:76px;left:12px;width:auto;padding:8px 11px;z-index:900}
+    .legend:not(.min){width:min(210px,calc(100vw - 24px))}
+
+    /* 時間軸 → 浮動面板 */
+    #timeline{position:fixed;left:8px;right:8px;bottom:70px;z-index:1950;
+      border-radius:16px;border:1px solid var(--line);padding:10px 12px 12px;
+      background:rgba(14,18,23,0.94);transform:translateY(190%);
+      transition:transform .3s cubic-bezier(.4,0,.2,1);
+      box-shadow:0 10px 40px rgba(0,0,0,.5)}
+    #timeline.open{transform:none}
+
+    /* 側欄 → 底部抽屜 */
+    #side{position:fixed;left:0;right:0;bottom:0;top:auto;z-index:2000;height:84vh;
+      flex:none;border:none;border-top:1px solid var(--line);border-radius:20px 20px 0 0;
+      padding:0 14px 24px;overflow:hidden;background:rgba(14,18,23,0.96);
+      backdrop-filter:blur(24px) saturate(1.6);-webkit-backdrop-filter:blur(24px) saturate(1.6);
+      box-shadow:0 -10px 44px rgba(0,0,0,.55);
+      transform:translateY(calc(100% - 58px));
+      transition:transform .32s cubic-bezier(.4,0,.2,1)}
+    #side.open{transform:translateY(0);overflow-y:auto}
+
+    #kpiPane{grid-template-columns:repeat(4,1fr);gap:7px;margin:4px 0 14px}
+    .kpi-card{padding:9px 3px;border-radius:13px}
+    .kpi-card .num{font-size:17px}
+    .kpi-card .lbl{font-size:10px}
+
+    #toast{top:58px;left:12px;right:12px;transform:none;text-align:center;font-size:12.5px}
   }
 </style>
 </head>
@@ -230,6 +321,18 @@
   <span id="obsTime"></span>
   <button id="reload">🔄 立即更新</button>
   <button class="ghost" id="keyBtn">🔑</button>
+  <button class="ghost" id="mCloseBtn">✕ 關閉</button>
+</div>
+
+<!-- 手機直式：浮動控制與極簡狀態圓點 -->
+<div id="mFabs">
+  <button id="mMenuBtn" title="設定與篩選">☰</button>
+  <button id="mTlBtn" title="時間軸">⏳</button>
+</div>
+<div id="mStatus" title="更新狀態">
+  <span id="mDot"></span><span id="mSec"></span>
+  <span id="mDetail"></span>
+  <button id="mReload">🔄 立即更新</button>
 </div>
 
 <div id="wrap">
@@ -267,6 +370,7 @@
   </div>
 
   <div id="side">
+    <div id="sheetHandle"><div class="bar"></div><div class="txt" id="sheetTxt">📋 地震列表</div></div>
     <div id="kpiPane">
       <div class="kpi-card k1"><div class="num" id="kpiTotal">–</div><div class="lbl">顯示中事件</div></div>
       <div class="kpi-card k2"><div class="num" id="kpiMax">–</div><div class="lbl">最大規模</div></div>
@@ -515,7 +619,7 @@ function renderLayers(){
     getFillColor:e=>[...INT_RGB[e.maxRank],e.key===selectedKey?255:200],
     getLineColor:e=>e.key===selectedKey?[255,209,102,255]:[255,255,255,90],
     getLineWidth:e=>e.key===selectedKey?2.5:.8,lineWidthUnits:"pixels",
-    onClick:({object})=>selectEvent(object.key,false),
+    onClick:({object})=>{selectEvent(object.key,false);if(isMobileP())setSheet(false);},
     updateTriggers:{getFillColor:[selectedKey],getLineColor:[selectedKey],
       getLineWidth:[selectedKey],getPosition:[exg]}
   }));
@@ -574,7 +678,8 @@ function selectEvent(key,fly=true){
   const img=$("reportImg");
   img.style.display="none";
   if(e.img){img.src=e.img;img.onload=()=>img.style.display="block";img.onerror=()=>img.style.display="none";}
-  document.querySelector(".evCard.sel")?.scrollIntoView({block:"nearest",behavior:"smooth"});
+  if(!(isMobileP()&&!$("side").classList.contains("open")))
+    document.querySelector(".evCard.sel")?.scrollIntoView({block:"nearest",behavior:"smooth"});
 }
 
 /* ===================== 右側列表 / KPI ===================== */
@@ -598,7 +703,10 @@ function renderList(){
         </div>
       </div>
     </div>`).join("");
-  document.querySelectorAll(".evCard").forEach(c=>c.onclick=()=>selectEvent(c.dataset.key,true));
+  document.querySelectorAll(".evCard").forEach(c=>c.onclick=()=>{
+    selectEvent(c.dataset.key,true);
+    if(isMobileP())setSheet(false);   // 收起抽屜讓地圖滿版可見
+  });
 
   const all=visibleEvents();
   $("kpiTotal").textContent=all.length;
@@ -606,6 +714,19 @@ function renderList(){
   $("kpi24").textContent=all.filter(e=>Date.now()-e.t<864e5).length;
   $("kpiLatest").textContent=evs.length?relTime(evs[0].t):"–";
   $("kpiLatest").style.fontSize=evs.length?"14px":"19px";
+
+  updateSheetTxt(evs);
+}
+
+/* 底部抽屜把手＝選取事件的 peek 卡（手機直式） */
+function updateSheetTxt(evs){
+  evs=evs||visibleEvents().slice().sort((a,b)=>b.t-a.t);
+  const e=EVENTS.find(x=>x.key===selectedKey)||evs[0];
+  $("sheetTxt").innerHTML=e
+    ? `<b style="color:${INT_COLOR[e.maxRank]}">M${e.mag.toFixed(1)}</b> `
+      +`${(e.loc||e.content||"").slice(0,12)}`
+      +` <span style="color:var(--muted)">${INT_LABEL[e.maxRank]}級 · ${relTime(e.t)} · 共 ${evs.length} 筆 ▲</span>`
+    : "📋 目前無地震事件 ▲";
 }
 
 /* ===================== 時間軸 ===================== */
@@ -675,10 +796,12 @@ let countdownSec=60,countdownTimerId=null;
 function startCountdown(){
   if(countdownTimerId)clearInterval(countdownTimerId);
   countdownSec=60;
+  $("mSec").textContent=countdownSec+"s";
   countdownTimerId=setInterval(()=>{
     countdownSec--;
     if(countdownSec<=0){clearInterval(countdownTimerId);load(true);}
-    else $("countdownTimer").textContent=`⏱️ ${countdownSec}s 後更新`;
+    else{$("countdownTimer").textContent=`⏱️ ${countdownSec}s 後更新`;
+      $("mSec").textContent=countdownSec+"s";}
   },1000);
 }
 
@@ -701,6 +824,8 @@ function showToast(msg){
 async function load(silent){
   if(!KEY){openGate();return;}
   if(!silent)$("loader").style.display="flex";
+  const ms=$("mStatus");
+  ms.classList.remove("err");ms.classList.add("loading");$("mSec").textContent="更新中";
   try{
     const [rSig,rSmall,rTown]=await Promise.allSettled([
       fetch(urlSig(KEY)).then(r=>{if(!r.ok)throw new Error("E-A0015-001 HTTP "+r.status);return r.json();}),
@@ -736,6 +861,8 @@ async function load(silent){
         const ne=EVENTS.filter(e=>newKeys.has(e.key)).sort((a,b)=>b.t-a.t)[0];
         showToast(`🚨 新地震報告：M${ne.mag.toFixed(1)} ${ne.loc}`);
         beep();
+        ms.classList.add("alert");
+        clearTimeout(ms._a);ms._a=setTimeout(()=>ms.classList.remove("alert"),45000);
         if(tlCursor==null)selectEvent(ne.key,true);
       }
     }
@@ -749,11 +876,15 @@ async function load(silent){
     $("obsTime").textContent="🕒 最後更新 "+fmtFull(new Date())
       +`｜顯著 ${EVENTS.filter(e=>e.type==="sig").length}／小區域 ${EVENTS.filter(e=>e.type==="small").length} 筆`
       +(errs.length?"｜⚠ "+errs.join("；"):"");
+    $("mDetail").textContent=$("obsTime").textContent.replace(/^🕒\s*/,"");
+    ms.classList.remove("loading");
     firstLoad=false;
     $("loader").style.display="none";
     startCountdown();
   }catch(e){
     $("loader").style.display="none";
+    ms.classList.remove("loading");ms.classList.add("err");
+    $("mDetail").textContent="⚠ 更新失敗："+e.message;
     if(firstLoad){openGate("載入失敗："+e.message);}
     else{showToast("⚠ 更新失敗："+e.message);startCountdown();}
   }
@@ -777,6 +908,79 @@ setInterval(()=>{if(EVENTS.length){renderList();}},30e3); // 相對時間更新
 // 圖例色階
 $("intRowBox").innerHTML=INT_LABEL.map((l,i)=>
   `<span style="background:${INT_COLOR[i]}">${l}</span>`).join("");
+
+/* ===================== 手機直式 UI ===================== */
+function isMobileP(){
+  return window.matchMedia("(max-width:860px) and (orientation:portrait)").matches;
+}
+function setSheet(open){
+  $("side").classList.toggle("open",open);
+  if(open){closePanel("topbar","mMenuBtn");closePanel("timeline","mTlBtn");}
+}
+function toggleSheet(){setSheet(!$("side").classList.contains("open"));}
+function closePanel(pid,bid){$(pid).classList.remove("open");$(bid).classList.remove("on");}
+function togglePanel(pid,bid){
+  const on=!$(pid).classList.contains("open");
+  $(pid).classList.toggle("open",on);$(bid).classList.toggle("on",on);
+  if(on){
+    if(pid!=="topbar")closePanel("topbar","mMenuBtn");
+    if(pid!=="timeline")closePanel("timeline","mTlBtn");
+    setSheetOnly(false);
+  }
+}
+function setSheetOnly(open){$("side").classList.toggle("open",open);}
+
+$("mMenuBtn").onclick=()=>togglePanel("topbar","mMenuBtn");
+$("mTlBtn").onclick=()=>togglePanel("timeline","mTlBtn");
+$("mCloseBtn").onclick=()=>closePanel("topbar","mMenuBtn");
+$("mStatus").onclick=e=>{
+  if(e.target.id==="mReload")return;
+  $("mStatus").classList.toggle("exp");
+};
+$("mReload").onclick=e=>{e.stopPropagation();$("mStatus").classList.remove("exp");load(false);};
+
+// 底部抽屜：點擊 / 上下拖曳
+(function(){
+  const h=$("sheetHandle"),s=$("side");
+  let y0=null,base=0,cur=0,max=0,moved=false,lastEnd=0;
+  h.addEventListener("touchstart",e=>{
+    max=Math.max(1,s.getBoundingClientRect().height-58);
+    base=s.classList.contains("open")?0:max;
+    cur=base;y0=e.touches[0].clientY;moved=false;
+    s.style.transition="none";
+  },{passive:true});
+  h.addEventListener("touchmove",e=>{
+    if(y0==null)return;
+    const dy=e.touches[0].clientY-y0;
+    if(Math.abs(dy)>6)moved=true;
+    cur=Math.max(0,Math.min(max,base+dy));
+    s.style.transform="translateY("+cur+"px)";
+  },{passive:true});
+  const end=()=>{
+    if(y0==null)return;
+    s.style.transition="";s.style.transform="";
+    setSheet(moved?cur<max*0.5:!s.classList.contains("open"));
+    y0=null;lastEnd=Date.now();
+  };
+  h.addEventListener("touchend",end);
+  h.addEventListener("touchcancel",end);
+  h.addEventListener("click",()=>{if(Date.now()-lastEnd<600)return;toggleSheet();});
+})();
+
+// 點地圖收起浮動面板
+$("map").addEventListener("click",()=>{
+  if(!isMobileP())return;
+  closePanel("topbar","mMenuBtn");closePanel("timeline","mTlBtn");
+  $("mStatus").classList.remove("exp");
+});
+
+// 手機直式：預設收合圖例，讓地圖滿版乾淨
+if(isMobileP())$("legend").classList.add("min");
+window.addEventListener("orientationchange",()=>{
+  setSheet(false);closePanel("topbar","mMenuBtn");closePanel("timeline","mTlBtn");
+  if(isMobileP())$("legend").classList.add("min");
+  setTimeout(()=>{try{deckgl&&renderLayers();}catch(e){}},350);
+});
 
 /* ===================== 金鑰 ===================== */
 function setKey(k){KEY=k.trim();}
