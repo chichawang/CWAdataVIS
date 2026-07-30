@@ -136,7 +136,7 @@
         <span class="material-symbols-outlined">cloud</span> 氣象署觀測 <span class="cnt">7</span>
       </button>
       <button class="tab" role="tab" data-pane="other">
-        <span class="material-symbols-outlined">apps</span> 其他分頁 <span class="cnt">3</span>
+        <span class="material-symbols-outlined">apps</span> 其他分頁 <span class="cnt">4</span>
       </button>
     </div>
 
@@ -204,7 +204,7 @@
     </div><!-- /pane-cwa -->
 
     <div class="pane" id="pane-other">
-    <div class="pane-note">其他常用地圖頁面：全球官方颱風路徑整合、公開影像串流整合與環境部空氣品質監測。</div>
+    <div class="pane-note">其他常用地圖頁面：全球官方颱風路徑整合、NWP 系集颱風路徑、公開影像串流整合與環境部空氣品質監測。</div>
     <div class="links">
       <a class="go ty-theme" href="typhoon_multiofficialagency_display.html">
         <div class="title-row">
@@ -213,6 +213,16 @@
         </div>
         <span class="desc">彙整 CWA、JMA、JTWC、NHC、CMA、HKO、KMA 等官方氣象機構熱帶氣旋預報路徑，可總覽全部系統或切換單一颱風比較各機構預報。
           <span class="key-tag need"><span class="material-symbols-outlined" style="font-size:13px">key</span> 內建 CWA 示範授權碼，可自備 API 授權碼</span>
+        </span>
+      </a>
+
+      <a class="go nwp-theme" href="typhoon_NWP_ensemble_display.html">
+        <div class="title-row">
+          <span>NWP 系集颱風路徑預報</span>
+          <span class="material-symbols-outlined arrow">arrow_forward</span>
+        </div>
+        <span class="desc">整合 TIGGE 與 Google WeatherNext2 熱帶氣旋系集路徑，支援多模式成員線、集合平均、指定時效落點播放、侵襲機率場、強度時序與全球/洋盆篩選；開啟後會依預設起報時間自動載入。
+          <span class="key-tag free"><span class="material-symbols-outlined" style="font-size:13px">lock_open</span> 不需 API 金鑰，部分遠端資料可能受跨網域限制</span>
         </span>
       </a>
 

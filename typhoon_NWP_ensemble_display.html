@@ -1,0 +1,1871 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5"/>
+<title>NWP 系集 / 決定性颱風路徑預報 (TIGGE CXML)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root{
+  --bg:#eef2f7; --bg2:rgba(255,255,255,.78); --bg3:rgba(15,23,42,.06);
+  --line:rgba(15,23,42,.14);
+  --fg:#111827; --fg2:#334155; --fg3:#475569;
+  --acc:#60a5fa; --warn:#b45309; --bad:#b91c1c; --ok:#047857;
+  --glass:rgba(255,255,255,.78); --glass2:rgba(248,250,252,.82);
+  --side:330px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--fg);
+  font-family:"Roboto","Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:14px;-webkit-text-size-adjust:100%}
+button,select,input{font-family:inherit;font-size:inherit;color:inherit}
+#app{display:flex;flex-direction:column;height:100%;overflow:hidden}
+
+/* ── 頂列 ── */
+#top{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--glass);
+  border-bottom:1px solid var(--line);flex:0 0 auto;flex-wrap:wrap;
+  backdrop-filter:blur(24px) saturate(1.8);-webkit-backdrop-filter:blur(24px) saturate(1.8);
+  box-shadow:0 8px 32px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.08)}
+#top h1{font-size:15px;margin:0;font-weight:700;letter-spacing:.3px;white-space:nowrap}
+#top h1 small{display:block;font-size:10px;color:var(--fg3);font-weight:400;letter-spacing:0}
+.tgrp{display:flex;align-items:center;gap:6px}
+.tgrp label{font-size:11px;color:var(--fg2)}
+.btn{background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:18px;padding:7px 13px;
+  cursor:pointer;transition:.18s;white-space:nowrap;box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+.btn:hover{background:rgba(96,165,250,.14);border-color:var(--acc);color:#1d4ed8}
+.btn:active{transform:translateY(1px)}
+.btn.pri{background:#93c5fd;color:#0f2f57;border-color:#7db7f8;font-weight:700}
+.btn.pri:hover{background:#bfdbfe;color:#0f2f57}
+.btn.sm{padding:4px 8px;font-size:12px}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+select,input[type=date],input[type=text],input[type=number]{
+  background:var(--glass2);border:1px solid var(--line);border-radius:12px;padding:7px 9px;outline:none}
+select:focus,input[type=date]:focus,input[type=text]:focus,input[type=number]:focus{border-color:var(--acc)}
+input[type=range]{accent-color:var(--acc);width:100%}
+#status{margin-left:auto;font-size:12px;color:var(--fg2);max-width:46vw;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+#status.err{color:var(--bad)} #status.ok{color:var(--ok)}
+
+/* ── 主體 ── */
+#main{flex:1 1 auto;display:flex;min-height:0;position:relative;overflow:hidden}
+#side{position:absolute;top:0;left:0;bottom:0;z-index:900;width:var(--side);background:var(--glass);
+  border-right:1px solid var(--line);overflow-y:auto;overflow-x:hidden;padding:0 14px 22px;
+  backdrop-filter:blur(24px) saturate(1.8);-webkit-backdrop-filter:blur(24px) saturate(1.8);
+  box-shadow:0 12px 42px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.1);
+  transition:transform .25s cubic-bezier(.4,0,.2,1);font-size:13px}
+#side::-webkit-scrollbar{width:5px}
+#side::-webkit-scrollbar-track{background:transparent}
+#side::-webkit-scrollbar-thumb{background:rgba(15,23,42,.22);border-radius:4px}
+#side.hide{transform:translateX(-100%)}
+.side-head{display:flex;align-items:center;gap:9px;padding:15px 2px 12px;color:var(--fg);font-weight:700;font-size:17px}
+.side-head .material-symbols-outlined{font-size:21px;color:var(--acc)}
+.side-head .mini{margin-left:auto;width:30px;height:30px;border-radius:50%;padding:0;display:inline-flex;align-items:center;justify-content:center}
+.sec{background:rgba(248,250,252,.76);border:1px solid var(--line);border-radius:16px;margin:0 0 12px;
+  box-shadow:0 4px 18px rgba(15,23,42,.1), inset 0 1px 0 rgba(255,255,255,.8)}
+.sec>h3{margin:0;padding:12px 13px 10px;font-size:13.5px;font-weight:700;color:var(--fg);
+  letter-spacing:0;cursor:pointer;display:flex;align-items:center;gap:8px;user-select:none;border-bottom:1px solid var(--line)}
+.sec>h3::before{content:"▾";font-size:10px;color:var(--fg2);transition:.15s;margin-left:auto;order:2}
+.sec.col>h3::before{transform:rotate(-90deg)}
+.sec.col>.body{display:none}
+.sec.col>h3{border-bottom:none}
+.body{padding:0 12px 13px}
+.row{display:flex;align-items:center;gap:8px;margin:6px 0}
+.row.wrap{flex-wrap:wrap}
+.chk{display:flex;align-items:center;gap:7px;padding:6px 7px;border-radius:10px;cursor:pointer;font-size:13px}
+.chk:hover{background:rgba(37,99,235,.08)}
+.chk input{accent-color:var(--acc);width:15px;height:15px;flex:0 0 auto}
+.swatch{width:11px;height:11px;border-radius:3px;flex:0 0 auto;box-shadow:0 0 0 1px rgba(15,23,42,.18)}
+.mstat{margin-left:auto;font-size:10px;color:var(--fg3);white-space:nowrap}
+.mstat.ok{color:var(--ok)} .mstat.err{color:var(--bad)} .mstat.load{color:var(--warn)}
+.hint{font-size:11.5px;color:var(--fg2);line-height:1.55;margin:7px 0 0}
+.pill{display:inline-block;background:rgba(15,23,42,.04);border:1px solid var(--line);border-radius:999px;
+  padding:1px 8px;font-size:10px;color:var(--fg2);margin:2px 3px 0 0}
+
+/* 颱風清單 */
+#stormList{display:flex;flex-direction:column;gap:5px}
+.storm{background:rgba(255,255,255,.62);border:1px solid var(--line);border-radius:12px;padding:8px 9px;cursor:pointer;transition:.16s}
+.storm:hover{border-color:var(--acc);background:rgba(37,99,235,.08)}
+.storm.on{border-color:var(--acc);background:rgba(37,99,235,.13);box-shadow:inset 3px 0 0 var(--acc)}
+.storm .nm{font-weight:700;font-size:13px}
+.storm .mt{font-size:10.5px;color:var(--fg3);margin-top:2px}
+
+#mapWrap{flex:1 1 auto;position:relative;min-width:0}
+#map{position:absolute;inset:0;background:#060a10}
+.leaflet-container{font-family:inherit;background:#060a10}
+.leaflet-popup-content-wrapper,.leaflet-tooltip{background:rgba(255,255,255,.9);color:var(--fg);
+  border:1px solid var(--line);border-radius:16px;box-shadow:0 8px 32px rgba(15,23,42,.18);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+.leaflet-popup-tip{background:rgba(255,255,255,.9);border:1px solid var(--line)}
+.leaflet-tooltip:before{display:none}
+.leaflet-bar a{background:var(--bg3);color:var(--fg);border-color:var(--line)}
+.leaflet-bar a:hover{background:rgba(37,99,235,.1);color:#1d4ed8}
+
+/* 地圖上浮層 */
+.ovl{position:absolute;z-index:600;background:var(--glass);border:1px solid var(--line);
+  border-radius:16px;backdrop-filter:blur(24px) saturate(1.8);-webkit-backdrop-filter:blur(24px) saturate(1.8);
+  color:var(--fg);font-size:11.5px;box-shadow:0 8px 32px rgba(15,23,42,.16), inset 0 1px 0 rgba(255,255,255,.8)}
+#legend{right:10px;bottom:10px;padding:8px 10px;max-width:280px;line-height:1.55}
+#legend h4{margin:8px 0 5px;font-size:11px;color:var(--fg2);letter-spacing:.4px}
+#legend .lghead{display:flex;align-items:center;gap:6px;margin-bottom:6px;font-weight:800;color:var(--fg)}
+#legend .lghead .material-symbols-outlined{font-size:18px;color:var(--acc)}
+#legend .lgmini{margin-left:auto;width:24px;height:24px;border:0;border-radius:50%;background:rgba(15,23,42,.06);
+  color:var(--fg2);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0}
+#legend .lgmini:hover{background:rgba(37,99,235,.1);color:var(--acc)}
+#legend .infoContent{font-size:11.5px;margin-bottom:7px}
+#legend .infoContent b{color:#1d4ed8}
+#legend.mini{width:42px;height:42px;display:flex;align-items:center;justify-content:center;padding:0;border-radius:50%}
+#legend.mini .lgbody,#legend.mini .lgtitle,#legend.mini .infoContent{display:none}
+#legend.mini .lghead{margin:0}
+#legend.mini .lghead .material-symbols-outlined{font-size:23px}
+#legend.mini .lgmini{display:none}
+.lgrow{display:flex;align-items:center;gap:6px;margin:3px 0;font-size:11px}
+.lgline{width:22px;height:0;border-top-width:3px;border-top-style:solid;flex:0 0 auto}
+#probbar{display:flex;height:11px;border-radius:3px;overflow:hidden;margin:4px 0 2px}
+#probbar i{flex:1}
+#timeBar{left:50%;transform:translateX(-50%);bottom:14px;padding:10px 20px;width:min(820px,calc(100% - 34px));
+  min-height:92px;display:grid;grid-template-columns:44px minmax(0,1fr);grid-template-rows:auto 18px auto;
+  column-gap:14px;row-gap:4px;align-items:center;border-radius:24px;background:rgba(255,255,255,.68);
+  border-color:rgba(255,255,255,.65);box-shadow:0 12px 34px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.75)}
+#timeBar .tplay{grid-row:1/4;width:40px;height:40px;border-radius:50%;border:1px solid rgba(0,0,0,.18);
+  background:rgba(255,255,255,.72);color:#111827;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.12);font-size:0}
+#timeBar .tplay .material-symbols-outlined{font-size:24px}
+#timeBar .tmain{grid-column:2/3;text-align:center;color:#0f172a;
+  text-shadow:0 1px 0 rgba(255,255,255,.45);display:grid;grid-template-columns:24px minmax(0,1fr) 24px;
+  align-items:center;gap:8px;min-width:0}
+#timeBar .timeText{min-width:0}
+#timeBar .timeLabel{display:block;font-size:10.5px;font-weight:700;color:#475569;margin-bottom:0}
+#timeBar .timeValue{display:block;font-size:14px;font-weight:800;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#timeBar .tmain button{width:24px;height:24px;border:0;border-radius:50%;background:transparent;color:#667085;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center}
+#timeBar .tmain button:hover{background:rgba(255,255,255,.45);color:#111827}
+#timeBar .tslider{grid-column:2/3;display:flex;align-items:center;min-width:0;padding:0}
+#timeBar .tslider input[type=range]{height:18px;accent-color:#111827;width:100%;min-width:0;display:block}
+#timeBar .tbottom{grid-column:2/3;display:flex;align-items:center;justify-content:center;gap:7px;color:#334155;font-size:12px;min-width:0}
+#timeBar .tbottom .material-symbols-outlined{font-size:19px;color:#667085}
+#timeBar .tbottom .tmainBtn{width:24px;height:24px;border:0;border-radius:50%;background:transparent;color:#667085;
+  display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+#timeBar .tbottom .tmainBtn:hover{background:rgba(255,255,255,.45);color:#111827}
+#timeBar .tbottom .tmainBtn .material-symbols-outlined{font-size:19px}
+#timeBar .initText{white-space:nowrap}
+#timeBar .initText .timeLabel{display:inline;margin-right:4px;font-size:12px;color:#334155}
+#timeBar .initText .timeValue{display:inline;font-size:12px;font-weight:600;color:#475569}
+#timeBar .miniCtl{width:auto;max-width:120px;padding:3px 6px;border-radius:10px;background:rgba(255,255,255,.45);
+  border:1px solid rgba(0,0,0,.1);color:#344054;font-size:11px}
+#timeBar input[type=date].miniCtl{width:112px}
+#timeBar select.miniCtl{width:54px}
+#timeBar #btnLoad{padding:4px 10px;border-radius:12px;font-size:11px;line-height:1.2;min-height:26px}
+#timeBar #btnLoad.clean{background:rgba(147,197,253,.28);border-color:rgba(96,165,250,.34);color:#64748b;font-weight:600}
+#timeBar #btnLoad.clean:hover{background:rgba(147,197,253,.42);color:#334155}
+
+/* 底部圖表 */
+#chartPane{flex:0 0 auto;height:216px;background:var(--glass);border-top:1px solid var(--line);
+  display:flex;flex-direction:column;backdrop-filter:blur(24px) saturate(1.8);-webkit-backdrop-filter:blur(24px) saturate(1.8);
+  color:var(--fg);box-shadow:0 -10px 34px rgba(15,23,42,.13), inset 0 1px 0 rgba(255,255,255,.8)}
+#chartPane.hide{height:auto}
+#chartPane.hide #chartBox{display:none}
+#chartHead{display:flex;align-items:center;gap:8px;padding:6px 12px;border-bottom:1px solid var(--line)}
+#chartHead .t{font-size:12px;font-weight:700;color:var(--fg)}
+#chartBox{flex:1;position:relative;min-height:0}
+#chart{position:absolute;inset:0;width:100%;height:100%}
+#chartTip{position:absolute;z-index:2;display:none;pointer-events:none;background:rgba(255,255,255,.94);
+  border:1px solid var(--line);border-radius:7px;padding:6px 8px;font-size:11px;line-height:1.45;
+  color:var(--fg);box-shadow:0 8px 24px rgba(15,23,42,.18);white-space:nowrap}
+.seg{display:flex;background:rgba(15,23,42,.05);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.seg button{background:none;border:0;padding:5px 10px;cursor:pointer;font-size:12px;color:var(--fg2)}
+.seg button.on{background:#bfdbfe;color:#1e3a8a;font-weight:700}
+
+#drop{position:absolute;inset:0;z-index:1200;background:rgba(4,10,18,.86);display:none;
+  align-items:center;justify-content:center;font-size:18px;border:3px dashed var(--acc);pointer-events:none}
+#drop.on{display:flex}
+#toggleSide{position:absolute;left:var(--side);top:50%;z-index:901;transform:translateY(-50%);
+  width:26px;height:64px;display:flex;align-items:center;justify-content:center;
+  background:var(--glass);border:1px solid var(--line);border-left:0;border-radius:0 14px 14px 0;
+  cursor:pointer;font-size:16px;color:var(--fg2);backdrop-filter:blur(24px) saturate(1.8);
+  -webkit-backdrop-filter:blur(24px) saturate(1.8);transition:left .25s cubic-bezier(.4,0,.2,1);
+  box-shadow:4px 0 18px rgba(15,23,42,.16)}
+#toggleSide.hide{left:0}
+#toggleSide:hover{color:var(--acc);border-color:var(--acc)}
+@media(max-width:860px){
+  :root{--side:min(86vw,330px)}
+  #top{gap:6px;padding:7px 9px}
+  #top h1{font-size:13px;max-width:calc(100vw - 160px);overflow:hidden;text-overflow:ellipsis}
+  #top h1 small{display:none}
+  #status{max-width:100%;margin-left:0;flex-basis:100%;font-size:11px}
+  #side{height:100%;padding-left:10px;padding-right:10px}
+  .side-head{padding-top:10px;font-size:15px}
+  .sec{border-radius:14px;margin-bottom:9px}
+  .sec>h3{padding:10px 11px 8px;font-size:13px}
+  .body{padding:0 10px 10px}
+  #toggleSide{left:var(--side);width:24px;height:58px}
+  #chartPane{height:154px}
+  #chartHead{gap:5px;padding:5px 8px;flex-wrap:wrap}
+  #chartHead .t{font-size:11px}
+  .seg button{padding:4px 7px;font-size:11px}
+  #legend{right:8px;top:8px;bottom:auto;max-width:min(250px,calc(100vw - 24px));max-height:calc(100% - 124px);overflow:auto}
+  #legend.mini{width:40px;height:40px}
+  #timeBar{bottom:8px;width:calc(100% - 16px);min-height:88px;padding:8px 10px;
+    grid-template-columns:38px minmax(0,1fr);column-gap:10px;row-gap:3px;border-radius:22px}
+  #timeBar .tplay{width:36px;height:36px}
+  #timeBar .tplay .material-symbols-outlined{font-size:22px}
+  #timeBar .timeLabel{font-size:10px}
+  #timeBar .timeValue{font-size:12.5px}
+  #timeBar .tmain{grid-template-columns:22px minmax(0,1fr) 22px;gap:5px}
+  #timeBar .tmain button,#timeBar .tbottom .tmainBtn{width:22px;height:22px}
+  #timeBar .tbottom{justify-content:center;gap:4px;flex-wrap:wrap;font-size:11px}
+  #timeBar .initText{flex:0 0 auto}
+  #timeBar .initText .timeLabel{font-size:11px}
+  #timeBar input[type=date].miniCtl{width:108px}
+  #timeBar select.miniCtl{width:50px}
+  #timeBar .miniCtl{padding:3px 5px;font-size:10.5px}
+  #timeBar #btnLoad{padding:4px 8px;font-size:10.5px;min-height:24px}
+}
+
+@media(max-width:480px) and (orientation:portrait){
+  #top h1{max-width:100%;flex-basis:100%}
+  #top .btn{padding:6px 10px;font-size:12px}
+  #status{display:none}
+  #chartPane{height:138px}
+  #timeBar{min-height:96px;grid-template-columns:36px minmax(0,1fr)}
+  #timeBar .timeValue{font-size:11.5px}
+  #timeBar .tbottom{justify-content:flex-start}
+  #legend:not(.mini){max-width:220px;font-size:11px}
+}
+
+@media(max-height:520px) and (orientation:landscape){
+  #top{padding:5px 8px;gap:6px}
+  #top h1{font-size:12px}
+  #status{display:none}
+  :root{--side:min(42vw,300px)}
+  #side{padding-left:9px;padding-right:9px}
+  .side-head{padding:8px 1px;font-size:14px}
+  .sec{margin-bottom:7px}
+  .sec>h3{padding:8px 10px 7px;font-size:12.5px}
+  .chk{padding:4px 5px;font-size:12px}
+  .row{margin:4px 0}
+  #chartPane{height:112px}
+  #legend{right:8px;top:8px;bottom:auto;max-width:230px;max-height:calc(100% - 104px);overflow:auto}
+  #timeBar{bottom:6px;width:min(760px,calc(100% - 16px));min-height:74px;padding:7px 12px;
+    grid-template-columns:36px minmax(0,1fr);row-gap:2px;border-radius:20px}
+  #timeBar .tplay{width:34px;height:34px}
+  #timeBar .timeLabel{display:none}
+  #timeBar .timeValue{font-size:12px}
+  #timeBar .tslider input[type=range]{height:14px}
+  #timeBar .tbottom{gap:4px;font-size:10.5px}
+  #timeBar input[type=date].miniCtl{width:106px}
+  #timeBar #btnLoad{padding:3px 8px;font-size:10px;min-height:23px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+<div id="top">
+  <h1>NWP/MLWP 系集颱風路徑預報<small>TIGGE CXML · Ensemble &amp; Deterministic Track Forecast</small></h1>
+  <button class="btn" id="btnFile">開啟本機檔</button>
+  <input type="file" id="fileIn" multiple accept=".xml,.gz,.xml.gz" style="display:none"/>
+  <div id="status">請選擇起報時間後按「載入資料」</div>
+</div>
+
+<div id="main">
+  <div id="side">
+    <div class="side-head">
+      <span class="material-symbols-outlined">tune</span>
+      <span>操作面板</span>
+      <button class="btn sm mini" id="sideMini" title="收合面板">−</button>
+    </div>
+
+    <div class="sec" id="secModel"><h3>預報中心 / 模式</h3><div class="body">
+      <div id="modelList"></div>
+      <div class="row"><button class="btn sm" id="mAll">全選</button><button class="btn sm" id="mNone">全不選</button>
+        <button class="btn sm" id="mWP">西北太常用</button></div>
+      <p class="hint">可直接載入 TIGGE CXML 資料；若瀏覽器取檔失敗，可用「開啟本機檔」或把 XML / XML.GZ 拖到地圖上。</p>
+    </div></div>
+
+    <div class="sec" id="secStorm"><h3>颱風 / 擾動</h3><div class="body">
+      <div class="row">
+        <select id="basinSel" style="flex:1">
+          <option value="NWP">西北太平洋</option>
+          <option value="ALL">全球（全部）</option>
+          <option value="NEP">東北太平洋</option>
+          <option value="NAT">北大西洋</option>
+          <option value="NIO">北印度洋</option>
+          <option value="SH">南半球</option>
+        </select>
+      </div>
+      <label class="chk"><input type="checkbox" id="cAllStorms"><span>顯示目前海域全部路徑</span></label>
+      <div id="stormList"></div>
+      <p class="hint" id="stormHint">尚未載入資料。</p>
+    </div></div>
+
+    <div class="sec" id="secLayer"><h3>圖層</h3><div class="body">
+      <label class="chk"><input type="checkbox" id="cMem" checked><span>系集成員路徑（義大利麵圖）</span></label>
+      <label class="chk"><input type="checkbox" id="cMean" checked><span>集合平均路徑</span></label>
+      <label class="chk"><input type="checkbox" id="cCtl"><span>控制報 / 決定性預報</span></label>
+      <label class="chk"><input type="checkbox" id="cProb"><span>侵襲機率場（strike probability）</span></label>
+      <div class="row"><label style="font-size:11px;color:var(--fg2);width:74px">成員線粗細</label>
+        <input type="range" id="rWid" min="0.5" max="4" step="0.5" value="1.4"></div>
+      <div class="row"><label style="font-size:11px;color:var(--fg2);width:74px">成員線透明</label>
+        <input type="range" id="rOpa" min="0.1" max="1" step="0.05" value="0.3"></div>
+      <div class="row"><label style="font-size:11px;color:var(--fg2);width:74px">底圖</label>
+        <select id="baseSel" style="flex:1">
+          <option value="dark">深色</option><option value="light">淺色</option>
+          <option value="osm">OSM</option><option value="sat">衛星影像</option>
+        </select></div>
+    </div></div>
+
+    <div class="sec" id="secProb"><h3>侵襲機率設定</h3><div class="body">
+      <div class="row"><label style="font-size:11px;color:var(--fg2);width:88px">影響半徑</label>
+        <input type="number" id="pRad" value="100" min="20" max="500" step="10" style="width:74px"> km</div>
+      <div class="row"><label style="font-size:11px;color:var(--fg2);width:88px">網格解析</label>
+        <select id="pRes" style="flex:1">
+          <option value="0.1">0.1°（最細，最慢）</option>
+          <option value="0.25" selected>0.25°（細，較慢）</option>
+          <option value="0.5">0.5°</option>
+          <option value="1">1.0°（快）</option></select></div>
+      <div class="row"><label style="font-size:11px;color:var(--fg2);width:88px">預報時段</label>
+        <select id="pWin" style="flex:1">
+          <option value="0,384">全部</option>
+          <option value="0,72">0–72 小時</option>
+          <option value="0,120" selected>0–120 小時</option></select></div>
+      <p class="hint">機率 = 通過該格點影響半徑內的成員數 ÷ 總成員數（含各已啟用模式；決定性模式視為 1 個成員）。</p>
+    </div></div>
+
+    <div class="sec col" id="secUrl"><h3>自訂網址 / 診斷</h3><div class="body">
+      <input type="text" id="customUrl" placeholder="貼上 CXML 檔網址…" style="width:100%"/>
+      <div class="row"><button class="btn sm" id="btnCustom">載入此網址</button>
+        <button class="btn sm" id="btnCopy">複製本次網址清單</button></div>
+      <div id="diag" class="hint" style="white-space:pre-wrap;word-break:break-all"></div>
+    </div></div>
+
+  </div>
+
+  <div id="mapWrap">
+    <div id="map"></div>
+    <div id="toggleSide">◀</div>
+    <div class="ovl" id="legend"></div>
+    <div class="ovl" id="timeBar">
+      <button class="tplay" id="tPlay" title="播放指定時效"><span class="material-symbols-outlined">play_arrow</span></button>
+      <div class="tmain">
+        <button id="tPrev" title="前一時效"><span class="material-symbols-outlined">chevron_left</span></button>
+        <span class="timeText"><span class="timeLabel">預報時間</span><span class="timeValue" id="validTime">--</span></span>
+        <button id="tNext" title="後一時效"><span class="material-symbols-outlined">chevron_right</span></button>
+      </div>
+      <div class="tslider"><input type="range" id="tSlider" min="0" max="240" step="6" value="0"/></div>
+      <div class="tbottom">
+        <button class="tmainBtn" id="dPrev" title="前一天"><span class="material-symbols-outlined">chevron_left</span></button>
+        <span class="initText" id="initTime"><span class="timeLabel">初始時間</span><span class="timeValue">--</span></span>
+        <input type="date" id="dDate" class="miniCtl"/>
+        <select id="dCycle" class="miniCtl"><option>00</option><option>06</option><option>12</option><option>18</option></select>
+        <button class="tmainBtn" id="dNext" title="後一天"><span class="material-symbols-outlined">chevron_right</span></button>
+        <button class="btn pri clean" id="btnLoad">載入資料</button>
+      </div>
+    </div>
+    <div id="drop">放開以載入 CXML 檔（.xml / .xml.gz）</div>
+  </div>
+</div>
+
+<div id="chartPane">
+  <div id="chartHead">
+    <span class="t">強度時序</span>
+    <div class="seg" id="chartSeg">
+      <button data-v="pres" class="on">中心氣壓 hPa</button>
+      <button data-v="wind">最大風速 kt</button>
+    </div>
+    <label class="chk" style="padding:2px 6px"><input type="checkbox" id="cChartMem" checked><span style="font-size:12px">顯示成員</span></label>
+    <button class="btn sm" id="chartHide" style="margin-left:auto">隱藏</button>
+  </div>
+  <div id="chartBox"><canvas id="chart"></canvas><div id="chartTip"></div></div>
+</div>
+
+</div>
+
+<script>
+"use strict";
+/* ══════════════════════════════════════════════════════════════════
+   NWP 系集颱風路徑預報檢視器
+   資料：TIGGE Cyclone XML (CXML) — https://data.gdex.ucar.edu/d330003/
+   ══════════════════════════════════════════════════════════════════ */
+
+/* ───────── 模式設定 ───────── */
+const BASE = "https://data.gdex.ucar.edu/d330003";
+const WNEXT_ATCF_BASE = "https://deepmind.google.com/science/weatherlab/download/cyclones/OPER/ensemble/paired/atcf";
+const WNEXT_READER_BASE = "https://r.jina.ai";
+const MODELS = [
+  {code:"ECMF", label:"ECMWF IFS/ENS", org:"歐洲中期預報中心", dir:"ecmf", color:"#ef4444", ens:true,
+   files:["z_tigge_c_ecmf_{YMD}{HH}0000_ifs_glob_prod_all_glo.xml"]},
+  {code:"KWBC", label:"NCEP GEFS", org:"美國國家環境預報中心", dir:"kwbc", color:"#2563eb", ens:true,
+   files:["z_tigge_c_kwbc_{YMD}{HH}0000_GEFS_glob_prod_esttr_glo.xml"]},
+  {code:"CMC",  label:"CMC ENS", org:"加拿大氣象中心", dir:"kwbc", color:"#0891b2", ens:true,
+    files:["z_tigge_c_kwbc_{YMD}{HH}0000_CENS_glob_prod_esttr_glo.xml"]},
+  {code:"AMMC", label:"BoM ACCESS-GE", org:"澳洲氣象局", dir:"ammc", color:"#16a34a", ens:true,
+   files:["z_tigge_c_ammc_tctrackpregen_IDY{YY}051_APS4_ens.{YMD}{HH}.xml",
+          "z_tigge_c_ammc_tctrack_IDY{YY}050_APS4_ens.{YMD}{HH}.xml"]},
+  {code:"RKSL", label:"KMA GEPS", org:"韓國氣象廳", dir:"rksl", color:"#7c3aed", ens:true,
+    files:["z_tigge_c_rksl_{YMD}{HH}0000_GEPS_glob_prod_etctr_nwp.xml"]},
+  {code:"WNX2", label:"Google WeatherNext2", org:"Google DeepMind", dir:"weathernext2", color:"#f97316", ens:true, format:"atcf",
+   files:["OPER_{Y}_{M}_{D}T{HH}_00_atcf_a_deck.txt"]},
+  {code:"RJTD", label:"JMA GEPS", org:"日本氣象廳", dir:"rjtd", color:"#a855f7", ens:true,
+   files:["z_tigge_c_RJTD_{YMD}{HH}0000_GEM_glob_prod_etctr_nwp.xml.gz"]},
+  {code:"EGRR", label:"UKMO MOGREPS", org:"英國氣象局", dir:"egrr", color:"#f59e0b", ens:true,
+   files:["z_tigge_c_egrr_{YMD}{HH}0000_mogreps_glob_prod_etctr_glo.xml.gz"]}
+];
+const DEFAULT_ON = MODELS.filter(m=>m.ens).map(m=>m.code);
+
+const LS = {models:"nwpens.models", base:"nwpens.base", layers:"nwpens.layers"};
+
+/* ───────── 取檔管道 ───────── */
+function routesFor(url){
+  return [{name:"direct", url:url}];
+}
+
+/* ───────── 小工具 ───────── */
+const $ = s=>document.querySelector(s);
+const $$ = s=>Array.from(document.querySelectorAll(s));
+const pad2 = n=>String(n).padStart(2,"0");
+const KT = 1.943844;                       // m/s → kt
+const D2R = Math.PI/180;
+
+function setStatus(msg, cls){ const e=$("#status"); e.textContent=msg; e.className=cls||""; }
+
+/* 大圓距離 (km) */
+function hav(a1,o1,a2,o2){
+  const dla=(a2-a1)*D2R, dlo=(o2-o1)*D2R;
+  const h = Math.sin(dla/2)**2 + Math.cos(a1*D2R)*Math.cos(a2*D2R)*Math.sin(dlo/2)**2;
+  return 6371.0088*2*Math.asin(Math.min(1,Math.sqrt(h)));
+}
+/* 經度正規化到 -180..180 */
+function norm180(x){ x=((x+180)%360+360)%360-180; return x===-180?180:x; }
+/* 把 b 平移 ±360 使其最接近參考 ref */
+function nearRef(b, ref){ while(b-ref>180) b-=360; while(b-ref<-180) b+=360; return b; }
+
+/* ───────── 資料讀取（含 gzip） ───────── */
+async function fetchOnce(url, timeout, kind="xml"){
+  const ctl = new AbortController();
+  const tid = setTimeout(()=>ctl.abort(), timeout||45000);
+  try{
+    const r = await fetch(url,{signal:ctl.signal, cache:"no-store", referrerPolicy:"no-referrer"});
+    clearTimeout(tid);
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const buf = await r.arrayBuffer();
+    if(buf.byteLength<200) throw new Error("回應過短("+buf.byteLength+"B)");
+    const txt = await decodeMaybeGzip(buf, url);
+    // 部分服務失敗時可能回傳 200 + HTML 錯誤頁，需驗證確實是指定格式
+    if(kind==="xml" && !/<\?xml|<cxml/i.test(txt.slice(0,3000))) throw new Error("非 XML 內容");
+    if(kind==="atcf" && !looksLikeATCF(txt)) throw new Error("非 ATCF 內容");
+    return txt;
+  }catch(e){
+    clearTimeout(tid);
+    if(e && e.name==="AbortError") throw new Error("逾時");
+    throw e;
+  }
+}
+/**
+ * 嘗試直連取檔，回傳 {text, via, tried[]}
+ */
+async function fetchCXML(url, timeout, kind="xml"){
+  const tried=[];
+  let lastErr=null;
+  for(const r of routesFor(url)){
+    try{
+      const txt = await fetchOnce(r.url, timeout, kind);
+      return {text:txt, via:r.name, tried:tried};
+    }catch(e){
+      const msg = String((e&&e.message)||e);
+      tried.push(r.name+"→"+(/Failed to fetch|NetworkError|Load failed/i.test(msg)?"連線失敗":msg));
+      lastErr = e;
+    }
+  }
+  const err = new Error(tried.join("｜"));
+  err.tried = tried; err.cause = lastErr;
+  throw err;
+}
+async function decodeMaybeGzip(buf, name){
+  const u8 = new Uint8Array(buf);
+  if(u8.length>2 && u8[0]===0x1f && u8[1]===0x8b){
+    if(typeof DecompressionStream==="undefined") throw new Error("此瀏覽器不支援 gzip 解壓");
+    const st = new Blob([buf]).stream().pipeThrough(new DecompressionStream("gzip"));
+    return await new Response(st).text();
+  }
+  let txt = new TextDecoder("utf-8").decode(buf);
+  if(!/^\s*<\?xml|^\s*<cxml/i.test(txt)) {
+    // 有些檔案帶 BOM 或前導空白
+    txt = txt.replace(/^﻿/,"");
+  }
+  return txt;
+}
+
+/* ───────── CXML 解析 ───────── */
+function elsByName(root, name){
+  // 快路徑：直接以標籤名取（大型檔案避免全樹掃描）
+  const fast = root.getElementsByTagName(name);
+  if(fast && fast.length) return Array.from(fast);
+  const out=[]; const low=name.toLowerCase();
+  const all = root.getElementsByTagName("*");
+  for(let i=0;i<all.length;i++){ if((all[i].localName||all[i].nodeName).toLowerCase()===low) out.push(all[i]); }
+  return out;
+}
+function childrenNamed(el, name){
+  const out=[]; const low=name.toLowerCase();
+  for(let c=el.firstElementChild;c;c=c.nextElementSibling){
+    if((c.localName||c.nodeName).toLowerCase()===low) out.push(c);
+  }
+  return out;
+}
+function firstNamed(el, name){ const a=childrenNamed(el,name); return a.length?a[0]:null; }
+function deepFirst(el, name){ const a=elsByName(el,name); return a.length?a[0]:null; }
+function txtOf(el){ return el ? (el.textContent||"").trim() : ""; }
+function ownText(el){          // 只取直屬文字節點（productionCenter 內含 subCenter）
+  if(!el) return "";
+  let s=""; for(const n of el.childNodes) if(n.nodeType===3) s+=n.nodeValue;
+  return s.trim();
+}
+function numOf(el){ if(!el) return null; const v=parseFloat(el.textContent); return isFinite(v)?v:null; }
+
+/* 座標：處理 units="deg W" 可能帶正值(需取負)或已為負值 */
+function coordOf(el, negLetter){
+  if(!el) return null;
+  let v = parseFloat(el.textContent);
+  if(!isFinite(v)) return null;
+  const u = (el.getAttribute("units")||"").toUpperCase();
+  if(u.indexOf(negLetter)>=0 && v>0) v = -v;
+  return v;
+}
+function windToKt(el){
+  const v = numOf(el); if(v===null || v<=-90) return null;
+  const u = (el.getAttribute("units")||"m/s").toLowerCase();
+  if(u.indexOf("kt")>=0 || u.indexOf("kn")>=0) return v;
+  if(u.indexOf("km")>=0) return v/3.6*KT;
+  if(u.indexOf("mph")>=0) return v*0.868976;
+  return v*KT;                    // m/s
+}
+
+const BASIN_MAP = [
+  [/northwest\s*pacific|western\s*north\s*pacific|^wp$|^nwp$/i, "NWP", "西北太平洋"],
+  [/northeast\s*pacific|eastern\s*north\s*pacific|^ep$|^nep$|central\s*pacific|^cp$/i, "NEP", "東北太平洋"],
+  [/north\s*atlantic|^al$|^at$|^na$/i, "NAT", "北大西洋"],
+  [/north\s*indian|arabian|bay\s*of\s*bengal|^io$|^ni$/i, "NIO", "北印度洋"],
+  [/south|^sh$|^sp$|^si$|^sl$/i, "SH", "南半球"]
+];
+function basinCode(s){
+  s=(s||"").trim(); if(!s) return null;
+  for(const [re,c] of BASIN_MAP) if(re.test(s)) return c;
+  return null;
+}
+function basinFromPos(lat, lon){
+  const L = norm180(lon);
+  if(lat<0) return "SH";
+  if(L>=100 && L<=180) return "NWP";
+  if(L>-180 && L<-75) return "NEP";
+  if(L>=-100 && L<=0) return "NAT";
+  if(L>=30 && L<100) return "NIO";
+  return "NWP";
+}
+const BASIN_NAME = {NWP:"西北太平洋",NEP:"東北太平洋",NAT:"北大西洋",NIO:"北印度洋",SH:"南半球"};
+
+const BAD_NAMES = /^(|unnamed|no ?name|nn|invest|unknown|xx|999|tbd|n\/a)$/i;
+
+function looksLikeATCF(text){
+  return text.split(/\r?\n/).some(line=>{
+    const s=line.trim();
+    if(!s || s[0]==="#") return false;
+    const p=s.split(",").map(x=>x.trim());
+    return p.length>=10 && /^[A-Z]{2}$/i.test(p[0]) && /^\d{8,10}$/.test(p[2]||"") &&
+           /^F\d{3}$/i.test(p[4]||"") && /^[0-9]{2,4}[NS]$/i.test(p[6]||"") && /^[0-9]{3,5}[EW]$/i.test(p[7]||"");
+  });
+}
+function atcfCoord(s){
+  s=(s||"").trim().toUpperCase();
+  const m=s.match(/^(\d+(?:\.\d+)?)([NSEW])$/);
+  if(!m) return null;
+  let v=parseFloat(m[1]);
+  if(!isFinite(v)) return null;
+  if(!s.includes(".")) v /= 10;
+  if(m[2]==="S" || m[2]==="W") v = -v;
+  return v;
+}
+function parseAtcfTime(s){
+  s=(s||"").trim();
+  const m=s.match(/^(\d{4})(\d{2})(\d{2})(\d{2})$/);
+  if(!m) return null;
+  return Date.UTC(+m[1], +m[2]-1, +m[3], +m[4]);
+}
+function parseATCF(text, model, srcLabel){
+  const byTrack = new Map();
+  let baseMs = null;
+  let lineCount = 0;
+  for(const raw of text.split(/\r?\n/)){
+    const line = raw.trim();
+    if(!line || line[0]==="#") continue;
+    const p = line.split(",").map(x=>x.trim());
+    if(p.length<10) continue;
+    const basinRaw = p[0].toUpperCase();
+    const stormNo = p[1].padStart(2,"0");
+    const initMs = parseAtcfTime(p[2]);
+    const member = /^F\d{3}$/i.test(p[4]) ? parseInt(p[4].slice(1),10) : null;
+    const h = parseFloat(p[5]);
+    const lat = atcfCoord(p[6]);
+    const lon = atcfCoord(p[7]);
+    const wind = parseFloat(p[8]);
+    const pres = parseFloat(p[9]);
+    if(initMs===null || !isFinite(h) || lat===null || lon===null) continue;
+    if(baseMs===null) baseMs = initMs;
+    const basin = basinCode(basinRaw) || basinFromPos(lat, lon);
+    const id = `${basinRaw}${stormNo}`;
+    const key = `${id}:${member===null?"d":member}`;
+    let t = byTrack.get(key);
+    if(!t){
+      t = {
+        model:model.code, modelLabel:model.label, color:model.color,
+        header:null, dataType:"forecast", member:member, perturb:p[4]||"",
+        isEns:true, isCtl:member===0, distId:id,
+        name:"", number:id, localID:id, basin:basin, basinRaw:basinRaw,
+        pts:[]
+      };
+      byTrack.set(key,t);
+    }
+    t.pts.push({h:h, t:initMs+h*3600000, lat:lat, lon:norm180(lon),
+                pres:(isFinite(pres)&&pres>700&&pres<1080)?pres:null,
+                wind:(isFinite(wind)&&wind>=0&&wind<300)?wind:null,
+                src:p[4]||""});
+    lineCount++;
+  }
+  const H = {
+    product:"WeatherNext2 ATCF A-deck",
+    center:"Google DeepMind",
+    subCenter:"",
+    modelName:model.label,
+    resolution:"",
+    appType:"ensemble",
+    numMembers:null,
+    baseTime:baseMs!==null ? new Date(baseMs).toISOString() : "",
+    creationTime:"",
+    src:srcLabel
+  };
+  const tracks=[];
+  for(const t of byTrack.values()){
+    t.header = H;
+    t.pts.sort((a,b)=>a.h-b.h);
+    const seen = new Set();
+    t.pts = t.pts.filter(p=>{
+      if(seen.has(p.h)) return false;
+      seen.add(p.h);
+      return true;
+    });
+    if(t.pts.length<2) continue;
+    for(let i=1;i<t.pts.length;i++) t.pts[i].lon = nearRef(t.pts[i].lon, t.pts[i-1].lon);
+    tracks.push(t);
+  }
+  if(lineCount && !tracks.length) throw new Error("ATCF 檔案中無可用路徑資料");
+  return {header:H, tracks:tracks};
+}
+
+/**
+ * 解析單一 CXML 檔 → { header, tracks[] }
+ */
+function parseCXML(text, model, srcLabel){
+  const doc = new DOMParser().parseFromString(text, "text/xml");
+  const perr = doc.getElementsByTagName("parsererror");
+  if(perr.length) throw new Error("XML 格式錯誤");
+  const root = doc.documentElement;
+  if(!root) throw new Error("空的 XML");
+
+  const hdr = deepFirst(root,"header") || root;
+  const gen = deepFirst(hdr,"generatingApplication");
+  const mdl = gen ? deepFirst(gen,"model") : null;
+  const H = {
+    product     : txtOf(deepFirst(hdr,"product")),
+    center      : ownText(deepFirst(hdr,"productionCenter")) || txtOf(deepFirst(hdr,"productionCenter")),
+    subCenter   : txtOf(deepFirst(hdr,"subCenter")),
+    modelName   : mdl ? txtOf(deepFirst(mdl,"name")) : "",
+    resolution  : mdl ? txtOf(deepFirst(mdl,"modelResolution")) : "",
+    appType     : gen ? txtOf(deepFirst(gen,"applicationType")) : "",
+    numMembers  : gen ? (numOf(deepFirst(gen,"numMembers"))||null) : null,
+    baseTime    : txtOf(deepFirst(hdr,"baseTime")),
+    creationTime: txtOf(deepFirst(hdr,"creationTime")),
+    src         : srcLabel
+  };
+  const bt = Date.parse(H.baseTime);
+  const baseMs = isFinite(bt) ? bt : null;
+
+  const tracks = [];
+  const dataEls = elsByName(root,"data");
+  for(const d of dataEls){
+    const type = (d.getAttribute("type")||"forecast").trim();
+    if(/analysis/i.test(type)) continue;                 // 分析場只有單點，略過
+    const memAttr = d.getAttribute("member");
+    const perturb = (d.getAttribute("perturb")||"").trim();
+    const isEns   = /ensemble/i.test(type);
+    const member  = memAttr!==null && memAttr!=="" ? parseInt(memAttr,10) : null;
+    const isCtl   = (!isEns) || /control|cf|^0$/i.test(perturb) || member===0;
+
+    for(const dist of childrenNamed(d,"disturbance")){
+      const nameRaw = txtOf(deepFirst(dist,"cycloneName"));
+      const number  = txtOf(deepFirst(dist,"cycloneNumber"));
+      const localID = txtOf(deepFirst(dist,"localID"));
+      const basinRaw= txtOf(deepFirst(dist,"basin"));
+      const pts=[];
+      for(const fx of childrenNamed(dist,"fix")){
+        const lat = coordOf(firstNamed(fx,"latitude"), "S");
+        const lon = coordOf(firstNamed(fx,"longitude"),"W");
+        if(lat===null||lon===null) continue;
+        if(Math.abs(lat)>90) continue;
+        const vt  = txtOf(firstNamed(fx,"validTime"));
+        let h = fx.getAttribute("hour");
+        h = (h!==null && h!=="") ? parseFloat(h) : null;
+        const vms = Date.parse(vt);
+        if(h===null && baseMs!==null && isFinite(vms)) h = Math.round((vms-baseMs)/3600000);
+        if(h===null) h = pts.length*6;
+        const cd  = firstNamed(fx,"cycloneData");
+        let pres=null, wind=null;
+        if(cd){
+          const mp = deepFirst(cd,"minimumPressure");
+          if(mp){ const p=numOf(deepFirst(mp,"pressure")); if(p!==null && p>700 && p<1080) pres=p; }
+          const mw = deepFirst(cd,"maximumWind");
+          if(mw){ const w=windToKt(deepFirst(mw,"speed")); if(w!==null && w>=0 && w<300) wind=w; }
+        }
+        pts.push({h:h, t:isFinite(vms)?vms:null, lat:lat, lon:norm180(lon), pres:pres, wind:wind,
+                  src:(fx.getAttribute("source")||"")});
+      }
+      if(pts.length<2) continue;
+      pts.sort((a,b)=>a.h-b.h);
+      // 連續化經度（跨換日線）
+      for(let i=1;i<pts.length;i++) pts[i].lon = nearRef(pts[i].lon, pts[i-1].lon);
+
+      const name = BAD_NAMES.test(nameRaw) ? "" : nameRaw.toUpperCase();
+      const bc = basinCode(basinRaw) || basinFromPos(pts[0].lat, pts[0].lon);
+      tracks.push({
+        model:model.code, modelLabel:model.label, color:model.color,
+        header:H, dataType:type, member:member, perturb:perturb,
+        isEns:isEns, isCtl:isCtl, distId:dist.getAttribute("ID")||"",
+        name:name, number:number, localID:localID, basin:bc, basinRaw:basinRaw,
+        pts:pts
+      });
+    }
+  }
+  return {header:H, tracks:tracks};
+}
+
+/* ───────── 依颱風分群 ───────── */
+function groupStorms(tracks){
+  const groups = [];        // {key,name,basin,tracks[],ref:{lat,lon}}
+  const byName = new Map();
+
+  // 1) 有名字者直接依名稱分群
+  for(const t of tracks){
+    if(!t.name) continue;
+    const k = t.name.replace(/[^A-Z0-9]/g,"");
+    let g = byName.get(k);
+    if(!g){ g = {key:"N:"+k, name:t.name, basin:t.basin, tracks:[], ref:{lat:t.pts[0].lat, lon:t.pts[0].lon}};
+            byName.set(k,g); groups.push(g); }
+    g.tracks.push(t);
+  }
+  // 2) 無名者：先靠向名稱群（起始位置 <500km），否則自成一群
+  const anon = [];
+  for(const t of tracks){
+    if(t.name) continue;
+    const p0=t.pts[0];
+    let best=null, bd=1e9;
+    for(const g of groups){
+      const d = hav(p0.lat, norm180(p0.lon), g.ref.lat, norm180(g.ref.lon));
+      if(d<bd){ bd=d; best=g; }
+    }
+    if(best && bd<500){ best.tracks.push(t); continue; }
+    anon.push(t);
+  }
+  // 3) 無名者互相聚類
+  const anonGroups=[];
+  for(const t of anon){
+    const p0=t.pts[0];
+    let best=null, bd=1e9;
+    for(const g of anonGroups){
+      const d = hav(p0.lat, norm180(p0.lon), g.ref.lat, norm180(g.ref.lon));
+      if(d<bd){ bd=d; best=g; }
+    }
+    if(best && bd<550){ best.tracks.push(t); }
+    else{
+      const g={key:"P:"+anonGroups.length, name:"", basin:t.basin, tracks:[t],
+               ref:{lat:p0.lat, lon:p0.lon}};
+      anonGroups.push(g); groups.push(g);
+    }
+  }
+  // 統計
+  for(const g of groups){
+    const models = new Set(), mem = new Map();
+    let lat=0, lon=0, n=0, maxH=0, minP=null, maxW=null;
+    const refLon = norm180(g.tracks[0].pts[0].lon);
+    for(const t of g.tracks){
+      models.add(t.model);
+      mem.set(t.model, (mem.get(t.model)||0)+1);
+      // 把整條軌跡平移到同一經度框架（跨換日線時整條一起位移 ±360）
+      const d0 = t.pts[0].lon;
+      for(const p of t.pts) p.lonF = p.lon + (nearRef(norm180(d0), refLon) - d0);
+      lat += t.pts[0].lat; lon += t.pts[0].lonF; n++;
+      maxH = Math.max(maxH, t.pts[t.pts.length-1].h);
+      for(const p of t.pts){
+        if(p.pres!==null) minP = (minP===null)?p.pres:Math.min(minP,p.pres);
+        if(p.wind!==null) maxW = (maxW===null)?p.wind:Math.max(maxW,p.wind);
+      }
+    }
+    g.ref = {lat:lat/n, lon:lon/n};
+    g.models = Array.from(models);
+    g.memCount = mem;
+    g.nTracks = g.tracks.length;
+    g.maxH = maxH; g.minP = minP; g.maxW = maxW;
+    if(!g.name){
+      const c = g.tracks.find(t=>t.number);
+      g.name = c && c.number ? ("編號 "+c.number) : "未命名擾動";
+      g.anon = true;
+    }
+    // basin 以多數決
+    const bcount={};
+    for(const t of g.tracks) bcount[t.basin]=(bcount[t.basin]||0)+1;
+    g.basin = Object.keys(bcount).sort((a,b)=>bcount[b]-bcount[a])[0];
+  }
+  groups.sort((a,b)=> b.nTracks - a.nTracks);
+  return groups;
+}
+
+/* ───────── 集合平均 ───────── */
+function meanTrack(tracks){
+  const acc = new Map();     // h → {lat,lon,pres,wind,n,np,nw}
+  const refLon = norm180(tracks[0].pts[0].lonF!==undefined?tracks[0].pts[0].lonF:tracks[0].pts[0].lon);
+  for(const t of tracks){
+    for(const p of t.pts){
+      const L = p.lonF!==undefined ? p.lonF : p.lon;
+      let a = acc.get(p.h);
+      if(!a){ a={h:p.h, lat:0, lon:0, pres:0, wind:0, n:0, np:0, nw:0, members:[]}; acc.set(p.h,a); }
+      a.lat += p.lat; a.lon += nearRef(L, refLon); a.n++;
+      a.members.push({lat:p.lat, lon:nearRef(L,refLon)});
+      if(p.pres!==null){ a.pres += p.pres; a.np++; }
+      if(p.wind!==null){ a.wind += p.wind; a.nw++; }
+    }
+  }
+  const N = tracks.length;
+  const out=[];
+  for(const a of Array.from(acc.values()).sort((x,y)=>x.h-y.h)){
+    if(a.n < Math.max(2, N*0.3)) continue;          // 至少 30% 成員仍存在
+    const lat=a.lat/a.n, lon=a.lon/a.n;
+    let sp=0; for(const m of a.members) sp += hav(lat,norm180(lon), m.lat, norm180(m.lon));
+    out.push({h:a.h, lat:lat, lon:lon,
+              pres:a.np?a.pres/a.np:null, wind:a.nw?a.wind/a.nw:null,
+              n:a.n, frac:a.n/N, spread:sp/a.n});
+  }
+  return out;
+}
+
+/* ───────── 侵襲機率場 ───────── */
+function strikeProb(tracks, radKm, resDeg, hMin, hMax){
+  const use = tracks.filter(t=>t.pts.some(p=>p.h>=hMin && p.h<=hMax));
+  if(!use.length) return null;
+  let la0=90, la1=-90, lo0=1e9, lo1=-1e9;
+  const dense = [];
+  for(const t of use){
+    const seq=[];
+    const pts = t.pts.filter(p=>p.h>=hMin && p.h<=hMax);
+    for(let i=0;i<pts.length;i++){
+      const p=pts[i], L = p.lonF!==undefined?p.lonF:p.lon;
+      seq.push([p.lat, L]);
+      if(i<pts.length-1){
+        const q=pts[i+1], LQ=q.lonF!==undefined?q.lonF:q.lon;
+        const steps = Math.max(1, Math.ceil(hav(p.lat,norm180(L),q.lat,norm180(LQ))/40));
+        for(let s=1;s<steps;s++){
+          const f=s/steps; seq.push([p.lat+(q.lat-p.lat)*f, L+(LQ-L)*f]);
+        }
+      }
+    }
+    dense.push(seq);
+    for(const [a,o] of seq){ la0=Math.min(la0,a); la1=Math.max(la1,a); lo0=Math.min(lo0,o); lo1=Math.max(lo1,o); }
+  }
+  const pad = radKm/111 + resDeg;
+  la0=Math.max(-89, la0-pad); la1=Math.min(89, la1+pad);
+  lo0-=pad*1.4; lo1+=pad*1.4;
+  const nx = Math.min(900, Math.ceil((lo1-lo0)/resDeg));
+  const ny = Math.min(600, Math.ceil((la1-la0)/resDeg));
+  if(nx<1||ny<1) return null;
+  const count = new Float32Array(nx*ny);
+  const seen  = new Uint8Array(nx*ny);
+  let stamp = 0;
+  const mark = new Int32Array(nx*ny);
+
+  for(const seq of dense){
+    stamp++;
+    for(const [a,o] of seq){
+      const dLat = radKm/111.0;
+      const cosf = Math.max(0.15, Math.cos(a*D2R));
+      const dLon = radKm/(111.0*cosf);
+      const ix0 = Math.max(0, Math.floor((o-dLon-lo0)/resDeg));
+      const ix1 = Math.min(nx-1, Math.ceil((o+dLon-lo0)/resDeg));
+      const iy0 = Math.max(0, Math.floor((a-dLat-la0)/resDeg));
+      const iy1 = Math.min(ny-1, Math.ceil((a+dLat-la0)/resDeg));
+      for(let iy=iy0; iy<=iy1; iy++){
+        const cy = la0 + (iy+0.5)*resDeg;
+        for(let ix=ix0; ix<=ix1; ix++){
+          const k = iy*nx+ix;
+          if(mark[k]===stamp) continue;
+          const cx = lo0 + (ix+0.5)*resDeg;
+          if(hav(a, norm180(o), cy, norm180(cx)) <= radKm){ mark[k]=stamp; count[k]++; }
+        }
+      }
+    }
+  }
+  const N = use.length;
+  const prob = new Float32Array(nx*ny);
+  let pmax=0;
+  for(let i=0;i<count.length;i++){ prob[i]=count[i]/N; if(prob[i]>pmax) pmax=prob[i]; }
+  return {nx:nx, ny:ny, lat0:la0, lon0:lo0, res:resDeg, prob:prob, n:N, pmax:pmax};
+}
+
+const PROB_STOPS = [
+  [0.05,"#1e3a8a"],[0.10,"#1d4ed8"],[0.20,"#0ea5e9"],[0.30,"#14b8a6"],
+  [0.40,"#22c55e"],[0.50,"#a3e635"],[0.60,"#fde047"],[0.70,"#fb923c"],
+  [0.80,"#f43f5e"],[0.90,"#e11d48"]
+];
+function probColor(p){
+  let c=null;
+  for(const [v,col] of PROB_STOPS){ if(p>=v) c=col; }
+  return c;
+}
+
+/* ───────── Leaflet 機率圖層 ───────── */
+const ProbLayer = L.Layer.extend({
+  onAdd(map){
+    this._map = map;
+    this._cv = L.DomUtil.create("canvas","prob-canvas leaflet-zoom-hide");
+    this._cv.style.pointerEvents="none";
+    map.getPanes().overlayPane.appendChild(this._cv);
+    map.on("moveend zoomend resize", this._reset, this);
+    map.on("zoomanim", this._anim, this);
+    this._reset();
+  },
+  onRemove(map){
+    if(this._cv) L.DomUtil.remove(this._cv);
+    map.off("moveend zoomend resize", this._reset, this);
+    map.off("zoomanim", this._anim, this);
+  },
+  setGrid(g){ this._g = g; if(this._map) this._reset(); },
+  setOpacity(o){ this._op=o; if(this._cv) this._cv.style.opacity=o; },
+  _anim(){ if(this._cv) this._cv.style.opacity = 0; },
+  _reset(){
+    if(!this._map||!this._cv) return;
+    const map=this._map, size=map.getSize();
+    const tl = map.containerPointToLayerPoint([0,0]);
+    L.DomUtil.setPosition(this._cv, tl);
+    const dpr = window.devicePixelRatio||1;
+    this._cv.width = size.x*dpr; this._cv.height = size.y*dpr;
+    this._cv.style.width = size.x+"px"; this._cv.style.height = size.y+"px";
+    this._cv.style.opacity = (this._op!==undefined?this._op:0.62);
+    this._draw(dpr);
+  },
+  _draw(dpr){
+    const ctx=this._cv.getContext("2d");
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,this._cv.width,this._cv.height);
+    const g=this._g; if(!g) return;
+    const map=this._map;
+    const size=map.getSize();
+    for(let iy=0; iy<g.ny; iy++){
+      const y0 = g.lat0+iy*g.res, y1=y0+g.res;
+      for(let ix=0; ix<g.nx; ix++){
+        const p = g.prob[iy*g.nx+ix];
+        if(p<0.05) continue;
+        const x0 = g.lon0+ix*g.res, x1=x0+g.res;
+        const a = map.latLngToContainerPoint([y1,x0]);
+        const b = map.latLngToContainerPoint([y0,x1]);
+        if(b.x<-4||a.x>size.x+4||b.y<-4||a.y>size.y+4) continue;
+        ctx.fillStyle = probColor(p);
+        ctx.fillRect(a.x, a.y, Math.max(1,b.x-a.x+0.6), Math.max(1,b.y-a.y+0.6));
+      }
+    }
+  }
+});
+
+/* ══════════════════════════════════════════════════════════════════
+   應用程式狀態
+   ══════════════════════════════════════════════════════════════════ */
+const S = {
+  modelOn: {},
+  files: {},          // code → {ok,msg,header,tracks,url}
+  tracks: [],
+  storms: [],
+  storm: null,
+  chartVar: "pres",
+  basin: "NWP",
+  allStorms: false,
+  showDots: true,
+  playing: false,
+  loopTime: true,
+  legendMini: false,
+  loadedInitKey: "",
+  infoHtml: "尚未載入資料"
+};
+try{
+  if(localStorage.getItem("nwpens.defaultModelSet")!=="20260730-ukmo-mogreps"){
+    localStorage.removeItem(LS.models);
+    localStorage.setItem("nwpens.defaultModelSet","20260730-ukmo-mogreps");
+  }
+}catch(e){}
+try{ const s=JSON.parse(localStorage.getItem(LS.models)||"null"); if(s) S.modelOn=s; }catch(e){}
+MODELS.forEach(m=>{ if(!(m.code in S.modelOn)) S.modelOn[m.code]=DEFAULT_ON.includes(m.code); });
+
+/* ───────── 地圖 ───────── */
+const TILES = {
+  dark :{u:"https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", a:"© OpenStreetMap © CARTO", max:19},
+  light:{u:"https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",a:"© OpenStreetMap © CARTO", max:19},
+  osm  :{u:"https://tile.openstreetmap.org/{z}/{x}/{y}.png", a:"© OpenStreetMap contributors", max:19},
+  sat  :{u:"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", a:"Esri World Imagery", max:18}
+};
+const map = L.map("map",{center:[22.5,127], zoom:4, worldCopyJump:false, zoomControl:true,
+                         preferCanvas:true, minZoom:2, maxZoom:12});
+let tileLayer = null;
+function setBase(k){
+  const t = TILES[k]||TILES.dark;
+  if(tileLayer) map.removeLayer(tileLayer);
+  tileLayer = L.tileLayer(t.u,{attribution:t.a, maxZoom:t.max, noWrap:false}).addTo(map);
+  try{ localStorage.setItem(LS.base,k); }catch(e){}
+}
+setBase(localStorage.getItem(LS.base)||"dark");
+
+const gMem  = L.layerGroup().addTo(map);
+const gMean = L.layerGroup().addTo(map);
+const gCtl  = L.layerGroup().addTo(map);
+const gDots = L.layerGroup().addTo(map);
+const probLayer = new ProbLayer();
+
+/* 台灣參考點 */
+L.circleMarker([23.7,121.0],{radius:4,color:"#fff",weight:1.5,fillColor:"#fff",fillOpacity:.9})
+ .bindTooltip("臺灣",{permanent:false}).addTo(map);
+
+/* ══════════════════════════════════════════════════════════════════
+   UI 建構
+   ══════════════════════════════════════════════════════════════════ */
+function buildModelList(){
+  const box = $("#modelList"); box.innerHTML="";
+  MODELS.forEach(m=>{
+    const l = document.createElement("label");
+    l.className="chk";
+    l.innerHTML = `<input type="checkbox" data-m="${m.code}" ${S.modelOn[m.code]?"checked":""}>
+      <span class="swatch" style="background:${m.color}"></span>
+      <span><b style="font-weight:600">${m.label}</b><br><span style="font-size:10px;color:var(--fg3)">${m.org}${m.ens?" · 系集":" · 決定性"}</span></span>
+      <span class="mstat" id="ms-${m.code}"></span>`;
+    box.appendChild(l);
+  });
+  box.addEventListener("change", e=>{
+    const c = e.target.getAttribute && e.target.getAttribute("data-m");
+    if(!c) return;
+    S.modelOn[c] = e.target.checked;
+    try{ localStorage.setItem(LS.models, JSON.stringify(S.modelOn)); }catch(err){}
+    rebuild();
+  });
+}
+function mstat(code, txt, cls){
+  const e = $("#ms-"+code); if(e){ e.textContent=txt; e.className="mstat "+(cls||""); }
+}
+
+/* 摺疊 */
+$$(".sec>h3").forEach(h=>h.addEventListener("click",()=>h.parentElement.classList.toggle("col")));
+function setSidePanelHidden(hidden){
+  $("#side").classList.toggle("hide", hidden);
+  $("#toggleSide").classList.toggle("hide", hidden);
+  $("#toggleSide").textContent = hidden ? "▶" : "◀";
+  setTimeout(()=>map.invalidateSize(),260);
+}
+function toggleSidePanel(){
+  setSidePanelHidden(!$("#side").classList.contains("hide"));
+}
+$("#toggleSide").addEventListener("click",toggleSidePanel);
+$("#sideMini").addEventListener("click",toggleSidePanel);
+if(window.matchMedia && window.matchMedia("(max-width: 640px)").matches) setSidePanelHidden(true);
+
+/* 日期預設：最新 UTC 6 小時起報時次往前 12 小時 */
+(function initDate(){
+  const n = new Date();
+  const hh = n.getUTCHours();
+  const cyc = Math.floor(hh/6)*6;
+  const d = new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate(), cyc));
+  d.setUTCHours(d.getUTCHours()-12);
+  $("#dDate").value = ymdUTC(d);
+  $("#dCycle").value = pad2(d.getUTCHours());
+  updateTimePanel();
+})();
+function shiftDate(days){
+  const v=$("#dDate").value; if(!v) return;
+  const [y,m,d]=v.split("-").map(Number);
+  const t=new Date(Date.UTC(y,m-1,d+days));
+  $("#dDate").value = ymdUTC(t);
+  markInitDirty();
+}
+$("#dPrev").onclick=()=>shiftDate(-1);
+$("#dNext").onclick=()=>shiftDate(1);
+
+function ymdUTC(d){ return d.getUTCFullYear()+"-"+pad2(d.getUTCMonth()+1)+"-"+pad2(d.getUTCDate()); }
+function initDateUTC(){
+  const v=$("#dDate").value || ymdUTC(new Date());
+  const [y,m,d]=v.split("-").map(Number);
+  return new Date(Date.UTC(y,m-1,d,+$("#dCycle").value||0));
+}
+function initKey(){
+  return ($("#dDate").value||"") + "T" + ($("#dCycle").value||"");
+}
+function updateLoadButtonState(){
+  const b = $("#btnLoad"); if(!b) return;
+  b.classList.toggle("clean", !!S.loadedInitKey && S.loadedInitKey===initKey());
+}
+function markInitDirty(){
+  updateTimePanel();
+  updateLoadButtonState();
+  setStatus("已切換起報時間，按「載入資料」更新資料");
+}
+function markInitClean(key){
+  S.loadedInitKey = key || initKey();
+  updateLoadButtonState();
+}
+function fmtUTC(d){
+  return `${d.getUTCFullYear()}/${pad2(d.getUTCMonth()+1)}/${pad2(d.getUTCDate())} ${pad2(d.getUTCHours())}:00 UTC`;
+}
+function updateTimePanel(){
+  const init = initDateUTC();
+  const h = +$("#tSlider").value || 0;
+  const valid = new Date(init.getTime()+h*3600000);
+  $("#validTime").textContent = `${h}小時預報　${fmtUTC(valid)} (+${h})`;
+  $("#initTime").innerHTML = `<span class="timeLabel">初始時間</span>`;
+}
+function setInitDateUTC(d){
+  $("#dDate").value = ymdUTC(d);
+  $("#dCycle").value = pad2(d.getUTCHours());
+  updateTimePanel();
+}
+function shiftCycle(hours){
+  const d = initDateUTC();
+  d.setUTCHours(d.getUTCHours()+hours);
+  setInitDateUTC(d);
+}
+
+function urlsFor(m){
+  const v=$("#dDate").value, hh=$("#dCycle").value;
+  if(!v) return [];
+  const [Y,M,D]=v.split("-");
+  const YMD = Y+M+D, YY = Y.slice(2);
+  if(m.format==="atcf"){
+    return m.files.map(f=>{
+      const fn = f.replace(/\{Y\}/g,Y).replace(/\{M\}/g,M).replace(/\{D\}/g,D).replace(/\{HH\}/g,hh);
+      const raw = `${WNEXT_ATCF_BASE}/${fn}`;
+      return [`${WNEXT_READER_BASE}/${raw}`, raw];
+    }).flat();
+  }
+  return m.files.map(f=>{
+    const fn = f.replace(/\{YMD\}/g,YMD).replace(/\{HH\}/g,hh).replace(/\{YY\}/g,YY);
+    return `${BASE}/${m.dir}/${Y}/${YMD}/${fn}`;
+  });
+}
+
+/* ───────── 載入 ───────── */
+let loadSeq = 0;
+async function loadAll(){
+  const seq = ++loadSeq;
+  const requestedInitKey = initKey();
+  const sel = MODELS.filter(m=>S.modelOn[m.code]);
+  if(!sel.length){ setStatus("請至少勾選一個模式","err"); return; }
+  const result = await loadCurrentCycle(sel, seq);
+  if(seq!==loadSeq || !result) return;
+  $("#diag").textContent = result.urlLog.join("\n\n");
+  window.__urlLog = result.urlLog.join("\n");
+
+  if(!result.okCount){
+    setStatus("全部失敗：可能是遠端主機錯誤（如 HTTP 500）、檔案尚未上架，或瀏覽器直連受限。請稍後重試，或用「開啟本機檔」載入 XML。","err");
+  }else{
+    setStatus(result.okCount+" / "+sel.length+" 個模式載入成功，共 "+result.trackTotal+" 條路徑","ok");
+  }
+  S.allStorms = false;
+  const allStorms = $("#cAllStorms");
+  if(allStorms) allStorms.checked = false;
+  S.storm = null;
+  rebuild(true, true);
+  markInitClean(requestedInitKey);
+}
+
+async function loadCurrentCycle(sel, seq){
+  S.files = {};
+  const urlLog=["起報時次：" + fmtUTC(initDateUTC())];
+  setStatus("載入中… (0/"+sel.length+")");
+  sel.forEach(m=>mstat(m.code,"載入中…","load"));
+
+  let done=0, okCount=0, trackTotal=0;
+  await Promise.all(sel.map(async m=>{
+    const urls = urlsFor(m);
+    urlLog.push(m.label+"\n  "+urls.join("\n  "));
+    let lastErr=null;
+    for(const u of urls){
+      try{
+        const got = await fetchCXML(u, null, m.format||"xml");
+        const r = m.format==="atcf" ? parseATCF(got.text, m, u) : parseCXML(got.text, m, u);
+        if(seq!==loadSeq) return;
+        if(!r.tracks.length){ lastErr=new Error("檔案中無路徑資料"); continue; }
+        S.files[m.code] = {ok:true, header:r.header, tracks:r.tracks, url:u, via:got.via};
+        okCount++; trackTotal += r.tracks.length;
+        const nm = new Set(r.tracks.map(t=>t.member===null?"d":t.member)).size;
+        mstat(m.code, nm+" 條 · "+got.via, "ok");
+        urlLog.push("    ✓ 成功管道：" + got.via + (got.tried.length?"（先失敗："+got.tried.join("、")+"）":""));
+        lastErr=null; break;
+      }catch(e){ lastErr=e; }
+    }
+    if(seq!==loadSeq) return;
+    if(lastErr){
+      const msg = String(lastErr.message||lastErr);
+      S.files[m.code] = {ok:false, msg:msg, tracks:[], url:urls[0]};
+      mstat(m.code, summarizeLoadError(msg), "err");
+      urlLog.push("    ✗ " + explainLoadError(msg));
+    }
+    done++;
+    setStatus("載入中… ("+done+"/"+sel.length+")");
+  }));
+  return {urlLog, okCount, trackTotal};
+}
+
+function summarizeLoadError(msg){
+  if(/HTTP 500|HTTP 502|HTTP 503|HTTP 504/.test(msg)) return "遠端錯誤";
+  if(/HTTP 404|HTTP 403/.test(msg)) return msg.match(/HTTP \d+/)[0];
+  if(/連線失敗|Failed to fetch|NetworkError|Load failed/i.test(msg)) return "直連受阻";
+  if(/逾時/.test(msg)) return "逾時";
+  return "失敗";
+}
+function explainLoadError(msg){
+  if(/連線失敗|Failed to fetch|NetworkError|Load failed/i.test(msg)){
+    return msg + "（可能為瀏覽器 CORS/網路限制；直連不穩時可改用本機 XML）";
+  }
+  if(/HTTP 404/.test(msg)){
+    return msg + "（此中心此時次檔案可能尚未上架或沒有產生）";
+  }
+  if(/HTTP 500|HTTP 502|HTTP 503|HTTP 504/.test(msg)){
+    return msg + "（遠端主機暫時錯誤或限制請求；程式不會自動重試其他時次）";
+  }
+  return msg;
+}
+
+/* 本機檔案 */
+async function loadFiles(fileList){
+  const arr = Array.from(fileList);
+  if(!arr.length) return;
+  setStatus("解析本機檔案…");
+  let n=0;
+  for(const f of arr){
+    try{
+      const buf = await f.arrayBuffer();
+      const txt = await decodeMaybeGzip(buf, f.name);
+      // 依檔名猜模式
+      const lower = f.name.toLowerCase();
+      let m = MODELS.find(x=>lower.includes("_"+x.dir+"_")||lower.includes("_"+x.code.toLowerCase()+"_"));
+      if(lower.includes("cmc")) m = MODELS.find(x=>x.code==="CMC");
+      else if(lower.includes("gefs")) m = MODELS.find(x=>x.code==="KWBC");
+      else if(lower.includes("weathernext") || lower.includes("atcf") || lower.includes("_a_deck")) m = MODELS.find(x=>x.code==="WNX2");
+      if(!m) m = {code:"FILE"+n, label:f.name, org:"本機檔", color:"#94a3b8", dir:"", files:[], ens:true};
+      const isAtcf = m.format==="atcf" || looksLikeATCF(txt);
+      const r = isAtcf ? parseATCF(txt, m, f.name) : parseCXML(txt, m, f.name);
+      const key = S.files[m.code]&&S.files[m.code].ok ? m.code+"#"+n : m.code;
+      S.files[key] = {ok:true, header:r.header, tracks:r.tracks, url:f.name};
+      if(MODELS.some(x=>x.code===m.code)){ S.modelOn[m.code]=true;
+        const cb=$('#modelList input[data-m="'+m.code+'"]'); if(cb) cb.checked=true;
+        mstat(m.code, r.tracks.length+" 條 (本機)","ok"); }
+      n++;
+    }catch(e){ console.warn(f.name, e); }
+  }
+  setStatus("已載入 "+n+" 個本機檔案","ok");
+  rebuild(true);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   重建：分群 → 清單 → 繪圖
+   ══════════════════════════════════════════════════════════════════ */
+function activeTracks(){
+  const out=[];
+  for(const k in S.files){
+    const f=S.files[k]; if(!f||!f.ok) continue;
+    const base = k.split("#")[0];
+    if(MODELS.some(m=>m.code===base) && !S.modelOn[base]) continue;
+    out.push(...f.tracks);
+  }
+  return out;
+}
+function rebuild(refit, preferFirst){
+  S.tracks = activeTracks();
+  S.storms = S.tracks.length ? groupStorms(S.tracks) : [];
+  renderStormList();
+  // 保持既有選擇
+  let keep = preferFirst ? firstVisibleStorm() : (S.allStorms ? buildAllStormGroup() : (S.storm ? S.storms.find(g=>g.key===S.storm.key || g.name===S.storm.name) : null));
+  if(!keep) keep = pickDefaultStorm();
+  selectStorm(keep, refit!==false);
+  renderStormList();
+}
+function filterBasin(list){
+  return S.basin==="ALL" ? list : list.filter(g=>g.basin===S.basin);
+}
+function firstVisibleStorm(){
+  const cand = filterBasin(S.storms);
+  return (cand.length ? cand : S.storms)[0] || null;
+}
+function pickDefaultStorm(){
+  if(S.allStorms) return buildAllStormGroup();
+  const cand = filterBasin(S.storms);
+  const pool = cand.length?cand:S.storms;
+  if(!pool.length) return null;
+  // 西北太平洋優先取最接近臺灣者
+  if(S.basin==="NWP"){
+    let best=pool[0], bd=1e9;
+    for(const g of pool){
+      const d = hav(g.ref.lat, norm180(g.ref.lon), 23.7, 121.0);
+      const score = d - g.nTracks*8;
+      if(score<bd){ bd=score; best=g; }
+    }
+    return best;
+  }
+  return pool[0];
+}
+function buildAllStormGroup(){
+  const list = filterBasin(S.storms);
+  if(!list.length) return null;
+  const tracks = list.flatMap(g=>g.tracks);
+  const models = new Set(), memCount = new Map();
+  let maxH=0, minP=null, maxW=null;
+  for(const g of list){
+    for(const c of g.models||[]) models.add(c);
+    for(const [c,n] of (g.memCount||new Map())) memCount.set(c,(memCount.get(c)||0)+n);
+    maxH = Math.max(maxH, g.maxH||0);
+    if(g.minP!==null && g.minP!==undefined) minP = minP===null ? g.minP : Math.min(minP,g.minP);
+    if(g.maxW!==null && g.maxW!==undefined) maxW = maxW===null ? g.maxW : Math.max(maxW,g.maxW);
+  }
+  const basinName = S.basin==="ALL" ? "全球" : (BASIN_NAME[S.basin]||S.basin);
+  return {
+    key:"ALL:"+S.basin,
+    name:basinName+"全部路徑",
+    basin:S.basin==="ALL" ? "ALL" : S.basin,
+    tracks,
+    ref:list[0].ref,
+    models:Array.from(models),
+    memCount,
+    nTracks:tracks.length,
+    maxH,
+    minP,
+    maxW,
+    multi:true,
+    systems:list.length
+  };
+}
+function renderStormList(){
+  const box=$("#stormList"); box.innerHTML="";
+  const list = filterBasin(S.storms);
+  if(!list.length){
+    $("#stormHint").textContent = S.storms.length
+      ? "此海域無資料（共 "+S.storms.length+" 個系統，可切換至「全球」）。"
+      : "尚未載入資料。";
+    return;
+  }
+  $("#stormHint").textContent = "共 "+list.length+" 個系統 / 全球 "+S.storms.length+" 個。";
+  list.forEach(g=>{
+    const d=document.createElement("div");
+    d.className="storm"+(!S.allStorms&&S.storm&&S.storm.key===g.key?" on":"");
+    const mods = g.models.map(c=>{
+      const m=MODELS.find(x=>x.code===c);
+      return `<span class="pill" style="border-color:${m?m.color:"#555"};color:${m?m.color:"#aaa"}">${m?m.label.split(" ")[0]:c} ${g.memCount.get(c)}</span>`;
+    }).join("");
+    d.innerHTML = `<div class="nm">${g.name}${g.anon?"":""}</div>
+      <div class="mt">${BASIN_NAME[g.basin]||g.basin} · ${g.nTracks} 條路徑 · 最長 +${g.maxH}h`
+      + (g.minP?` · 最低 ${Math.round(g.minP)} hPa`:"") + `</div><div>${mods}</div>`;
+    d.onclick = ()=>{ S.allStorms=false; $("#cAllStorms").checked=false; selectStorm(g, true); renderStormList(); };
+    box.appendChild(d);
+  });
+}
+function applyStormFilter(){
+  renderStormList();
+  const g=S.allStorms ? buildAllStormGroup() : pickDefaultStorm();
+  selectStorm(g, true);
+  renderStormList();
+}
+$("#basinSel").onchange = e=>{ S.basin=e.target.value; applyStormFilter(); };
+$("#cAllStorms").onchange = e=>{ S.allStorms=e.target.checked; applyStormFilter(); };
+
+/* ───────── 選定颱風並繪製 ───────── */
+function selectStorm(g, refit){
+  S.storm = g;
+  if(!g){ clearAll(); S.infoHtml="無可顯示的系統"; drawLegend(); drawChart(); return; }
+  // 每個模式的集合平均
+  g.byModel = {};
+  for(const t of g.tracks){
+    (g.byModel[t.model] = g.byModel[t.model] || []).push(t);
+  }
+  g.means = {};
+  if(!g.multi){
+    for(const c in g.byModel){
+      const ens = g.byModel[c].filter(t=>t.isEns);
+      if(ens.length>=3) g.means[c] = meanTrack(ens);
+    }
+  }
+  const maxH = g.maxH;
+  const sl=$("#tSlider"); sl.max = Math.max(24, maxH); sl.step = 6;
+  if(+sl.value>+sl.max) sl.value = sl.max;
+  draw(refit);
+}
+function clearAll(){ gMem.clearLayers(); gMean.clearLayers(); gCtl.clearLayers(); gDots.clearLayers(); }
+
+function ll(p){ return [p.lat, (p.lonF!==undefined?p.lonF:p.lon)]; }
+
+function draw(refit){
+  clearAll();
+  const g=S.storm; if(!g) return;
+  const showMem=$("#cMem").checked, showMean=$("#cMean").checked,
+        showCtl=$("#cCtl").checked, showProb=$("#cProb").checked, showDots=S.showDots;
+  const w = parseFloat($("#rWid").value), op = parseFloat($("#rOpa").value);
+  const bounds=[];
+
+  for(const t of g.tracks){
+    const pts = t.pts.map(ll);
+    pts.forEach(p=>bounds.push(p));
+    const isDet = !t.isEns;
+    const isCtl = t.isCtl;
+    if(isDet || isCtl){
+      if(!showCtl) continue;
+      const pl = L.polyline(pts,{color:t.color, weight:Math.max(2.6,w+1.6), opacity:.98,
+                                 lineJoin:"round", dashArray: isDet?null:"1 0"}).addTo(gCtl);
+      bindTip(pl,t,isDet?"決定性預報":"控制報");
+      // 起點
+      L.circleMarker(pts[0],{radius:4,color:t.color,weight:2,fillColor:"#0b1017",fillOpacity:1}).addTo(gCtl);
+      // 每 24h 標記
+      t.pts.forEach(p=>{ if(p.h>0 && p.h%24===0)
+        L.circleMarker(ll(p),{radius:2.6,color:t.color,weight:1,fillColor:t.color,fillOpacity:.9})
+         .bindTooltip("+"+p.h+"h",{direction:"top"}).addTo(gCtl); });
+    }else{
+      if(!showMem) continue;
+      const pl = L.polyline(pts,{color:t.color, weight:w, opacity:op, lineJoin:"round",
+                                 interactive:true}).addTo(gMem);
+      bindTip(pl,t,"成員 "+(t.member!==null?t.member:"?"));
+    }
+  }
+
+  if(showMean){
+    for(const c in g.means){
+      const mt = g.means[c]; if(!mt||mt.length<2) continue;
+      const m = MODELS.find(x=>x.code===c);
+      const col = m?m.color:"#fff";
+      const pts = mt.map(p=>[p.lat,p.lon]);
+      L.polyline(pts,{color:"#000",weight:6.5,opacity:.45}).addTo(gMean);
+      const pl = L.polyline(pts,{color:col,weight:3.4,opacity:1,dashArray:"9 5"}).addTo(gMean);
+      pl.bindTooltip((m?m.label:c)+" 集合平均 ("+g.byModel[c].filter(t=>t.isEns).length+" 成員)",{sticky:true});
+      mt.forEach(p=>{
+        if(p.h%24!==0) return;
+        L.circleMarker([p.lat,p.lon],{radius:4.4,color:"#fff",weight:1.6,fillColor:col,fillOpacity:1})
+         .bindTooltip(`<b>${m?m.label:c}</b> 集合平均<br>+${p.h}h　成員 ${p.n}<br>`
+            + (p.pres?`平均氣壓 ${p.pres.toFixed(0)} hPa<br>`:"")
+            + (p.wind?`平均風速 ${p.wind.toFixed(0)} kt<br>`:"")
+            + `離散度 ${p.spread.toFixed(0)} km`,{sticky:true})
+         .addTo(gMean);
+      });
+    }
+  }
+
+  updateTimePanel();
+  if(showDots) drawDots();
+  else gDots.clearLayers();
+
+  if(showProb) computeProb(); else { if(map.hasLayer(probLayer)) map.removeLayer(probLayer); }
+
+  if(refit && bounds.length){
+    try{ map.fitBounds(L.latLngBounds(bounds).pad(0.15),{animate:false}); }catch(e){}
+  }
+  updateInfo();
+  drawLegend();
+  drawChart();
+  updateChartPaneVisibility();
+}
+function bindTip(pl,t,role){
+  const last=t.pts[t.pts.length-1];
+  pl.bindTooltip(`<b style="color:${t.color}">${t.modelLabel}</b> · ${role}<br>`
+    + `${t.name||t.distId}<br>起報 ${t.header.baseTime}<br>`
+    + `時效 +${last.h}h`, {sticky:true});
+}
+function drawDots(){
+  gDots.clearLayers();
+  updateTimePanel();
+  const g=S.storm; if(!g || !S.showDots) return;
+  const h = +$("#tSlider").value;
+  let n=0;
+  for(const t of g.tracks){
+    const p = nearestFix(t.pts, h);
+    if(!p) continue;
+    n++;
+    L.circleMarker(ll(p),{radius:t.isCtl?5:3.2, color:t.isCtl?"#fff":t.color, weight:t.isCtl?2:1,
+       fillColor:t.color, fillOpacity:t.isCtl?1:.75})
+     .bindTooltip(`${t.modelLabel} ${t.isEns?("成員 "+t.member):"決定性"}<br>+${p.h}h　`
+       +(p.pres?p.pres.toFixed(0)+" hPa ":"")+(p.wind?p.wind.toFixed(0)+" kt":""),{sticky:true})
+     .addTo(gDots);
+  }
+  // 各模式該時效之平均位置
+  for(const c in g.means){
+    const p = g.means[c].find(x=>x.h===h) || nearestFix(g.means[c], h);
+    if(!p) continue;
+    const m=MODELS.find(x=>x.code===c);
+    L.circleMarker([p.lat,p.lon],{radius:7,color:"#fff",weight:2,fillColor:m?m.color:"#fff",fillOpacity:.95})
+     .bindTooltip(`${m?m.label:c} 平均位置 +${p.h}h<br>離散度 ${p.spread.toFixed(0)} km`,{sticky:true})
+     .addTo(gDots);
+    L.circle([p.lat,p.lon],{radius:p.spread*1000, color:m?m.color:"#fff", weight:1.2,
+       opacity:.7, fill:false, dashArray:"4 4"}).addTo(gDots);
+  }
+}
+function nearestFix(pts,h){
+  let best=null, bd=1e9;
+  for(const p of pts){ const d=Math.abs(p.h-h); if(d<bd){bd=d;best=p;} }
+  return bd<=12?best:null;   // 容許 12h（部分模式 72h 後為 12 小時間隔）
+}
+let playTimer=null;
+function setPlaying(on){
+  S.playing = on;
+  const ico=$("#tPlay .material-symbols-outlined");
+  if(ico) ico.textContent = on ? "pause" : "play_arrow";
+  if(playTimer){ clearInterval(playTimer); playTimer=null; }
+  if(on){
+    S.showDots = true;
+    draw(false);
+    playTimer = setInterval(()=>stepForecast(1, true), 550);
+  }
+}
+function stepForecast(dir, fromTimer){
+  const sl=$("#tSlider");
+  const step=+sl.step||6, min=+sl.min||0, max=+sl.max||240;
+  let v=(+sl.value||0)+dir*step;
+  if(v>max){
+    if(S.loopTime) v=min;
+    else { v=max; if(fromTimer) setPlaying(false); }
+  }
+  if(v<min){
+    if(S.loopTime) v=max;
+    else v=min;
+  }
+  sl.value = v;
+  drawDots();
+  drawChart();
+}
+$("#tSlider").addEventListener("input",()=>{ drawDots(); drawChart(); });
+$("#tPrev").addEventListener("click",()=>stepForecast(-1, false));
+$("#tNext").addEventListener("click",()=>stepForecast(1, false));
+$("#tPlay").addEventListener("click",()=>setPlaying(!S.playing));
+$("#dCycle").addEventListener("change",markInitDirty);
+$("#dDate").addEventListener("change",markInitDirty);
+
+/* 機率場 */
+let probBusy=false;
+function computeProb(){
+  const g=S.storm; if(!g) return;
+  if(probBusy) return;
+  probBusy=true;
+  setTimeout(()=>{
+    try{
+      const rad=Math.max(20, +$("#pRad").value||100);
+      const res=parseFloat($("#pRes").value);
+      const [h0,h1]=$("#pWin").value.split(",").map(Number);
+      const grid = strikeProb(g.tracks, rad, res, h0, h1);
+      if(grid){
+        if(!map.hasLayer(probLayer)) probLayer.addTo(map);
+        probLayer.setOpacity(0.6);
+        probLayer.setGrid(grid);
+        S.probN = grid.n; S.probMax = grid.pmax;
+      }else if(map.hasLayer(probLayer)) map.removeLayer(probLayer);
+      drawLegend(); updateInfo();
+    }catch(e){ console.warn(e); }
+    probBusy=false;
+  },10);
+}
+["pRad","pRes","pWin"].forEach(id=>$("#"+id).addEventListener("change",()=>{ if($("#cProb").checked) computeProb(); }));
+
+/* ───────── 資訊框 / 圖例 ───────── */
+function updateInfo(){
+  const g=S.storm;
+  if(!g){ S.infoHtml="尚未載入資料"; return; }
+  const bt = Object.values(S.files).find(f=>f&&f.ok);
+  const nEns = g.tracks.filter(t=>t.isEns).length;
+  const nDet = g.tracks.filter(t=>!t.isEns).length;
+  const basinLabel = g.basin==="ALL" ? "全球" : (BASIN_NAME[g.basin]||g.basin);
+  let html = `<b>${g.name}</b>　<span style="color:var(--fg2)">${basinLabel}</span><br>`
+    + `<span style="color:var(--fg2)">起報</span> ${bt?bt.header.baseTime:"—"}<br>`
+    + `<span style="color:var(--fg2)">路徑</span> 系集 ${nEns} + 決定性 ${nDet}　<span style="color:var(--fg2)">最長</span> +${g.maxH}h<br>`;
+  if(g.multi) html += `<span style="color:var(--fg2)">系統數</span> ${g.systems}　<span style="color:var(--fg2)">強度時序</span> 僅單一系統顯示`;
+  else {
+    if(g.minP) html += `<span style="color:var(--fg2)">全成員最低氣壓</span> ${Math.round(g.minP)} hPa`;
+    if(g.maxW) html += `　<span style="color:var(--fg2)">最大風</span> ${Math.round(g.maxW)} kt`;
+  }
+  if($("#cProb").checked && S.probN) html += `<br><span style="color:var(--fg2)">機率場</span> ${S.probN} 成員，最大 ${(S.probMax*100).toFixed(0)}%`;
+  S.infoHtml = html;
+}
+function drawLegend(){
+  const g=S.storm; const L2=$("#legend");
+  const icon = `<span class="material-symbols-outlined">info</span>`;
+  if(!g){
+    L2.classList.toggle("mini", S.legendMini);
+    L2.innerHTML = `<div class="lghead">${icon}<span class="lgtitle">資訊 / 圖例</span><button class="lgmini" id="legendMini" title="縮小"><span class="material-symbols-outlined">remove</span></button></div><div class="lgbody"><div class="infoContent">${S.infoHtml}</div></div>`;
+    bindLegendMini();
+    return;
+  }
+  let h = `<div class="lghead">${icon}<span class="lgtitle">資訊 / 圖例</span><button class="lgmini" id="legendMini" title="縮小"><span class="material-symbols-outlined">remove</span></button></div><div class="lgbody">`;
+  h += `<div class="infoContent">${S.infoHtml}</div>`;
+  h += `<h4>模式</h4>`;
+  const used = Object.keys(g.byModel||{});
+  used.forEach(c=>{
+    const m=MODELS.find(x=>x.code===c);
+    h += `<div class="lgrow"><span class="lgline" style="border-color:${m?m.color:"#fff"}"></span>`
+      +`${m?m.label:c}<span style="color:var(--fg3);margin-left:4px">×${g.byModel[c].length}</span></div>`;
+  });
+  if(!g.multi) h += `<div class="lgrow" style="margin-top:6px"><span class="lgline" style="border-color:#111827;border-top-style:dashed"></span>集合平均</div>`;
+  if($("#cProb").checked){
+    h += `<h4 style="margin-top:8px">侵襲機率 (%)</h4><div id="probbar">`;
+    h += PROB_STOPS.map(s=>`<i style="background:${s[1]}"></i>`).join("");
+    h += `</div><div style="display:flex;justify-content:space-between;color:var(--fg3);font-size:10px"><span>5</span><span>50</span><span>90+</span></div>`;
+  }
+  h += `</div>`;
+  L2.classList.toggle("mini", S.legendMini);
+  L2.innerHTML=h;
+  bindLegendMini();
+}
+function bindLegendMini(){
+  const b=$("#legendMini");
+  if(b) b.onclick = e=>{ e.stopPropagation(); S.legendMini=true; drawLegend(); };
+  const L2=$("#legend");
+  if(L2) L2.onclick = ()=>{ if(S.legendMini){ S.legendMini=false; drawLegend(); } };
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   強度時序圖
+   ══════════════════════════════════════════════════════════════════ */
+function updateChartPaneVisibility(){
+  const p=$("#chartPane");
+  if(!p) return;
+  p.style.display = (S.storm && S.storm.multi) ? "none" : "";
+}
+function drawChart(){
+  updateChartPaneVisibility();
+  if(S.storm && S.storm.multi) return;
+  const cv=$("#chart"); const box=$("#chartBox");
+  const tip=$("#chartTip");
+  const dpr=window.devicePixelRatio||1;
+  const W=box.clientWidth, H=box.clientHeight;
+  if(W<10||H<10) return;
+  window.__chartHits = [];
+  S.chartTipLocked = false;
+  if(tip) tip.style.display="none";
+  cv.width=W*dpr; cv.height=H*dpr;
+  const ctx=cv.getContext("2d");
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,W,H);
+  const g=S.storm;
+  const varn = S.chartVar;
+  const showMem = $("#cChartMem").checked;
+
+  const pad={l:48,r:12,t:12,b:24};
+  const px=W-pad.l-pad.r, py=H-pad.t-pad.b;
+  ctx.font="10px system-ui,sans-serif";
+
+  if(!g){ ctx.fillStyle="#475569"; ctx.fillText("尚未載入資料",pad.l,H/2); return; }
+
+  // 資料範圍
+  let hMax=0, vMin=1e9, vMax=-1e9, any=false;
+  const val=p=> varn==="pres"?p.pres:p.wind;
+  for(const t of g.tracks) for(const p of t.pts){
+    const v=val(p); if(v===null||v===undefined) continue;
+    any=true; hMax=Math.max(hMax,p.h); vMin=Math.min(vMin,v); vMax=Math.max(vMax,v);
+  }
+  if(!any){ ctx.fillStyle="#475569"; ctx.fillText("此系統無"+(varn==="pres"?"氣壓":"風速")+"資料",pad.l,H/2); return; }
+  hMax=Math.max(24,hMax);
+  const m=(vMax-vMin)*0.08+2; vMin-=m; vMax+=m;
+  if(varn==="pres"){ /* y 反向：氣壓低在上 */ }
+
+  const X=h=> pad.l + h/hMax*px;
+  const Y=v=> varn==="pres" ? pad.t + (v-vMin)/(vMax-vMin)*py
+                            : pad.t + (vMax-v)/(vMax-vMin)*py;
+  const hits=[];
+  const is12h=p=>Math.abs(p.h/12-Math.round(p.h/12))<0.01;
+  const addHit=(p,v,label,color,drawRadius)=>{
+    if(!is12h(p)) return;
+    const x=X(p.h), y=Y(v);
+    hits.push({x,y,h:p.h,v,label,color});
+    if(drawRadius){
+      ctx.beginPath(); ctx.arc(x,y,drawRadius,0,Math.PI*2);
+      ctx.fillStyle=color; ctx.fill();
+      ctx.strokeStyle="#ffffff"; ctx.lineWidth=1; ctx.stroke();
+    }
+  };
+
+  // 格線
+  ctx.strokeStyle="#cbd5e1"; ctx.lineWidth=1; ctx.fillStyle="#475569";
+  const hStep = 12;
+  for(let h=0;h<=hMax;h+=hStep){
+    const x=X(h); ctx.beginPath(); ctx.moveTo(x,pad.t); ctx.lineTo(x,pad.t+py); ctx.stroke();
+    ctx.textAlign="center"; ctx.fillText("+"+h+"h", x, H-8);
+  }
+  const vStep = niceStep(vMax-vMin);
+  ctx.textAlign="right";
+  for(let v=Math.ceil(vMin/vStep)*vStep; v<=vMax; v+=vStep){
+    const y=Y(v); ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(pad.l+px,y); ctx.stroke();
+    ctx.fillText(Math.round(v), pad.l-6, y+3);
+  }
+  ctx.textAlign="left"; ctx.fillStyle="#334155";
+  ctx.fillText(varn==="pres"?"中心氣壓 (hPa)":"最大風速 (kt)", pad.l+4, pad.t+11);
+
+  // 成員線
+  if(showMem){
+    ctx.lineWidth=1;
+    for(const t of g.tracks){
+      if(!t.isEns || t.isCtl) continue;
+      ctx.strokeStyle = hexA(t.color, .22);
+      ctx.beginPath(); let started=false;
+      for(const p of t.pts){ const v=val(p); if(v===null||v===undefined){started=false;continue;}
+        const x=X(p.h), y=Y(v);
+        if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y); }
+      ctx.stroke();
+      for(const p of t.pts){ const v=val(p); if(v!==null&&v!==undefined) addHit(p,v,`${t.modelLabel} 成員 ${t.member}`,t.color,0); }
+    }
+  }
+  // 控制報 / 決定性
+  for(const t of g.tracks){
+    if(t.isEns && !t.isCtl) continue;
+    ctx.strokeStyle=t.color; ctx.lineWidth=1.8; ctx.setLineDash([]);
+    ctx.beginPath(); let started=false;
+    for(const p of t.pts){ const v=val(p); if(v===null||v===undefined){started=false;continue;}
+      const x=X(p.h), y=Y(v);
+      if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y); }
+    ctx.stroke();
+    for(const p of t.pts){ const v=val(p); if(v!==null&&v!==undefined) addHit(p,v,t.modelLabel+(t.isCtl?" 控制報":" 決定性"),t.color,3); }
+  }
+  // 集合平均
+  for(const c in g.means){
+    const mt=g.means[c]; const mm=MODELS.find(x=>x.code===c);
+    ctx.strokeStyle = mm?mm.color:"#111827"; ctx.lineWidth=3; ctx.setLineDash([8,4]);
+    ctx.beginPath(); let started=false;
+    for(const p of mt){ const v = varn==="pres"?p.pres:p.wind;
+      if(v===null||v===undefined){started=false;continue;}
+      const x=X(p.h), y=Y(v);
+      if(!started){ ctx.moveTo(x,y); started=true; } else ctx.lineTo(x,y); }
+    ctx.stroke(); ctx.setLineDash([]);
+    for(const p of mt){ const v=varn==="pres"?p.pres:p.wind; if(v!==null&&v!==undefined) addHit(p,v,(mm?mm.label:c)+" 集合平均",mm?mm.color:"#111827",3.5); }
+  }
+  // 目前時效游標
+  if(S.showDots){
+    const x=X(+$("#tSlider").value);
+    ctx.strokeStyle="#2563eb"; ctx.lineWidth=1.4; ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(x,pad.t); ctx.lineTo(x,pad.t+py); ctx.stroke(); ctx.setLineDash([]);
+  }
+  window.__chartHits = hits;
+}
+function niceStep(range){
+  const raw=range/5; const p=Math.pow(10,Math.floor(Math.log10(raw))); const n=raw/p;
+  return (n<1.5?1:n<3?2:n<7?5:10)*p;
+}
+function hexA(hex,a){
+  const h=hex.replace("#","");
+  const r=parseInt(h.substr(0,2),16), g=parseInt(h.substr(2,2),16), b=parseInt(h.substr(4,2),16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+function chartNearest(e){
+  const cv=$("#chart");
+  const r=cv.getBoundingClientRect();
+  const x=e.clientX-r.left, y=e.clientY-r.top;
+  let best=null, bd=14;
+  for(const p of (window.__chartHits||[])){
+    const d=Math.hypot(p.x-x,p.y-y);
+    if(d<bd){ bd=d; best=p; }
+  }
+  return best;
+}
+function showChartTip(p){
+  const tip=$("#chartTip"), box=$("#chartBox");
+  if(!tip||!box||!p){ if(tip) tip.style.display="none"; return; }
+  const unit=S.chartVar==="pres"?"hPa":"kt";
+  tip.innerHTML = `<b style="color:${p.color}">${p.label}</b><br>+${Math.round(p.h)}h　${Math.round(p.v)} ${unit}`;
+  tip.style.display="block";
+  const tw=tip.offsetWidth, th=tip.offsetHeight;
+  const x=Math.min(Math.max(6,p.x+10), Math.max(6,box.clientWidth-tw-6));
+  const y=Math.min(Math.max(6,p.y-th-10), Math.max(6,box.clientHeight-th-6));
+  tip.style.left=x+"px"; tip.style.top=y+"px";
+}
+function hideChartTip(){
+  if(!S.chartTipLocked){ const tip=$("#chartTip"); if(tip) tip.style.display="none"; }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   事件
+   ══════════════════════════════════════════════════════════════════ */
+$("#btnLoad").onclick = loadAll;
+$("#btnFile").onclick = ()=>$("#fileIn").click();
+$("#fileIn").onchange = e=>{ loadFiles(e.target.files); e.target.value=""; };
+$("#mAll").onclick = ()=>{ MODELS.forEach(m=>S.modelOn[m.code]=true); syncModelChecks(); };
+$("#mNone").onclick= ()=>{ MODELS.forEach(m=>S.modelOn[m.code]=false); syncModelChecks(); };
+$("#mWP").onclick  = ()=>{ MODELS.forEach(m=>S.modelOn[m.code]=DEFAULT_ON.includes(m.code)); syncModelChecks(); };
+function syncModelChecks(){
+  MODELS.forEach(m=>{ const cb=$('#modelList input[data-m="'+m.code+'"]'); if(cb) cb.checked=S.modelOn[m.code]; });
+  try{ localStorage.setItem(LS.models, JSON.stringify(S.modelOn)); }catch(e){}
+  rebuild();
+}
+["cMem","cMean","cCtl"].forEach(id=>$("#"+id).addEventListener("change",()=>draw(false)));
+$("#cProb").addEventListener("change",()=>{ if($("#cProb").checked) computeProb();
+  else if(map.hasLayer(probLayer)) map.removeLayer(probLayer); drawLegend(); updateInfo(); });
+["rWid","rOpa"].forEach(id=>$("#"+id).addEventListener("input",()=>draw(false)));
+$("#baseSel").addEventListener("change",e=>setBase(e.target.value));
+$("#baseSel").value = localStorage.getItem(LS.base)||"dark";
+$("#chartSeg").addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(!b) return;
+  $$("#chartSeg button").forEach(x=>x.classList.remove("on"));
+  b.classList.add("on"); S.chartVar=b.dataset.v; drawChart();
+});
+$("#cChartMem").addEventListener("change",drawChart);
+$("#chart").addEventListener("mousemove",e=>{
+  if(S.chartTipLocked) return;
+  showChartTip(chartNearest(e));
+});
+$("#chart").addEventListener("mouseleave",hideChartTip);
+$("#chart").addEventListener("click",e=>{
+  const p=chartNearest(e);
+  S.chartTipLocked=!!p;
+  showChartTip(p);
+});
+$("#chartHide").onclick = ()=>{
+  const p=$("#chartPane"); p.classList.toggle("hide");
+  $("#chartHide").textContent = p.classList.contains("hide")?"顯示":"隱藏";
+  setTimeout(()=>{map.invalidateSize(); drawChart();},60);
+};
+$("#btnCustom").onclick = async ()=>{
+  const u=$("#customUrl").value.trim(); if(!u) return;
+  setStatus("載入自訂網址…");
+  try{
+    const got = await fetchCXML(u);
+    const fake = {code:"CUSTOM", label:"自訂 ("+u.split("/").pop()+")", color:"#94a3b8", org:"自訂", dir:"", files:[], ens:true};
+    const r = parseCXML(got.text, fake, u);
+    S.files["CUSTOM"+Date.now()] = {ok:true, header:r.header, tracks:r.tracks, url:u, via:got.via};
+    setStatus("自訂網址載入成功（"+got.via+"）："+r.tracks.length+" 條路徑","ok");
+    rebuild(true);
+  }catch(e){ setStatus("自訂網址失敗："+(e.message||e),"err"); }
+};
+$("#btnCopy").onclick = ()=>{
+  const t = window.__urlLog||"（尚未載入）";
+  navigator.clipboard && navigator.clipboard.writeText(t);
+  setStatus("已複製網址清單到剪貼簿","ok");
+};
+
+/* 拖放 */
+const mw=$("#mapWrap");
+["dragenter","dragover"].forEach(ev=>mw.addEventListener(ev,e=>{e.preventDefault();$("#drop").classList.add("on");}));
+["dragleave","drop"].forEach(ev=>mw.addEventListener(ev,e=>{e.preventDefault();
+  if(ev==="dragleave" && e.relatedTarget && mw.contains(e.relatedTarget)) return;
+  $("#drop").classList.remove("on");}));
+mw.addEventListener("drop",e=>{ if(e.dataTransfer&&e.dataTransfer.files) loadFiles(e.dataTransfer.files); });
+
+window.addEventListener("resize",()=>{ drawChart(); });
+map.on("moveend zoomend",()=>{});
+
+/* 初始化 */
+buildModelList();
+drawChart();
+setStatus("使用預設起報時間自動載入資料…");
+setTimeout(loadAll, 0);
+</script>
+</body>
+</html>
