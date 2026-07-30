@@ -1024,12 +1024,12 @@ const map = L.map("map",{center:[22.5,127], zoom:4, worldCopyJump:false, zoomCon
                          preferCanvas:true, minZoom:2, maxZoom:12});
 let tileLayer = null;
 function setBase(k){
-  const t = TILES[k]||TILES.dark;
+  const t = TILES[k]||TILES.light;
   if(tileLayer) map.removeLayer(tileLayer);
   tileLayer = L.tileLayer(t.u,{attribution:t.a, maxZoom:t.max, noWrap:false}).addTo(map);
   try{ localStorage.setItem(LS.base,k); }catch(e){}
 }
-setBase(localStorage.getItem(LS.base)||"dark");
+setBase(localStorage.getItem(LS.base)||"light");
 
 const gMem  = L.layerGroup().addTo(map);
 const gMean = L.layerGroup().addTo(map);
@@ -1810,7 +1810,7 @@ $("#cProb").addEventListener("change",()=>{ if($("#cProb").checked) computeProb(
   else if(map.hasLayer(probLayer)) map.removeLayer(probLayer); drawLegend(); updateInfo(); });
 ["rWid","rOpa"].forEach(id=>$("#"+id).addEventListener("input",()=>draw(false)));
 $("#baseSel").addEventListener("change",e=>setBase(e.target.value));
-$("#baseSel").value = localStorage.getItem(LS.base)||"dark";
+$("#baseSel").value = localStorage.getItem(LS.base)||"light";
 $("#chartSeg").addEventListener("click",e=>{
   const b=e.target.closest("button"); if(!b) return;
   $$("#chartSeg button").forEach(x=>x.classList.remove("on"));
