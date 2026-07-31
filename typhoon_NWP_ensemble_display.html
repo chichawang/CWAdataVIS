@@ -268,7 +268,9 @@ input[type=range]{accent-color:var(--acc);width:100%}
 <div id="top">
   <h1>NWP/MLWP 系集颱風路徑預報<small>TIGGE CXML · Ensemble &amp; Deterministic Track Forecast</small></h1>
   <button class="btn" id="btnFile">開啟本機檔</button>
-  <input type="file" id="fileIn" multiple accept=".xml,.gz,.xml.gz" style="display:none"/>
+  <input type="file" id="fileIn" multiple accept=".xml,.gz,.xml.gz,.txt,.csv" style="display:none"/>
+  <button class="btn" id="btnCsv" title="載入 Google WeatherNext2 大系集 cyclogenesis CSV（約 33MB）">🌀 大系集 CSV</button>
+  <input type="file" id="csvIn" accept=".csv,.txt" style="display:none"/>
   <div id="status">請選擇起報時間後按「載入資料」</div>
 </div>
 
@@ -395,7 +397,13 @@ input[type=range]{accent-color:var(--acc);width:100%}
 
 /* ───────── 模式設定 ───────── */
 const BASE = "https://data.gdex.ucar.edu/d330003";
-const WNEXT_ATCF_BASE = "https://deepmind.google.com/science/weatherlab/download/cyclones/OPER/ensemble/paired/atcf";
+/* Google DeepMind WeatherLab 氣旋 ATCF A-deck
+   OPER                = WeatherNext (第一代營運模式)．paired
+   FNV3P2              = WeatherNext 2．paired
+   FNV3_LARGE_ENSEMBLE = WeatherNext 2 大系集．cyclogenesis（CSV） */
+const WNEXT_ATCF_ROOT = "https://deepmind.google.com/science/weatherlab/download/cyclones";
+const wnextAtcfBase = (ds, track, fmt) =>
+  `${WNEXT_ATCF_ROOT}/${ds}/ensemble/${track||"paired"}/${fmt==="csv"?"csv":"atcf"}`;
 const WNEXT_READER_BASE = "https://r.jina.ai";
 const MODELS = [
   {code:"ECMF", label:"ECMWF IFS/ENS", org:"歐洲中期預報中心", dir:"ecmf", color:"#ef4444", ens:true,
@@ -409,14 +417,23 @@ const MODELS = [
           "z_tigge_c_ammc_tctrack_IDY{YY}050_APS4_ens.{YMD}{HH}.xml"]},
   {code:"RKSL", label:"KMA GEPS", org:"韓國氣象廳", dir:"rksl", color:"#7c3aed", ens:true,
     files:["z_tigge_c_rksl_{YMD}{HH}0000_GEPS_glob_prod_etctr_nwp.xml"]},
-  {code:"WNX2", label:"Google WeatherNext2", org:"Google DeepMind", dir:"weathernext2", color:"#f97316", ens:true, format:"atcf",
-   files:["OPER_{Y}_{M}_{D}T{HH}_00_atcf_a_deck.txt"]},
   {code:"RJTD", label:"JMA GEPS", org:"日本氣象廳", dir:"rjtd", color:"#a855f7", ens:true,
    files:["z_tigge_c_RJTD_{YMD}{HH}0000_GEM_glob_prod_etctr_nwp.xml.gz"]},
   {code:"EGRR", label:"UKMO MOGREPS", org:"英國氣象局", dir:"egrr", color:"#f59e0b", ens:true,
-   files:["z_tigge_c_egrr_{YMD}{HH}0000_mogreps_glob_prod_etctr_glo.xml.gz"]}
+   files:["z_tigge_c_egrr_{YMD}{HH}0000_mogreps_glob_prod_etctr_glo.xml.gz"]},
+  /* ── Google DeepMind（AI 模式）置於最後 ── */
+  {code:"WNX", label:"Google WeatherNext", org:"Google DeepMind", dir:"weathernext", color:"#c2410c", ens:true, format:"atcf",
+   dataset:"OPER", product:"WeatherNext (OPER) ATCF A-deck",
+   files:["OPER_{Y}_{M}_{D}T{HH}_00_atcf_a_deck.txt"]},
+  {code:"WNX2", label:"Google WeatherNext2", org:"Google DeepMind", dir:"weathernext2", color:"#f97316", ens:true, format:"atcf",
+   dataset:"FNV3P2", product:"WeatherNext 2 ATCF A-deck",
+   files:["FNV3P2_{Y}_{M}_{D}T{HH}_00_atcf_a_deck.txt"]},
+  {code:"WNX2L", label:"Google WeatherNext2 大系集", org:"Google DeepMind（約 33MB，載入較久）", dir:"weathernext2le", color:"#fb923c", ens:true, heavy:true, format:"csv",
+   dataset:"FNV3_LARGE_ENSEMBLE", track:"cyclogenesis", product:"WeatherNext 2 Large Ensemble cyclogenesis CSV",
+   files:["FNV3_LARGE_ENSEMBLE_{Y}_{M}_{D}T{HH}_00_cyclogenesis.csv"]}
 ];
-const DEFAULT_ON = MODELS.filter(m=>m.ens).map(m=>m.code);
+/* 預設不勾大檔模式（WeatherNext2 大系集 CSV 約 33MB），需要時再自行勾選 */
+const DEFAULT_ON = MODELS.filter(m=>m.ens && !m.heavy).map(m=>m.code);
 
 const LS = {models:"nwpens.models", base:"nwpens.base", layers:"nwpens.layers", dayNight:"nwpens.daynight"};
 
@@ -459,6 +476,7 @@ async function fetchOnce(url, timeout, kind="xml"){
     // 部分服務失敗時可能回傳 200 + HTML 錯誤頁，需驗證確實是指定格式
     if(kind==="xml" && !/<\?xml|<cxml/i.test(txt.slice(0,3000))) throw new Error("非 XML 內容");
     if(kind==="atcf" && !looksLikeATCF(txt)) throw new Error("非 ATCF 內容");
+    if(kind==="csv"  && !looksLikeTrackCSV(txt)) throw new Error("非 CSV 內容");
     return txt;
   }catch(e){
     clearTimeout(tid);
@@ -637,7 +655,7 @@ function parseATCF(text, model, srcLabel){
     lineCount++;
   }
   const H = {
-    product:"WeatherNext2 ATCF A-deck",
+    product:model.product || "WeatherNext ATCF A-deck",
     center:"Google DeepMind",
     subCenter:"",
     modelName:model.label,
@@ -664,6 +682,317 @@ function parseATCF(text, model, srcLabel){
   }
   if(lineCount && !tracks.length) throw new Error("ATCF 檔案中無可用路徑資料");
   return {header:H, tracks:tracks};
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   CSV 解析（Google WeatherLab cyclogenesis CSV）
+   欄位名稱以標頭自動辨識，容忍不同版本的命名與單位
+   ══════════════════════════════════════════════════════════════════ */
+function splitCsvLine(line){
+  const out=[]; let cur="", q=false;
+  for(let i=0;i<line.length;i++){
+    const ch=line[i];
+    if(q){
+      if(ch==='"'){ if(line[i+1]==='"'){ cur+='"'; i++; } else q=false; }
+      else cur+=ch;
+    }else{
+      if(ch==='"') q=true;
+      else if(ch===","){ out.push(cur); cur=""; }
+      else cur+=ch;
+    }
+  }
+  out.push(cur);
+  return out.map(s=>s.trim());
+}
+function normHead(s){
+  return String(s||"").trim().toLowerCase()
+    .replace(/^"|"$/g,"")
+    .replace(/\[[^\]]*\]|\([^)]*\)/g,"")   // 去掉單位註記
+    .replace(/[^a-z0-9]+/g,"_")
+    .replace(/^_+|_+$/g,"");
+}
+const CSV_CANDS = {
+  lat  : ["latitude","lat","latitude_deg","lat_deg"],
+  lon  : ["longitude","lon","lng","long","longitude_deg","lon_deg"],
+  init : ["init_time","initialization_time","initial_time","initialisation_time","base_time","basetime",
+          "forecast_reference_time","reference_time","run_time","cycle","init"],
+  valid: ["valid_time","validtime","forecast_time","datetime","date_time","time","date"],
+  lead : ["lead_time_hours","lead_hours","lead_time","leadtime","forecast_hour","forecast_hours",
+          "fhour","fcst_hr","tau","step","lead","hour","hours"],
+  mem  : ["ensemble_member","member_id","member","realization","realisation","perturbation","sample","ensemble","number"],
+  pres : ["minimum_sea_level_pressure","min_sea_level_pressure","mean_sea_level_pressure","central_pressure",
+          "mslp","min_slp","slp","msl","pressure","pres"],
+  wind : ["maximum_sustained_wind_speed","maximum_sustained_wind","max_sustained_wind","maximum_wind_speed",
+          "max_wind_speed","max_wind","wind_speed","vmax","wind"],
+  storm: ["storm_id","cyclone_id","tc_id","atcf_id","track_id","trackid","storm_name","storm","cyclone","name","id"],
+  basin: ["basin","basin_id","basin_name"]
+};
+function pickCol(heads, cands){
+  for(const c of cands){ const i=heads.indexOf(c); if(i>=0) return i; }
+  for(const c of cands){ const i=heads.findIndex(h=>h.includes(c)); if(i>=0) return i; }
+  return -1;
+}
+/* 找出第一行看起來像標頭的列（容忍 r.jina.ai 之類前置說明文字） */
+function csvHeadRow(text){
+  const lines = text.split(/\r?\n/);
+  for(let i=0;i<lines.length && i<400;i++){
+    const s = lines[i].replace(/^﻿/,"").trim();
+    if(!s || s[0]==="#" || s.indexOf(",")<0) continue;
+    const h = splitCsvLine(s).map(normHead);
+    if(h.length>=3 && pickCol(h,CSV_CANDS.lat)>=0 && pickCol(h,CSV_CANDS.lon)>=0) return h;
+  }
+  return null;
+}
+function looksLikeTrackCSV(text){
+  return !!csvHeadRow(text);
+}
+/* 時間字串 → ms（容忍 ISO、YYYYMMDDHH、epoch） */
+function parseFlexTime(s){
+  s = String(s||"").trim().replace(/^"|"$/g,"");
+  if(!s) return null;
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)){
+    let t = s.replace(" ","T");
+    if(!/[zZ]|[+-]\d{2}:?\d{2}$/.test(t)) t += "Z";
+    const ms = Date.parse(t);
+    return isFinite(ms) ? ms : null;
+  }
+  if(/^\d{4}_\d{2}_\d{2}T\d{2}_\d{2}$/.test(s)){
+    const p=s.split(/[_T]/);
+    return Date.UTC(+p[0],+p[1]-1,+p[2],+p[3],+p[4]);
+  }
+  if(/^\d{10}$/.test(s)) return Date.UTC(+s.slice(0,4),+s.slice(4,6)-1,+s.slice(6,8),+s.slice(8,10));
+  if(/^\d{12}$/.test(s)) return Date.UTC(+s.slice(0,4),+s.slice(4,6)-1,+s.slice(6,8),+s.slice(8,10),+s.slice(10,12));
+  const n = Number(s);
+  if(isFinite(n)){
+    if(n>1e14) return n/1e6;      // 奈秒
+    if(n>1e11) return n;          // 毫秒
+    if(n>1e8)  return n*1000;     // 秒
+  }
+  const ms = Date.parse(s);
+  return isFinite(ms) ? ms : null;
+}
+/* 前置時間 → 小時（容忍 6 / PT6H / "0 days 06:00:00" / 奈秒 timedelta） */
+function parseFlexLead(s){
+  s = String(s||"").trim().replace(/^"|"$/g,"");
+  if(!s) return null;
+  let m = s.match(/^P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?/i);
+  if(/^P/i.test(s) && m) return (+(m[1]||0))*24 + (+(m[2]||0)) + (+(m[3]||0))/60;
+  m = s.match(/^(?:(\d+)\s*days?\s*)?(\d{1,3}):(\d{2})(?::(\d{2}))?$/i);
+  if(m) return (+(m[1]||0))*24 + (+m[2]) + (+m[3])/60;
+  const n = Number(s);
+  if(!isFinite(n)) return null;
+  if(Math.abs(n) > 1e9) return n/3.6e12;   // pandas 奈秒 timedelta
+  return n;
+}
+/**
+ * 逐行餵入的 CSV 解析器（可搭配串流，避免一次把 30MB+ 檔案全部展開）
+ * 用法：const P = makeCsvTrackParser(model, src); P.line(str) ... ; P.finish()
+ */
+function makeCsvTrackParser(model, srcLabel){
+  let heads=null, ci=null, windHead="";
+  let nRow=0, maxWind=0, firstInit=null;
+  const byTrack = new Map();
+
+  function line(raw){
+    const s = raw.replace(/^﻿/,"").replace(/\r$/,"").trim();
+    if(!s || s[0]==="#") return;
+    if(s.indexOf(",")<0) return;
+    const f = splitCsvLine(s);
+    if(!heads){
+      const cand = f.map(normHead);
+      // 跳過表格前的非資料文字，直到找到含經緯度的標頭列
+      if(cand.length<3 || pickCol(cand,CSV_CANDS.lat)<0 || pickCol(cand,CSV_CANDS.lon)<0) return;
+      heads = cand;
+      ci = {
+        lat:pickCol(heads,CSV_CANDS.lat), lon:pickCol(heads,CSV_CANDS.lon),
+        init:pickCol(heads,CSV_CANDS.init), valid:pickCol(heads,CSV_CANDS.valid),
+        lead:pickCol(heads,CSV_CANDS.lead), mem:pickCol(heads,CSV_CANDS.mem),
+        pres:pickCol(heads,CSV_CANDS.pres), wind:pickCol(heads,CSV_CANDS.wind),
+        storm:pickCol(heads,CSV_CANDS.storm), basin:pickCol(heads,CSV_CANDS.basin)
+      };
+      // 避免模糊比對讓同一欄被兩個角色搶用
+      if(ci.storm===ci.mem) ci.storm = -1;
+      if(ci.valid===ci.init) ci.valid = -1;
+      if(ci.lead===ci.valid || ci.lead===ci.init) ci.lead = -1;
+      windHead = ci.wind>=0 ? heads[ci.wind] : "";
+      return;
+    }
+    if(f.length < heads.length - 2) return;
+    const lat = parseFloat(f[ci.lat]), lon = parseFloat(f[ci.lon]);
+    if(!isFinite(lat) || !isFinite(lon) || Math.abs(lat)>90) return;
+
+    const initMs = ci.init>=0 ? parseFlexTime(f[ci.init]) : null;
+    if(initMs!==null && firstInit===null) firstInit = initMs;
+    const validMs = ci.valid>=0 ? parseFlexTime(f[ci.valid]) : null;
+    const lead    = ci.lead>=0  ? parseFlexLead(f[ci.lead]) : null;
+    if(lead===null && validMs===null) return;
+
+    const memRaw = ci.mem>=0 ? f[ci.mem] : "";
+    const mm = String(memRaw).match(/-?\d+/);
+    const memNum = mm ? parseInt(mm[0],10) : null;
+    const sid = ci.storm>=0 ? (f[ci.storm]||"").trim() : "";
+    const id  = sid || (memNum!==null ? "M"+pad2(memNum) : "GEN");
+    const key = id + ":" + (memNum===null?"d":memNum);
+
+    let t = byTrack.get(key);
+    if(!t){
+      const braw = (ci.basin>=0 ? (f[ci.basin]||"") : "").toUpperCase();
+      t = {
+        model:model.code, modelLabel:model.label, color:model.color,
+        header:null, dataType:"forecast", member:memNum, perturb:String(memRaw||""),
+        isEns:true, isCtl:memNum===0, distId:id,
+        name:/[a-z]/i.test(sid)?sid:"", number:id, localID:id,
+        basin:basinCode(braw) || basinFromPos(lat, lon), basinRaw:braw,
+        pts:[]
+      };
+      byTrack.set(key,t);
+    }
+    let pres = ci.pres>=0 ? parseFloat(f[ci.pres]) : NaN;
+    if(isFinite(pres) && pres>10000) pres/=100;          // Pa → hPa
+    const wRaw = ci.wind>=0 ? parseFloat(f[ci.wind]) : NaN;
+    if(isFinite(wRaw) && wRaw>maxWind) maxWind = wRaw;
+    // h / t / wind 於 finish() 統一換算（需先知道起報時間與風速單位）
+    t.pts.push({h:0, t:0, lat:lat, lon:norm180(lon),
+                pres:(isFinite(pres)&&pres>700&&pres<1080)?pres:null,
+                wind:isFinite(wRaw)?wRaw:null,
+                src:String(memRaw||""),
+                _i:initMs, _v:validMs, _l:lead});
+    nRow++;
+  }
+
+  function finish(){
+    if(!heads) throw new Error("CSV 無標頭（找不到經緯度欄位）");
+    if(!nRow)  throw new Error("CSV 檔案中無可用路徑資料");
+
+    /* 起報時間：欄位 → 檔名 → 最早有效時間 */
+    let baseMs = firstInit;
+    if(baseMs===null){
+      const fnm = String(srcLabel||"").match(/(\d{4})_(\d{2})_(\d{2})T(\d{2})_(\d{2})/);
+      if(fnm) baseMs = Date.UTC(+fnm[1], +fnm[2]-1, +fnm[3], +fnm[4], +fnm[5]);
+    }
+    if(baseMs===null){
+      let mn = Infinity;
+      for(const t of byTrack.values()) for(const p of t.pts) if(p._v!==null && p._v<mn) mn=p._v;
+      baseMs = isFinite(mn) ? mn : Date.now();
+    }
+
+    /* 風速單位：先看標頭，再用量級推定（>90 視為 kt，否則 m/s） */
+    let windToKt = 1;
+    if(/kt|kts|knot/.test(windHead)) windToKt = 1;
+    else if(/m_?s|mps|meter|metre/.test(windHead)) windToKt = KT;
+    else windToKt = maxWind>90 ? 1 : KT;
+
+    const memSet = new Set();
+    for(const t of byTrack.values()) if(t.member!==null) memSet.add(t.member);
+    const H = {
+      product: model.product || "WeatherLab cyclogenesis CSV",
+      center:"Google DeepMind",
+      subCenter:"",
+      modelName:model.label,
+      resolution:"",
+      appType:"ensemble",
+      numMembers: memSet.size || null,
+      baseTime: new Date(baseMs).toISOString(),
+      creationTime:"",
+      src:srcLabel
+    };
+
+    const tracks=[];
+    for(const t of byTrack.values()){
+      const pts=[];
+      for(const p of t.pts){
+        const t0 = p._i!==null ? p._i : baseMs;
+        let h = p._l;
+        if(h===null || !isFinite(h)){
+          if(p._v===null) continue;
+          h = (p._v - t0)/3600000;
+        }
+        if(!isFinite(h)) continue;
+        p.h = h; p.t = t0 + h*3600000;
+        if(p.wind!==null){
+          const w = p.wind*windToKt;
+          p.wind = (w>=0 && w<300) ? w : null;
+        }
+        delete p._i; delete p._v; delete p._l;
+        pts.push(p);
+      }
+      if(pts.length<2) continue;
+      pts.sort((a,b)=>a.h-b.h);
+      const seen=new Set();
+      t.pts = pts.filter(p=>{ if(seen.has(p.h)) return false; seen.add(p.h); return true; });
+      if(t.pts.length<2) continue;
+      for(let i=1;i<t.pts.length;i++) t.pts[i].lon = nearRef(t.pts[i].lon, t.pts[i-1].lon);
+      t.header = H;
+      tracks.push(t);
+    }
+    if(!tracks.length) throw new Error("CSV 檔案中無可用路徑資料");
+    return {header:H, tracks:tracks};
+  }
+  return {line:line, finish:finish, count:()=>nRow};
+}
+
+/* 整段文字版本（本機檔／小檔用） */
+function parseTrackCSV(text, model, srcLabel){
+  const P = makeCsvTrackParser(model, srcLabel);
+  let start=0;
+  while(start < text.length){
+    let nl = text.indexOf("\n", start);
+    if(nl<0) nl = text.length;
+    P.line(text.slice(start, nl));
+    start = nl+1;
+  }
+  return P.finish();
+}
+
+/**
+ * 串流下載並邊收邊解析 CSV（大檔必要：33MB 一次載入容易逾時／爆記憶體）
+ */
+async function fetchCsvTracksStream(url, model, timeout, onProgress){
+  const ctl = new AbortController();
+  let tid = setTimeout(()=>ctl.abort(), timeout);
+  const bump = ()=>{ clearTimeout(tid); tid = setTimeout(()=>ctl.abort(), timeout); };
+  let r;
+  try{
+    r = await fetch(url, {signal:ctl.signal, cache:"no-store", referrerPolicy:"no-referrer"});
+  }catch(e){
+    clearTimeout(tid);
+    throw (e && e.name==="AbortError") ? new Error("逾時") : e;
+  }
+  if(!r.ok){ clearTimeout(tid); throw new Error("HTTP "+r.status); }
+
+  const total = parseInt(r.headers.get("content-length")||"0",10) || 0;
+  const P = makeCsvTrackParser(model, url);
+
+  try{
+    if(!r.body || !r.body.getReader){
+      const txt = await r.text();
+      let s=0;
+      while(s<txt.length){ let nl=txt.indexOf("\n",s); if(nl<0) nl=txt.length; P.line(txt.slice(s,nl)); s=nl+1; }
+    }else{
+      const reader = r.body.getReader();
+      const dec = new TextDecoder("utf-8");
+      let buf="", got=0, tick=0;
+      for(;;){
+        const {done, value} = await reader.read();
+        if(done) break;
+        bump();
+        got += value.byteLength;
+        buf += dec.decode(value, {stream:true});
+        let s=0, nl;
+        while((nl = buf.indexOf("\n", s)) >= 0){ P.line(buf.slice(s,nl)); s = nl+1; }
+        buf = buf.slice(s);
+        if(onProgress && got-tick > 1.5e6){ tick=got; onProgress(got, total); }
+      }
+      buf += dec.decode();
+      if(buf) P.line(buf);
+    }
+  }catch(e){
+    clearTimeout(tid);
+    throw (e && e.name==="AbortError") ? new Error("逾時（傳輸中斷）") : e;
+  }
+  clearTimeout(tid);
+  if(onProgress) onProgress(total||1, total||1);
+  return P.finish();
 }
 
 /**
@@ -1086,9 +1415,9 @@ const S = {
   infoHtml: "尚未載入資料"
 };
 try{
-  if(localStorage.getItem("nwpens.defaultModelSet")!=="20260730-ukmo-mogreps"){
+  if(localStorage.getItem("nwpens.defaultModelSet")!=="20260731-weathernext"){
     localStorage.removeItem(LS.models);
-    localStorage.setItem("nwpens.defaultModelSet","20260730-ukmo-mogreps");
+    localStorage.setItem("nwpens.defaultModelSet","20260731-weathernext");
   }
 }catch(e){}
 try{ const s=JSON.parse(localStorage.getItem(LS.models)||"null"); if(s) S.modelOn=s; }catch(e){}
@@ -1142,7 +1471,7 @@ function buildModelList(){
     if(!c) return;
     S.modelOn[c] = e.target.checked;
     try{ localStorage.setItem(LS.models, JSON.stringify(S.modelOn)); }catch(err){}
-    rebuild();
+    rebuild(false);   // 勾選模式時維持目前的地圖範圍，不自動縮放
   });
 }
 function mstat(code, txt, cls){
@@ -1214,7 +1543,7 @@ function updateTimePanel(){
   const init = initDateUTC();
   const h = +$("#tSlider").value || 0;
   const valid = new Date(init.getTime()+h*3600000);
-  $("#validTime").textContent = `${h}小時預報　${fmtUTC(valid)} (+${h})`;
+  $("#validTime").textContent = `${h}小時預報　${fmtUTC(valid)}`;
   $("#initTime").innerHTML = `<span class="timeLabel">初始時間</span>`;
 }
 function setInitDateUTC(d){
@@ -1233,11 +1562,12 @@ function urlsFor(m){
   if(!v) return [];
   const [Y,M,D]=v.split("-");
   const YMD = Y+M+D, YY = Y.slice(2);
-  if(m.format==="atcf"){
+  if(m.format==="atcf" || m.format==="csv"){
     return m.files.map(f=>{
       const fn = f.replace(/\{Y\}/g,Y).replace(/\{M\}/g,M).replace(/\{D\}/g,D).replace(/\{HH\}/g,hh);
-      const raw = `${WNEXT_ATCF_BASE}/${fn}`;
-      return [`${WNEXT_READER_BASE}/${raw}`, raw];
+      const raw = `${wnextAtcfBase(m.dataset||"OPER", m.track, m.format)}/${fn}`;
+      // 大型 CSV 先直連（30MB+ 走 r.jina.ai 轉檔幾乎必然逾時），失敗才退回轉檔
+      return m.format==="csv" ? [raw, `${WNEXT_READER_BASE}/${raw}`] : [`${WNEXT_READER_BASE}/${raw}`, raw];
     }).flat();
   }
   return m.files.map(f=>{
@@ -1284,15 +1614,26 @@ async function loadCurrentCycle(sel, seq){
     let lastErr=null;
     for(const u of urls){
       try{
-        const got = await fetchCXML(u, null, m.format||"xml");
-        const r = m.format==="atcf" ? parseATCF(got.text, m, u) : parseCXML(got.text, m, u);
+        let r, via, tried=[];
+        if(m.format==="csv"){
+          // 大檔：串流下載＋邊收邊解析，並顯示進度
+          r = await fetchCsvTracksStream(u, m, 300000, (got,total)=>{
+            if(seq!==loadSeq) return;
+            mstat(m.code, total ? Math.round(got/total*100)+"%" : (got/1048576).toFixed(1)+"MB", "load");
+          });
+          via = "direct(stream)";
+        }else{
+          const res = await fetchCXML(u, null, m.format||"xml");
+          r = m.format==="atcf" ? parseATCF(res.text, m, u) : parseCXML(res.text, m, u);
+          via = res.via; tried = res.tried||[];
+        }
         if(seq!==loadSeq) return;
         if(!r.tracks.length){ lastErr=new Error("檔案中無路徑資料"); continue; }
-        S.files[m.code] = {ok:true, header:r.header, tracks:r.tracks, url:u, via:got.via};
+        S.files[m.code] = {ok:true, header:r.header, tracks:r.tracks, url:u, via:via};
         okCount++; trackTotal += r.tracks.length;
         const nm = new Set(r.tracks.map(t=>t.member===null?"d":t.member)).size;
-        mstat(m.code, nm+" 條 · "+got.via, "ok");
-        urlLog.push("    ✓ 成功管道：" + got.via + (got.tried.length?"（先失敗："+got.tried.join("、")+"）":""));
+        mstat(m.code, nm+" 條 · "+via, "ok");
+        urlLog.push("    ✓ 成功管道：" + via + (tried.length?"（先失敗："+tried.join("、")+"）":""));
         lastErr=null; break;
       }catch(e){ lastErr=e; }
     }
@@ -1318,7 +1659,7 @@ function summarizeLoadError(msg){
 }
 function explainLoadError(msg){
   if(/連線失敗|Failed to fetch|NetworkError|Load failed/i.test(msg)){
-    return msg + "（可能為瀏覽器 CORS/網路限制；直連不穩時可改用本機 XML）";
+    return msg + "（可能為瀏覽器 CORS/網路限制；直連不穩時可先自行下載檔案，再用「開啟本機檔」載入 XML／ATCF／CSV）";
   }
   if(/HTTP 404/.test(msg)){
     return msg + "（此中心此時次檔案可能尚未上架或沒有產生）";
@@ -1329,34 +1670,78 @@ function explainLoadError(msg){
   return msg;
 }
 
-/* 本機檔案 */
-async function loadFiles(fileList){
+/* 本機大型 CSV：以 File.stream() 逐行解析 */
+async function parseFileCsvStream(file, model){
+  const P = makeCsvTrackParser(model, file.name);
+  const reader = file.stream().getReader();
+  const dec = new TextDecoder("utf-8");
+  let buf="", got=0, tick=0;
+  for(;;){
+    const {done, value} = await reader.read();
+    if(done) break;
+    got += value.byteLength;
+    buf += dec.decode(value,{stream:true});
+    let s=0, nl;
+    while((nl = buf.indexOf("\n", s)) >= 0){ P.line(buf.slice(s,nl)); s = nl+1; }
+    buf = buf.slice(s);
+    if(got-tick > 4e6){ tick=got; setStatus("解析本機 CSV… "+Math.round(got/file.size*100)+"%"); }
+  }
+  buf += dec.decode();
+  if(buf) P.line(buf);
+  return P.finish();
+}
+
+/* 本機檔案。forceCode：指定套用的模式代碼（大系集 CSV 按鈕用） */
+async function loadFiles(fileList, forceCode){
   const arr = Array.from(fileList);
   if(!arr.length) return;
   setStatus("解析本機檔案…");
-  let n=0;
+  let n=0, errs=[];
   for(const f of arr){
     try{
-      const buf = await f.arrayBuffer();
-      const txt = await decodeMaybeGzip(buf, f.name);
-      // 依檔名猜模式
       const lower = f.name.toLowerCase();
-      let m = MODELS.find(x=>lower.includes("_"+x.dir+"_")||lower.includes("_"+x.code.toLowerCase()+"_"));
-      if(lower.includes("cmc")) m = MODELS.find(x=>x.code==="CMC");
-      else if(lower.includes("gefs")) m = MODELS.find(x=>x.code==="KWBC");
-      else if(lower.includes("weathernext") || lower.includes("atcf") || lower.includes("_a_deck")) m = MODELS.find(x=>x.code==="WNX2");
+      const forced = forceCode ? MODELS.find(x=>x.code===forceCode) : null;
+      // 大型 CSV：以串流逐行解析，避免整檔展開造成記憶體不足
+      const csvByName = lower.endsWith(".csv");
+      const bigCsv = (csvByName || (forced && forced.format==="csv")) && f.size > 4*1024*1024 && !!f.stream;
+      setStatus("解析 "+f.name+"（"+(f.size/1048576).toFixed(1)+"MB）…");
+      const txt = bigCsv ? "" : await decodeMaybeGzip(await f.arrayBuffer(), f.name);
+      // 指定模式優先，否則依檔名猜
+      let m = forced;
+      if(!m){
+        m = MODELS.find(x=>lower.includes("_"+x.dir+"_")||lower.includes("_"+x.code.toLowerCase()+"_"));
+        if(lower.includes("cmc")) m = MODELS.find(x=>x.code==="CMC");
+        else if(lower.includes("gefs")) m = MODELS.find(x=>x.code==="KWBC");
+        else if(lower.includes("large_ensemble") || lower.includes("cyclogenesis")) m = MODELS.find(x=>x.code==="WNX2L");
+        else if(lower.includes("fnv3p2") || lower.includes("weathernext2") || lower.includes("weathernext_2")) m = MODELS.find(x=>x.code==="WNX2");
+        else if(lower.includes("oper_")) m = MODELS.find(x=>x.code==="WNX");
+        else if(lower.includes("weathernext") || lower.includes("atcf") || lower.includes("_a_deck")) m = MODELS.find(x=>x.code==="WNX2");
+      }
       if(!m) m = {code:"FILE"+n, label:f.name, org:"本機檔", color:"#94a3b8", dir:"", files:[], ens:true};
-      const isAtcf = m.format==="atcf" || looksLikeATCF(txt);
-      const r = isAtcf ? parseATCF(txt, m, f.name) : parseCXML(txt, m, f.name);
+      const isCsv  = bigCsv || csvByName || (m.format==="csv" && !looksLikeATCF(txt)) ||
+                     (!/^\s*<\?xml|^\s*<cxml/i.test(txt) && !looksLikeATCF(txt) && looksLikeTrackCSV(txt));
+      const isAtcf = !isCsv && (m.format==="atcf" || looksLikeATCF(txt));
+      const r = bigCsv ? await parseFileCsvStream(f, m)
+              : isCsv  ? parseTrackCSV(txt, m, f.name)
+              : isAtcf ? parseATCF(txt, m, f.name)
+              : parseCXML(txt, m, f.name);
       const key = S.files[m.code]&&S.files[m.code].ok ? m.code+"#"+n : m.code;
       S.files[key] = {ok:true, header:r.header, tracks:r.tracks, url:f.name};
       if(MODELS.some(x=>x.code===m.code)){ S.modelOn[m.code]=true;
+        try{ localStorage.setItem(LS.models, JSON.stringify(S.modelOn)); }catch(err){}
         const cb=$('#modelList input[data-m="'+m.code+'"]'); if(cb) cb.checked=true;
         mstat(m.code, r.tracks.length+" 條 (本機)","ok"); }
       n++;
-    }catch(e){ console.warn(f.name, e); }
+    }catch(e){
+      console.warn(f.name, e);
+      errs.push(f.name+"："+String((e&&e.message)||e));
+    }
   }
-  setStatus("已載入 "+n+" 個本機檔案","ok");
+  if(n) setStatus("已載入 "+n+" 個本機檔案"+(errs.length?"（"+errs.length+" 個失敗）":""), errs.length?"":"ok");
+  else  setStatus("本機檔載入失敗 — "+(errs[0]||"格式無法辨識"), "err");
+  if(errs.length){
+    const d=$("#diag"); if(d) d.textContent = "本機檔錯誤：\n" + errs.join("\n");
+  }
   rebuild(true);
 }
 
@@ -1890,13 +2275,24 @@ function hideChartTip(){
 $("#btnLoad").onclick = loadAll;
 $("#btnFile").onclick = ()=>$("#fileIn").click();
 $("#fileIn").onchange = e=>{ loadFiles(e.target.files); e.target.value=""; };
+/* 大系集 CSV 專用：直接指定為 WNX2L，不必靠檔名猜 */
+$("#btnCsv").onclick = ()=>$("#csvIn").click();
+$("#csvIn").onchange = e=>{ loadFiles(e.target.files, "WNX2L"); e.target.value=""; };
+/* 直接把檔案拖進視窗也能載入 */
+document.addEventListener("dragover", e=>{ if(e.dataTransfer) e.preventDefault(); });
+document.addEventListener("drop", e=>{
+  if(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length){
+    e.preventDefault();
+    loadFiles(e.dataTransfer.files);
+  }
+});
 $("#mAll").onclick = ()=>{ MODELS.forEach(m=>S.modelOn[m.code]=true); syncModelChecks(); };
 $("#mNone").onclick= ()=>{ MODELS.forEach(m=>S.modelOn[m.code]=false); syncModelChecks(); };
 $("#mWP").onclick  = ()=>{ MODELS.forEach(m=>S.modelOn[m.code]=DEFAULT_ON.includes(m.code)); syncModelChecks(); };
 function syncModelChecks(){
   MODELS.forEach(m=>{ const cb=$('#modelList input[data-m="'+m.code+'"]'); if(cb) cb.checked=S.modelOn[m.code]; });
   try{ localStorage.setItem(LS.models, JSON.stringify(S.modelOn)); }catch(e){}
-  rebuild();
+  rebuild(false);   // 全選／全不選／預設 也維持目前地圖範圍
 }
 ["cMem","cMean","cCtl"].forEach(id=>$("#"+id).addEventListener("change",()=>draw(false)));
 $("#cProb").addEventListener("change",()=>{ if($("#cProb").checked) computeProb();
