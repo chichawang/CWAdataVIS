@@ -28,6 +28,7 @@
   #map{position:absolute;inset:0;background:var(--bg)}
   .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:rgba(23,28,40,0.92);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);color:var(--txt);border:1px solid var(--line);border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,0.4)}
   .leaflet-popup-content{margin:14px 16px;font-size:13px;line-height:1.55}
+  .light-bolt{background:none;border:0;line-height:0;filter:drop-shadow(0 0 2px rgba(0,0,0,.65))}
   .windarrow{background:none;border:none}
   .windarrow svg{filter:drop-shadow(0 0 1px rgba(0,0,0,.6))}
   /* 颱風符號：緩慢逆時針旋轉（北半球氣旋方向） */
@@ -1162,6 +1163,22 @@ function lightPopup(s){
   return html;
 }
 
+// 閃電圖示（SVG 閃電符號）：填色沿用原本的距今時間色階
+// filled=true → 實心（雲對地/落雷）；filled=false → 空心描邊（雲間閃電）
+const LIGHT_BOLT_PATH="M9.2 0.6 L2.4 8.9 h3.4 l-1.4 6.5 8.0 -9.1 h-3.6 l2.0 -5.7 z";
+const lightIconCache=new Map();
+function lightBoltIcon(col,filled){
+  const key=col+"|"+(filled?1:0);
+  let ic=lightIconCache.get(key);
+  if(ic)return ic;
+  const svg=`<svg width="12" height="17" viewBox="1.4 -0.5 12 17" xmlns="http://www.w3.org/2000/svg">`
+    +`<path d="${LIGHT_BOLT_PATH}" fill="${filled?col:"none"}" stroke="${filled?"#fff":col}" `
+    +`stroke-width="${filled?1:1.6}" stroke-linejoin="round" opacity=".97"/></svg>`;
+  ic=L.divIcon({className:"light-bolt",html:svg,iconSize:[12,17],iconAnchor:[6,8.5],popupAnchor:[0,-6]});
+  lightIconCache.set(key,ic);
+  return ic;
+}
+
 async function loadLightning(on){
   if(!on){map.removeLayer(lightLayer);lightStatUI();return;}
   if(!KEY){$("lightChk").checked=false;openGate();return;}
@@ -1197,9 +1214,7 @@ async function loadLightning(on){
   lightLayer.clearLayers();
   lightCache.strikes.forEach(s=>{
     const col=lightColor(s.t);
-    const m=(s.cg===false)
-      ?L.circleMarker([s.lat,s.lon],{renderer:lightRenderer,radius:3.5,color:col,weight:1.6,fill:false,opacity:.95})
-      :L.circleMarker([s.lat,s.lon],{renderer:lightRenderer,radius:4,fillColor:col,color:"#fff",weight:.8,fillOpacity:.95});
+    const m=L.marker([s.lat,s.lon],{icon:lightBoltIcon(col,s.cg!==false),keyboard:false});
     m.bindPopup(()=>lightPopup(s));
     m.addTo(lightLayer);
   });
@@ -1214,7 +1229,7 @@ function lightStatUI(){
   const bar=LIGHT_RAMP.map(x=>`<span style="display:inline-block;width:13px;height:8px;background:${x[1]}"></span>`).join("");
   el.style.display="block";
   el.innerHTML="⚡ 閃電："+st.length.toLocaleString("zh-TW")+" 筆"
-    +(cg||ic?`（●落雷 ${cg}｜○雲間 ${ic}）`:"")
+    +(cg||ic?`（⚡實心=落雷 ${cg}｜⚡空心=雲間 ${ic}）`:"")
     +(lightCache.latest?"｜🕒 最新 "+lightCache.latest.toLocaleString("zh-TW"):"")
     +`<br>　新 ${bar} 舊（落雷距今 0–60 分鐘）`;
 }
