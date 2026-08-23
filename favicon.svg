@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<defs>
+<linearGradient id="b" x1="0" y1="0" x2="0.4" y2="1">
+<stop offset="0" stop-color="#1d2737"/>
+<stop offset="1" stop-color="#090c12"/>
+</linearGradient>
+<linearGradient id="i" x1="0.1" y1="0" x2="0.9" y2="1">
+<stop offset="0" stop-color="#ffffff"/>
+<stop offset="1" stop-color="#c3cfdd"/>
+</linearGradient>
+</defs>
+<rect width="64" height="64" rx="14" fill="url(#b)"/>
+
+<path d="M25.42,5.61 A27.2,27.2 0 0 1 31.78,4.80" fill="none" stroke="#f28b82" stroke-width="5.4" stroke-linecap="round"/>
+<path d="M31.09,4.82 A27.2,27.2 0 0 1 37.47,5.36" fill="none" stroke="#f49a7c" stroke-width="5.4"/>
+<path d="M36.80,5.23 A27.2,27.2 0 0 1 42.92,7.09" fill="none" stroke="#f6a976" stroke-width="5.4"/>
+<path d="M42.29,6.82 A27.2,27.2 0 0 1 47.89,9.93" fill="none" stroke="#f9b86f" stroke-width="5.4"/>
+<path d="M47.33,9.53 A27.2,27.2 0 0 1 52.16,13.74" fill="none" stroke="#fbc769" stroke-width="5.4"/>
+<path d="M51.69,13.24 A27.2,27.2 0 0 1 55.53,18.36" fill="none" stroke="#fdd663" stroke-width="5.4"/>
+<path d="M55.18,17.77 A27.2,27.2 0 0 1 57.87,23.59" fill="none" stroke="#e4d36d" stroke-width="5.4"/>
+<path d="M57.65,22.94 A27.2,27.2 0 0 1 59.05,29.19" fill="none" stroke="#cbd177" stroke-width="5.4"/>
+<path d="M58.97,28.50 A27.2,27.2 0 0 1 59.04,34.91" fill="none" stroke="#b3ce81" stroke-width="5.4"/>
+<path d="M59.11,34.23 A27.2,27.2 0 0 1 57.84,40.50" fill="none" stroke="#9acc8b" stroke-width="5.4"/>
+<path d="M58.04,39.85 A27.2,27.2 0 0 1 55.49,45.72" fill="none" stroke="#81c995" stroke-width="5.4"/>
+<path d="M55.82,45.12 A27.2,27.2 0 0 1 52.09,50.33" fill="none" stroke="#77caa4" stroke-width="5.4"/>
+<path d="M52.55,49.82 A27.2,27.2 0 0 1 47.81,54.13" fill="none" stroke="#6cccb3" stroke-width="5.4"/>
+<path d="M48.37,53.72 A27.2,27.2 0 0 1 42.83,56.95" fill="none" stroke="#62cdc3" stroke-width="5.4"/>
+<path d="M43.46,56.67 A27.2,27.2 0 0 1 37.37,58.66" fill="none" stroke="#57cfd2" stroke-width="5.4"/>
+<path d="M38.05,58.52 A27.2,27.2 0 0 1 31.68,59.20" fill="none" stroke="#4dd0e1" stroke-width="5.4"/>
+<path d="M32.37,59.20 A27.2,27.2 0 0 1 25.99,58.53" fill="none" stroke="#59cae6" stroke-width="5.4"/>
+<path d="M26.67,58.67 A27.2,27.2 0 0 1 20.58,56.68" fill="none" stroke="#65c5ea" stroke-width="5.4"/>
+<path d="M21.20,56.97 A27.2,27.2 0 0 1 15.66,53.75" fill="none" stroke="#72bfef" stroke-width="5.4"/>
+<path d="M16.22,54.15 A27.2,27.2 0 0 1 11.48,49.85" fill="none" stroke="#7ebaf3" stroke-width="5.4"/>
+<path d="M11.93,50.36 A27.2,27.2 0 0 1 8.20,45.16" fill="none" stroke="#8ab4f8" stroke-width="5.4"/>
+<path d="M8.54,45.76 A27.2,27.2 0 0 1 5.97,39.89" fill="none" stroke="#96acf8" stroke-width="5.4"/>
+<path d="M6.18,40.54 A27.2,27.2 0 0 1 4.89,34.27" fill="none" stroke="#a2a3f8" stroke-width="5.4"/>
+<path d="M4.96,34.95 A27.2,27.2 0 0 1 5.02,28.55" fill="none" stroke="#ad9bf9" stroke-width="5.4"/>
+<path d="M4.94,29.23 A27.2,27.2 0 0 1 6.34,22.98" fill="none" stroke="#b992f9" stroke-width="5.4"/>
+<path d="M6.12,23.63 A27.2,27.2 0 0 1 8.80,17.81" fill="none" stroke="#c58af9" stroke-width="5.4" stroke-linecap="round"/>
+<g transform="translate(32,32) scale(0.86) translate(-32,-31)">
+<path d="M39.96,7.70 C40.52,7.66 41.42,8.51 42.36,9.10 C43.29,9.69 46.35,10.99 46.61,11.90 C46.87,12.81 44.47,14.79 44.21,15.60 C43.95,16.41 45.18,16.16 44.75,17.70 C44.33,19.24 42.13,23.60 41.16,26.60 C40.18,29.60 38.71,36.65 37.78,39.10 C36.85,41.55 35.47,42.29 34.51,44.10 C33.55,45.91 31.51,50.29 30.91,52.00 C30.31,53.71 30.61,55.89 30.26,56.30 C29.91,56.71 28.75,55.57 28.40,54.90 C28.05,54.23 28.07,52.38 27.75,51.50 C27.43,50.62 26.59,49.10 26.11,48.60 C25.64,48.10 24.97,48.22 24.37,47.90 C23.77,47.58 22.55,47.42 21.86,46.30 C21.18,45.18 19.69,41.90 19.46,39.90 C19.24,37.90 19.72,34.00 20.23,32.00 C20.73,30.00 22.36,27.00 23.06,25.60 C23.76,24.20 24.45,23.11 25.24,22.00 C26.04,20.89 27.94,18.81 28.73,17.70 C29.52,16.59 30.21,15.00 30.91,14.10 C31.61,13.20 32.71,11.96 33.74,11.30 C34.78,10.64 37.45,9.90 38.32,9.40 C39.19,8.90 39.39,7.74 39.96,7.70 Z" fill="url(#i)"/>
+</g>
+</svg>
