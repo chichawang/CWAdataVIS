@@ -91,6 +91,10 @@
   a.go.aq-theme:hover{background:rgba(197,138,249,0.12);border-color:rgba(197,138,249,0.4);box-shadow:0 8px 24px rgba(0,0,0,0.3), 0 0 16px rgba(197,138,249,0.2)}
   a.go.aq-theme .title-row .arrow{color:#c58af9}
 
+  a.go.wl-theme::before{background:#42a5f5}
+  a.go.wl-theme:hover{background:rgba(66,165,245,0.12);border-color:rgba(66,165,245,0.4);box-shadow:0 8px 24px rgba(0,0,0,0.3), 0 0 16px rgba(66,165,245,0.2)}
+  a.go.wl-theme .title-row .arrow{color:#42a5f5}
+
   a.go.ty-theme::before{background:#ff9f43}
   a.go.ty-theme:hover{background:rgba(255,159,67,0.12);border-color:rgba(255,159,67,0.4);box-shadow:0 8px 24px rgba(0,0,0,0.3), 0 0 16px rgba(255,159,67,0.2)}
   a.go.ty-theme .title-row .arrow{color:#ff9f43}
@@ -129,14 +133,14 @@
       <span class="material-symbols-outlined" style="font-size:14px">cloud</span> CWA Open Data Portal
     </div>
     <h1><span class="material-symbols-outlined icon">map</span> 開放資料視覺化地圖集</h1>
-    <div class="sub">以中央氣象署（CWA）與環境部（MOENV）開放資料呈現全臺即時觀測，支援多種觀測變數、縣市篩選與測站搜尋。另收錄不需金鑰的全臺即時影像地圖。</div>
+    <div class="sub">以中央氣象署（CWA）、環境部（MOENV）與經濟部水利署（WRA）開放資料呈現全臺即時觀測，支援多種觀測變數、縣市篩選與測站搜尋。另收錄不需金鑰的全臺即時影像與河川水情地圖。</div>
 
     <div class="tabs" role="tablist">
       <button class="tab active" role="tab" data-pane="cwa">
         <span class="material-symbols-outlined">cloud</span> 氣象署觀測 <span class="cnt">7</span>
       </button>
       <button class="tab" role="tab" data-pane="other">
-        <span class="material-symbols-outlined">apps</span> 其他分頁 <span class="cnt">4</span>
+        <span class="material-symbols-outlined">apps</span> 其他分頁 <span class="cnt">5</span>
       </button>
     </div>
 
@@ -148,7 +152,7 @@
           <span>進入地圖（逐 10 分鐘觀測）</span>
           <span class="material-symbols-outlined arrow">arrow_forward</span>
         </div>
-        <span class="desc">氣象站 10 分鐘綜觀氣象、雨量、日射量與雷達疊加</span>
+        <span class="desc">氣象站 10 分鐘綜觀氣象／雨量／日射 × 雷達回波與對流胞 × 衛星雲圖 × 閃電落雷 × 颱風路徑與侵襲機率，並整合<b>全臺 5,586 支即時影像鏡頭</b>與<b>水利署河川水位／地下水／IoW 感測器</b>（後兩者為免金鑰圖層，預設關閉，需要時再勾選載入）</span>
       </a>
 
       <a class="go" href="CWA_opendata_hourly_display.html">
@@ -204,7 +208,7 @@
     </div><!-- /pane-cwa -->
 
     <div class="pane" id="pane-other">
-    <div class="pane-note">其他常用地圖頁面：全球官方颱風路徑整合、NWP/MLWP 系集颱風路徑、公開影像串流整合與環境部空氣品質監測。</div>
+    <div class="pane-note">其他常用地圖頁面：全球官方颱風路徑整合、NWP/MLWP 系集颱風路徑、公開影像串流整合、水利署河川水情與環境部空氣品質監測。</div>
     <div class="links">
       <a class="go ty-theme" href="typhoon_multiofficialagency_display.html">
         <div class="title-row">
@@ -238,6 +242,17 @@
         </span>
       </a>
 
+      <a class="go wl-theme" href="WRA_waterlevel_realtime_display.html">
+        <div class="title-row">
+          <span>水利署即時水位地圖</span>
+          <span class="material-symbols-outlined arrow">arrow_forward</span>
+        </div>
+        <span class="desc">經濟部水利署開放資料整合圖，七個可疊加圖層：<b>河川即時水位</b>（857 站，依一／二／三級警戒水位分級上色，達警戒站加脈動標示）、<b>即時地下水位觀測井</b>（井位取自水利署地理資訊服務平台 KMZ，可看水位高程／埋深／井況）、以及智慧防汛物聯網（IoW）的<b>淹水深度</b>、<b>揚塵 PM10</b>、<b>閘門相關監測</b>、<b>沖刷深度</b>、<b>累計流量（雨水貯留）</b>五種感測器。
+          支援縣市→水系→河川三層連動篩選、站名／站號／地址搜尋、只顯示達警戒測站、隱藏逾時未更新的感測器，並以網址 hash 保存目前的圖層與篩選狀態，可直接分享連結。
+          <span class="key-tag free"><span class="material-symbols-outlined" style="font-size:13px">lock_open</span> 不需任何 API 金鑰，開啟即用</span>
+        </span>
+      </a>
+
       <a class="go aq-theme" href="MOENV_aqx_hourly_display.html">
         <div class="title-row">
           <span>環境部空氣品質監測地圖</span>
@@ -253,7 +268,7 @@
     </div><!-- /pane-other -->
 
     <div class="foot">
-      <span>資料來源：<a href="https://opendata.cwa.gov.tw/" target="_blank" rel="noopener">中央氣象署</a> ‧ <a href="https://data.moenv.gov.tw/" target="_blank" rel="noopener">環境部</a> ‧ 公路局／水利署等公開影像 · 原始來源：<a href="https://github.com/chichawang/CWAdataVIS" target="_blank" rel="noopener">chichawang/CWAdataVIS</a></span>
+      <span>資料來源：<a href="https://opendata.cwa.gov.tw/" target="_blank" rel="noopener">中央氣象署</a> ‧ <a href="https://data.moenv.gov.tw/" target="_blank" rel="noopener">環境部</a> ‧ <a href="https://opendata.wra.gov.tw/" target="_blank" rel="noopener">水利署</a> ‧ 公路局／水利署等公開影像 · 原始來源：<a href="https://github.com/chichawang/CWAdataVIS" target="_blank" rel="noopener">chichawang/CWAdataVIS</a></span>
       <span>金鑰僅存於您的瀏覽器，不會上傳。</span>
     </div>
   </div>

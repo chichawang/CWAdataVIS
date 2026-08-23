@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>氣象署即時觀測×全臺即時影像地圖</title>
+<title>氣象署即時觀測×全臺即時影像×水利署水情地圖</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
@@ -64,6 +64,48 @@
   .ckrow{display:flex;align-items:center;gap:8px;margin:6px 0 0;font-size:12.5px;color:var(--txt);font-weight:400;cursor:pointer;padding:3px 0}
   .ckrow input{width:auto;accent-color:var(--accent)}
 
+  /* 面板：區塊化卡片（每個資料圖層 / 功能群組各自一張卡，可收合） */
+  details.sec{background:rgba(255,255,255,0.035);border:1px solid var(--line);border-radius:14px;
+    padding:11px 13px;margin-top:10px}
+  .panel .sub+.chip.time+details.sec,.panel details.sec:first-of-type{margin-top:14px}
+  details.sec>summary{list-style:none;cursor:pointer;font-size:12.5px;font-weight:700;color:var(--txt);
+    display:flex;align-items:center;gap:8px;outline:none;user-select:none}
+  details.sec>summary::-webkit-details-marker{display:none}
+  details.sec>summary .car{margin-left:auto;color:var(--muted);font-size:10px;transition:transform .2s;flex:0 0 auto}
+  details.sec:not([open])>summary .car{transform:rotate(-90deg)}
+  details.sec>summary:hover{color:var(--accent)}
+  details.sec .sec-body{margin-top:9px}
+  details.sec .sec-body>label:first-child{margin-top:0}
+  details.sec+details.sec{margin-top:10px}
+  .sec-sub{margin-top:8px;padding:8px 10px 2px;border-top:1px dashed var(--line)}
+  .sec-row{display:flex;align-items:center;gap:6px;margin-top:8px}
+  .sec-row:first-child{margin-top:0}
+  details.sec>summary .chead-stat{margin-left:auto;color:var(--muted);font-weight:500;font-size:10.5px;
+    background:var(--chip);padding:2px 7px;border-radius:9px}
+
+  /* ===== 水利署水情圖層（來源：WRA_waterlevel_realtime_display.html）===== */
+  .pop .sechd{border-top:1px solid var(--line);margin:6px 0 4px;padding-top:5px;color:#9fb0c8;font-size:11px}
+  .pop .badge{display:inline-block;padding:2px 9px;border-radius:11px;font-size:11.5px;font-weight:700;color:#0b1220}
+  .pop a{color:var(--accent)}
+  .lgrow{display:flex;align-items:center;gap:7px;font-size:11.5px;margin-top:5px}
+  .lgrow .cnt{margin-left:auto;color:var(--muted);font-variant-numeric:tabular-nums}
+  .lgrow .dot{flex:0 0 auto}
+  /* 地下水觀測井：菱形標示，與河川站的倒三角形區隔 */
+  .gw-di{background:none;border:0}
+  .gw-di i{display:block;width:100%;height:100%;transform:rotate(45deg);border:1px solid #fff;border-radius:2px;
+    box-shadow:0 0 0 1px rgba(0,0,0,.35)}
+  /* IoW 物聯網感測器：方形（淹水深度）／三角形（揚塵）等 */
+  .iow-mk{background:none;border:0;line-height:0}
+  .iow-mk svg{display:block;filter:drop-shadow(0 0 1px rgba(0,0,0,.55))}
+  /* 河川水位站：▽ 倒三角形（測量學的水面高程符號），與氣象站圓點區隔 */
+  .wl-tri{background:none;border:0;line-height:0}
+  .wl-tri svg{display:block;filter:drop-shadow(0 0 1px rgba(0,0,0,.55))}
+  .lgi{display:inline-flex;line-height:0;flex:0 0 auto}
+  /* 達警戒站的脈動外環 */
+  .wl-pulse{background:none;border:0}
+  .wl-pulse i{display:block;width:100%;height:100%;border-radius:50%;animation:wlp 1.6s ease-out infinite}
+  @keyframes wlp{0%{transform:scale(.55);opacity:.85}100%{transform:scale(1.5);opacity:0}}
+
   /* 面板 / 圖例 縮小切換 */
   .phead{display:flex;align-items:center;gap:8px}
   .phead h1{flex:1;margin:0}
@@ -98,7 +140,20 @@
   .legend{position:absolute;bottom:22px;right:12px;z-index:1000;background:rgba(23,28,40,0.65);
     backdrop-filter:blur(24px) saturate(1.8);-webkit-backdrop-filter:blur(24px) saturate(1.8);
     border:1px solid var(--line);border-radius:16px;padding:14px 16px;width:240px;
+    max-height:calc(100vh - 60px);display:flex;flex-direction:column;
     box-shadow:0 8px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.1)}
+  .legend .lbody{overflow-y:auto;overscroll-behavior:contain;margin-right:-6px;padding-right:6px}
+  /* 圖例區塊化：每個圖層一張可收合卡，展開狀態記在 localStorage */
+  details.lsec{border-top:1px solid var(--line);margin-top:7px;padding-top:7px}
+  details.lsec:first-of-type{border-top:0;margin-top:0;padding-top:0}
+  #wlLeg>details.lsec:first-of-type,#legIoW>details.lsec:first-of-type{border-top:1px solid var(--line);margin-top:7px;padding-top:7px}
+  details.lsec>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;
+    font-size:12px;font-weight:700;color:#fff;outline:none;user-select:none}
+  details.lsec>summary::-webkit-details-marker{display:none}
+  details.lsec>summary .car{margin-left:auto;color:var(--muted);font-size:9px;transition:transform .2s;flex:0 0 auto}
+  details.lsec:not([open])>summary .car{transform:rotate(-90deg)}
+  details.lsec>summary:hover{color:var(--accent)}
+  .lsec-body{margin-top:7px}
   .legend .title{font-size:13px;font-weight:700;margin-bottom:8px;color:#ffffff}
   .bar{height:14px;border-radius:6px;border:1px solid var(--line)}
   .ticks{display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted);margin-top:4px}
@@ -186,120 +241,331 @@
 <button type="button" id="panelTab" title="收合 / 展開面板">◀</button>
 <div class="panel" id="panel">
   <div class="phead">
-    <h1>🗺️ 即時觀測×即時影像</h1>
+    <h1>🗺️ 即時觀測×即時影像×水情</h1>
   </div>
   <div class="pbody">
-  <div class="sub">中央氣象署 O-A0003-001 / O-A0002-001 / O-A0091-001 即時觀測 ＋ O-A0039-001 閃電落雷 ＋ 衛星雲圖（臺灣/東亞 PNG / GeoTIFF）＋ W-C0034 颱風路徑 / 侵襲機率　＋ 全臺即時影像鏡頭（公路局省道交控 / 國道 / 縣市 CCTV / 河川防災）</div>
+  <div class="sub">中央氣象署 O-A0003-001 / O-A0002-001 / O-A0091-001 即時觀測 ＋ O-A0039-001 閃電落雷 ＋ 衛星雲圖（臺灣/東亞 PNG / GeoTIFF）＋ W-C0034 颱風路徑 / 侵襲機率　＋ 全臺即時影像鏡頭（公路局省道交控 / 國道 / 縣市 CCTV / 河川防災）　＋ 經濟部水利署 河川即時水位 / 即時地下水位 / IoW 物聯網感測器（免金鑰）</div>
   <span class="chip time" id="obsTime">🕒 資料時間：—</span>
-  <label>觀測變數</label>
-  <select id="varSel"></select>
-  <label>縣市</label>
-  <select id="countySel"><option value="">全部（縮放至全臺）</option></select>
-  <label>測站搜尋（名稱 / 站號）</label>
-  <input id="search" placeholder="例如：臺北、466920…">
-  <label>底圖</label>
-  <select id="baseSel">
-    <option value="osm">街道圖 (OSM)</option>
-    <option value="sat">衛星影像 (類 Google Earth)</option>
-    <option value="topo">地形圖</option>
-    <option value="dark">深色圖</option>
-    <option value="light">淺色圖</option>
-  </select>
-  <label>雷達疊加圖層</label>
-  <select id="radarSel">
-    <option value="">無</option>
-    <option value="echo">雷達整合回波 (O-A0059-001)</option>
-    <option value="qpe">雷達估計降雨 (O-B0045-001)</option>
-  </select>
-  <div id="radarOpWrap" style="display:none">
-    <label style="margin-top:6px">雷達透明度 <span id="radarOpV">75%</span></label>
-    <input type="range" id="radarOp" min="0" max="100" value="75">
-  </div>
-  <label>衛星雲圖（疊加圖層）</label>
-  <select id="cloudSel">
-    <option value="">無</option>
-    <optgroup label="臺灣 PNG 雲圖">
-      <option value="vis">可見光衛星雲圖 (O-C0042-008)</option>
-      <option value="enh">紅外線色調強化衛星雲圖 (O-C0042-006)</option>
-      <option value="irc">紅外線彩色衛星雲圖 (O-C0042-002)</option>
-    </optgroup>
-    <optgroup label="東亞 PNG 雲圖">
-      <option value="visEA">可見光衛星雲圖 (O-B0032-001)</option>
-      <option value="enhEA">紅外線色調強化衛星雲圖 (O-B0032-004)</option>
-      <option value="ircEA">紅外線彩色衛星雲圖 (O-B0032-002)</option>
-    </optgroup>
-    <optgroup label="東亞高解析度">
-      <option value="gtAlb">可見光反照率 (O-B0055-001)</option>
-      <option value="gtBt">紅外線亮度溫度 (O-B0056-001)</option>
-    </optgroup>
-  </select>
-  <div id="cloudOpWrap" style="display:none">
-    <label style="margin-top:6px">雲圖透明度 <span id="cloudOpV">75%</span></label>
-    <input type="range" id="cloudOp" min="0" max="100" value="75">
-  </div>
-  <span class="chip" id="cloudStat" style="display:none;margin-top:5px"></span>
-  <label>閃電監測（點位圖層）</label>
-  <label class="ckrow"><input type="checkbox" id="lightChk"> ⚡ 閃電落雷 (O-A0039-001) ●</label>
-  <span class="chip" id="lightStat" style="display:none;margin-top:5px"></span>
-  <label>颱風監測（點位圖層）</label>
-  <label class="ckrow"><input type="checkbox" id="tyChk"> 🌀 颱風路徑 (W-C0034-005)</label>
-  <label class="ckrow"><input type="checkbox" id="typChk"> 🎯 颱風侵襲機率 (W-C0034-003)</label>
-  <span class="chip" id="tyStat" style="display:none;margin-top:5px"></span>
-  <span class="chip" id="typStat" style="display:none;margin-top:5px"></span>
-  <label>日夜變化</label>
-  <label class="ckrow"><input type="checkbox" id="dayNightChk" checked> 🌗 日夜變化陰影區（晨昏線）</label>
-  <!-- 衛星觀測圖層（O-A0043-001）：暫時隱藏，移除下方 display:none 即可恢復 -->
-  <div id="satSection" style="display:none">
-    <label>衛星觀測（疊加圖層）</label>
-    <label class="ckrow"><input type="checkbox" id="satChk"> 🛰️ 向日葵9號可見光反射率 (O-A0043-001)</label>
-    <label style="margin-top:6px">衛星圖層透明度 <span id="satOpV">85%</span></label>
-    <input type="range" id="satOp" min="0" max="100" value="85">
-    <span class="chip" id="satStat" style="display:none;margin-top:5px"></span>
-  </div>
-  <div class="btns">
-    <button id="reload">↻ 重新整理</button>
-    <button class="ghost" id="fit">⤢ 重置視角</button>
-  </div>
-  <label class="ckrow"><input type="checkbox" id="autoChk"> 🔄 自動更新（每 2 分鐘）</label>
-  <span class="chip" id="autoStat" style="display:none;margin-top:5px"></span>
-  <div class="btns">
-    <button class="ghost" id="changeKey">🔑 更換金鑰</button>
-  </div>
-  <label style="margin-top:14px;border-top:1px solid var(--line);padding-top:10px">📹 即時影像（不需金鑰）</label>
-  <label class="ckrow"><input type="checkbox" id="camChk"> 📹 顯示全臺即時影像鏡頭</label>
-  <span class="chip" id="camStat" style="display:none"></span>
-  <div id="camPanel" style="display:none">
-    <input id="camSearch" placeholder="搜尋鏡頭：台1線、和平溪、板橋…" style="margin-top:7px">
-    <div class="camcats" id="camCats"></div>
-    <div class="btns">
-      <button class="ghost" id="camThbLive" title="改抓公路局最新 CCTV 清單">↻ 更新省道鏡頭清單</button>
+
+  <details class="sec" open>
+    <summary>🌡️ 氣象站即時觀測<span class="car">▾</span></summary>
+    <div class="sec-body">
+      <label>觀測變數</label>
+      <select id="varSel"></select>
+      <label>縣市</label>
+      <select id="countySel"><option value="">全部（縮放至全臺）</option></select>
+      <label>測站搜尋（名稱 / 站號）</label>
+      <input id="search" placeholder="例如：臺北、466920…">
     </div>
+  </details>
+
+  <details class="sec" open>
+    <summary>🗺️ 底圖與日夜變化<span class="car">▾</span></summary>
+    <div class="sec-body">
+      <select id="baseSel" style="margin-top:0">
+        <option value="osm">街道圖 (OSM)</option>
+        <option value="sat">衛星影像 (類 Google Earth)</option>
+        <option value="topo">地形圖</option>
+        <option value="dark">深色圖</option>
+        <option value="light">淺色圖</option>
+      </select>
+      <label class="ckrow"><input type="checkbox" id="dayNightChk" checked> 🌗 日夜變化陰影區（晨昏線）</label>
+    </div>
+  </details>
+
+  <details class="sec" open>
+    <summary>📡 雷達與對流胞<span class="car">▾</span></summary>
+    <div class="sec-body">
+      <label>雷達疊加圖層</label>
+      <select id="radarSel">
+        <option value="">無</option>
+        <option value="echo">雷達整合回波 (O-A0059-001)</option>
+        <option value="qpe">雷達估計降雨 (O-B0045-001)</option>
+      </select>
+      <div id="radarOpWrap" style="display:none">
+        <label style="margin-top:6px">雷達透明度 <span id="radarOpV">75%</span></label>
+        <input type="range" id="radarOp" min="0" max="100" value="75">
+      </div>
+      <label class="ckrow" style="margin-top:6px"><input type="checkbox" id="cellChk"> 🎯 對流胞即時監測 (O-B0054-001)</label>
+      <div id="cellOpWrap" style="display:none">
+        <label style="margin-top:6px">對流胞透明度 <span id="cellOpV">90%</span></label>
+        <input type="range" id="cellOp" min="0" max="100" value="90">
+      </div>
+      <span class="chip" id="cellStat" style="display:none;margin-top:5px"></span>
+    </div>
+  </details>
+
+  <details class="sec" open>
+    <summary>🛰️ 衛星雲圖<span class="car">▾</span></summary>
+    <div class="sec-body">
+      <label>衛星雲圖（疊加圖層）</label>
+      <select id="cloudSel">
+        <option value="">無</option>
+        <optgroup label="臺灣 PNG 雲圖">
+          <option value="vis">可見光衛星雲圖 (O-C0042-008)</option>
+          <option value="enh">紅外線色調強化衛星雲圖 (O-C0042-006)</option>
+          <option value="irc">紅外線彩色衛星雲圖 (O-C0042-002)</option>
+        </optgroup>
+        <optgroup label="東亞 PNG 雲圖">
+          <option value="visEA">可見光衛星雲圖 (O-B0032-001)</option>
+          <option value="enhEA">紅外線色調強化衛星雲圖 (O-B0032-004)</option>
+          <option value="ircEA">紅外線彩色衛星雲圖 (O-B0032-002)</option>
+        </optgroup>
+        <optgroup label="東亞高解析度">
+          <option value="gtAlb">可見光反照率 (O-B0055-001)</option>
+          <option value="gtBt">紅外線亮度溫度 (O-B0056-001)</option>
+        </optgroup>
+      </select>
+      <div id="cloudOpWrap" style="display:none">
+        <label style="margin-top:6px">雲圖透明度 <span id="cloudOpV">75%</span></label>
+        <input type="range" id="cloudOp" min="0" max="100" value="75">
+      </div>
+      <span class="chip" id="cloudStat" style="display:none;margin-top:5px"></span>
+      <!-- 衛星觀測圖層（O-A0043-001）：暫時隱藏，移除下方 display:none 即可恢復 -->
+      <div id="satSection" style="display:none">
+        <label>衛星觀測（疊加圖層）</label>
+        <label class="ckrow"><input type="checkbox" id="satChk"> 🛰️ 向日葵9號可見光反射率 (O-A0043-001)</label>
+        <label style="margin-top:6px">衛星圖層透明度 <span id="satOpV">85%</span></label>
+        <input type="range" id="satOp" min="0" max="100" value="85">
+        <span class="chip" id="satStat" style="display:none;margin-top:5px"></span>
+      </div>
+    </div>
+  </details>
+
+  <details class="sec">
+    <summary>⚡ 閃電落雷<span class="car">▾</span></summary>
+    <div class="sec-body">
+      <label class="ckrow" style="margin-top:0"><input type="checkbox" id="lightChk"> ⚡ 閃電落雷 (O-A0039-001) ●</label>
+      <span class="chip" id="lightStat" style="display:none;margin-top:5px"></span>
+      <label class="ckrow"><input type="checkbox" id="tpChk"> 🔌 台電落雷即時資料（不需金鑰）●</label>
+      <div id="tpOptWrap" style="display:none">
+        <label style="margin-top:6px">落雷資料來源</label>
+        <select id="tpSrc">
+          <option value="auto">自動（政府開放平臺 JSON → 台電 CSV）</option>
+          <option value="json">政府資料開放平臺 JSON (nid=61139)</option>
+          <option value="csv">台電網站 CSV (001.csv)</option>
+        </select>
+      </div>
+      <span class="chip" id="tpStat" style="display:none;margin-top:5px"></span>
+      <div id="tpProxyWrap" style="display:none">
+        <label style="margin-top:6px">CORS 轉送網址（選填，支援 {url} 佔位符）</label>
+        <input id="tpProxy" placeholder="https://你的worker.workers.dev/?url={url}">
+      </div>
+    </div>
+  </details>
+
+  <details class="sec">
+    <summary>🌀 颱風監測<span class="car">▾</span></summary>
+    <div class="sec-body">
+      <label class="ckrow" style="margin-top:0"><input type="checkbox" id="tyChk"> 🌀 颱風路徑 (W-C0034-005)</label>
+      <label class="ckrow"><input type="checkbox" id="typChk"> 🎯 颱風侵襲機率 (W-C0034-003)</label>
+      <span class="chip" id="tyStat" style="display:none;margin-top:5px"></span>
+      <span class="chip" id="typStat" style="display:none;margin-top:5px"></span>
+    </div>
+  </details>
+
+  <details class="sec" open>
+    <summary>📹 即時影像鏡頭<span class="car">▾</span></summary>
+    <div class="sec-body">
+      <label class="ckrow" style="margin-top:0"><input type="checkbox" id="camChk"> 📹 顯示全臺即時影像鏡頭（不需金鑰）</label>
+      <span class="chip" id="camStat" style="display:none"></span>
+      <div id="camPanel" style="display:none">
+        <input id="camSearch" placeholder="搜尋鏡頭：台1線、和平溪、板橋…" style="margin-top:7px">
+        <div class="camcats" id="camCats"></div>
+        <div class="btns">
+          <button class="ghost" id="camThbLive" title="改抓公路局最新 CCTV 清單">↻ 更新省道鏡頭清單</button>
+        </div>
+      </div>
+    </div>
+  </details>
+
+
+  <details class="sec">
+    <summary>🌊 水利署即時水位<span class="car">▾</span></summary>
+    <div class="sec-body">
+      <label class="ckrow" style="margin-top:0"><input type="checkbox" id="wlChk"> 🌊 顯示河川水位／地下水／IoW 圖層（不需金鑰）</label>
+      <div id="wlOpt" style="display:none">
+        <span class="chip time" id="wlObsTime" style="margin-top:7px">🕒 資料時間：—</span>
+
+      <label>觀測變數</label>
+      <select id="wlVarSel"></select>
+
+      <label>縣市</label>
+      <select id="wlCountySel"><option value="">全部（縮放至全臺）</option></select>
+
+      <label>水系（流域）</label>
+      <select id="basinSel"><option value="">全部水系</option></select>
+
+      <label>河川</label>
+      <select id="riverSel"><option value="">全部河川</option></select>
+
+      <label>測站搜尋（站名 / 站號 / 地址）</label>
+      <input id="wlSearch" placeholder="例如：台北橋、1140H029、士林…">
+
+      <div class="sec-sub">
+        <label style="margin-top:0">顯示選項</label>
+        <label class="ckrow"><input type="checkbox" id="naChk" checked> ⚪ 顯示無即時資料的現存站（灰點）</label>
+        <label class="ckrow"><input type="checkbox" id="alertChk"> 🚨 只顯示已達警戒水位的測站</label>
+        <label class="ckrow"><input type="checkbox" id="pulseChk" checked> 💫 達警戒站加上脈動標示</label>
+      </div>
+      </div>
+    </div>
+  </details>
+
+  <div id="wlSections" style="display:none">
+  <details class="sec" open>
+    <summary>💧 地下水觀測井<span class="car">▾</span></summary>
+    <div class="sec-body">
+      <label class="ckrow" style="margin-top:0"><input type="checkbox" id="gwChk"> 💧 顯示即時地下水位觀測井（◆ 菱形）</label>
+      <div id="gwOpt" style="display:none">
+        <label>井位（經緯度）來源</label>
+        <select id="gwSrc">
+          <option value="auto">自動（GIC KMZ 優先 → 井況 API 補齊）</option>
+          <option value="kmz">只用 GIC KMZ（805 口、內含經緯度、檔案小）</option>
+          <option value="api">只用井況 API（需自行反算二度分帶）</option>
+        </select>
+        <label>地下水觀測變數</label>
+        <select id="gwVarSel"></select>
+        <label>地下水分區</label>
+        <select id="gwZoneSel"><option value="">全部分區</option></select>
+        <label class="ckrow"><input type="checkbox" id="gwNaChk"> ⚪ 顯示無即時資料的觀測井（灰點）</label>
+      </div>
+      <span class="chip" id="gwStat" style="display:none"></span>
+    </div>
+  </details>
+
+  <details class="sec" open>
+    <summary>📡 IoW 物聯網感測器<span class="car">▾</span></summary>
+    <div class="sec-body">
+      <div class="sec-row">
+        <label class="ckrow" style="margin:0;flex:1"><input type="checkbox" id="floodChk"> 🌊 淹水深度感測器（■ 方形）</label>
+      </div>
+      <div id="floodOpt" style="display:none">
+        <label class="ckrow"><input type="checkbox" id="floodOnlyChk"> 🚨 只顯示積水中（&gt; 0 cm）</label>
+        <label class="ckrow"><input type="checkbox" id="floodStaleChk"> 🕒 隱藏逾 24 小時未更新的感測器</label>
+        <label>管理單位</label>
+        <select id="floodOrgSel"><option value="">全部單位</option></select>
+      </div>
+      <span class="chip" id="floodStat" style="display:none"></span>
+
+      <div class="sec-row">
+        <label class="ckrow" style="margin:0;flex:1"><input type="checkbox" id="dustChk"> 🌫️ 揚塵監控站 PM10（▲ 三角）</label>
+      </div>
+      <span class="chip" id="dustStat" style="display:none"></span>
+
+      <div class="sec-row">
+        <label class="ckrow" style="margin:0;flex:1"><input type="checkbox" id="gateChk"> 🚪 閘門相關監測（⬢ 六角形）</label>
+      </div>
+      <span class="chip" id="gateStat" style="display:none"></span>
+
+      <div class="sec-row">
+        <label class="ckrow" style="margin:0;flex:1"><input type="checkbox" id="scourChk"> 🕳️ 沖刷深度（● 圓形）</label>
+      </div>
+      <span class="chip" id="scourStat" style="display:none"></span>
+
+      <div class="sec-row">
+        <label class="ckrow" style="margin:0;flex:1"><input type="checkbox" id="flowChk"> 💧 累計流量(雨水貯留)（💧 水滴）</label>
+      </div>
+      <span class="chip" id="flowStat" style="display:none"></span>
+    </div>
+  </details>
+
+  <details class="sec">
+    <summary>🌊 水利署資料來源<span class="car">▾</span></summary>
+    <div class="sec-body">
+      <span class="chip" id="srcStat" style="margin-top:0"></span>
+      <div class="chip" style="margin-top:6px">
+        河川即時水位：<a href="https://opendata.wra.gov.tw/api/v2/73c4c3de-4045-4765-abeb-89f9f9cd5ff0?sort=_importdate%20asc&format=JSON" target="_blank" rel="noopener" style="color:var(--accent)">73c4c3de…5ff0</a><br>
+        測站站況：<a href="https://opendata.wra.gov.tw/api/v2/c4acc691-7416-40ca-9464-292c0c00da92?sort=_importdate%20asc&format=JSON" target="_blank" rel="noopener" style="color:var(--accent)">c4acc691…0da92</a><br>
+        即時地下水：<a href="https://opendata.wra.gov.tw/api/v2/58a7aa39-287a-4b96-985d-47ffbc7abbd4?sort=_importdate%20asc&format=JSON" target="_blank" rel="noopener" style="color:var(--accent)">58a7aa39…abbd4</a><br>
+        觀測井井況：<a href="https://opendata.wra.gov.tw/api/v2/3e86faea-e94a-4a91-a870-852d73e83c3d?sort=_importdate%20asc&format=JSON" target="_blank" rel="noopener" style="color:var(--accent)">3e86faea…e83c3d</a><br>
+        觀測井位 KMZ：<a href="https://gic.wra.gov.tw/gis/gic/API/Google/DownLoad.aspx?fname=gwobwell_e&filetype=KML" target="_blank" rel="noopener" style="color:var(--accent)">gic.wra.gov.tw gwobwell_e</a><br>
+        IoW 淹水深度：<a href="https://opendata.wra.gov.tw/api/v2/21c50be1-7c4a-4fdf-a386-790625e984e7?sort=_importdate%20asc&format=JSON" target="_blank" rel="noopener" style="color:var(--accent)">21c50be1…e984e7</a>（基本）／<a href="https://opendata.wra.gov.tw/api/v2/1b991bbb-ad85-4e7a-b931-06ce8749d3ed?sort=_importdate%20asc&format=JSON" target="_blank" rel="noopener" style="color:var(--accent)">1b991bbb…49d3ed</a>（最新）<br>
+        IoW 揚塵：<a href="https://opendata.wra.gov.tw/api/v2/a2ea1f32-9876-4228-8ee6-2284e49ea28d?sort=_importdate%20asc&format=JSON" target="_blank" rel="noopener" style="color:var(--accent)">a2ea1f32…9ea28d</a>（基本）／<a href="https://opendata.wra.gov.tw/api/v2/ae7bd821-a879-4b65-ad34-b3dac36874e0?sort=_importdate%20asc&format=JSON" target="_blank" rel="noopener" style="color:var(--accent)">ae7bd821…6874e0</a>（最新）<br>
+        IoW 閘門：<a href="https://opendata.wra.gov.tw/api/v2/d82e29eb-22f8-4e94-8d27-be27ac601d5e?sort=_importdate%20asc&format=JSON" target="_blank" rel="noopener" style="color:var(--accent)">d82e29eb…ac601d5e</a>（基本）／<a href="https://opendata.wra.gov.tw/api/v2/3e9e4c4d-9758-49fe-8a65-90c88e11ea54?sort=_importdate%20asc&format=JSON" target="_blank" rel="noopener" style="color:var(--accent)">3e9e4c4d…90c88e11ea54</a>（最新）<br>
+        IoW 沖刷深度：<a href="https://opendata.wra.gov.tw/api/v2/4d3ec222-8ce9-4f3a-bf20-f743441006a4?sort=_importdate%20asc&format=JSON" target="_blank" rel="noopener" style="color:var(--accent)">4d3ec222…f743441006a4</a>（基本）／<a href="https://opendata.wra.gov.tw/api/v2/0e51a4ed-1e8d-4c20-9dcb-6efdc7dd87c7?sort=_importdate%20asc&format=JSON" target="_blank" rel="noopener" style="color:var(--accent)">0e51a4ed…6efdc7dd87c7</a>（最新）<br>
+        IoW 累計流量(雨水貯留)：<a href="https://opendata.wra.gov.tw/api/v2/ad756630-2246-4569-8910-a865cdfa7984?sort=_importdate%20asc&format=JSON" target="_blank" rel="noopener" style="color:var(--accent)">ad756630…a865cdfa7984</a>（基本）／<a href="https://opendata.wra.gov.tw/api/v2/ffa4febb-bc2d-4f6e-ad03-a7c7e6b66c8f?sort=_importdate%20asc&format=JSON" target="_blank" rel="noopener" style="color:var(--accent)">ffa4febb…a7c7e6b66c8f</a>（最新）
+      </div>
+      <div class="btns"><button class="ghost" id="clearCache">🗑 清除站況／井況快取</button></div>
+    </div>
+  </details>
+    <span class="chip" id="wlInfo">—</span>
+    <span class="chip" id="warnStat" style="display:none"></span>
   </div>
+
+  <details class="sec" open>
+    <summary>⚙️ 操作與更新<span class="car">▾</span></summary>
+    <div class="sec-body">
+      <div class="btns" style="margin-top:0">
+        <button id="reload">↻ 重新整理</button>
+        <button class="ghost" id="fit">⤢ 重置視角</button>
+      </div>
+      <label class="ckrow"><input type="checkbox" id="autoChk"> 🔄 自動更新（每 2 分鐘）</label>
+      <span class="chip" id="autoStat" style="display:none;margin-top:5px"></span>
+      <div class="btns">
+        <button class="ghost" id="changeKey">🔑 更換金鑰</button>
+      </div>
+    </div>
+  </details>
+
   <span class="chip" id="info">—</span>
   </div><!-- /pbody -->
 </div>
 
 <div class="legend" id="legend">
   <div class="lhead">
-    <div class="title" id="legTitle">—</div>
+    <div class="title">🗺️ 圖例</div>
     <button type="button" class="mini" id="legToggle" title="縮小 / 展開圖例">−</button>
   </div>
   <div class="lbody">
-  <div id="legVar">
-  <div class="bar" id="legBar"></div>
-  <div class="ticks" id="legTicks"></div>
-  <div id="legNote" style="font-size:11px;color:var(--muted);margin-top:7px;display:none"></div>
-  <div class="na"><span class="dot"></span> 無觀測值 / 缺測</div>
-  </div><!-- /legVar -->
-  <!-- 雷達圖層資訊與游標讀值（由左下資訊盒移入） -->
-  <div style="border-top:1px solid var(--line);margin-top:8px;padding-top:6px">
-    <div style="font-size:11px;color:var(--muted);font-weight:600">🌀 雷達圖層</div>
-    <span class="chip" id="radarStat" style="margin-top:4px">未啟用</span>
-    <span class="chip" id="radarTime"></span>
-    <div style="font-size:11px;color:var(--muted);font-weight:600;margin-top:6px">📍 游標 / 點擊讀值</div>
-    <div id="posLL" style="font-size:13px;font-weight:700;margin-top:4px">—</div>
-    <div id="posVal" style="font-size:13px;margin-top:2px;color:var(--muted)">（未啟用雷達圖層）</div>
+
+  <details class="lsec" data-k="pos">
+    <summary>📍 座標 / 點擊讀值<span class="car">▾</span></summary>
+    <div class="lsec-body">
+      <div id="posLL" style="font-size:13px;font-weight:700">—</div>
+      <div id="posVal" style="font-size:12.5px;margin-top:2px;color:var(--muted)">（未啟用雷達圖層）</div>
+    </div>
+  </details>
+
+  <details class="lsec" data-k="var">
+    <summary><span id="legTitle">—</span><span class="car">▾</span></summary>
+    <div class="lsec-body">
+      <div id="legVar">
+        <div class="bar" id="legBar"></div>
+        <div class="ticks" id="legTicks"></div>
+        <div id="legNote" style="font-size:11px;color:var(--muted);margin-top:7px;display:none"></div>
+        <div class="na"><span class="dot"></span> 無觀測值 / 缺測</div>
+      </div>
+    </div>
+  </details>
+
+  <div id="wlLeg" style="display:none">
+    <details class="lsec" data-k="wl">
+      <summary><span id="wlLegTitle">🌊 水利署水情</span><span class="car">▾</span></summary>
+      <div class="lsec-body">
+        <div id="legBody"></div>
+        <div id="wlLegNote" style="font-size:11px;color:var(--muted);margin-top:8px"></div>
+        <div class="na" id="legNA"><span class="dot"></span> 無即時資料 / 缺測</div>
+      </div>
+    </details>
+    <details class="lsec" id="legGW" data-k="gw" style="display:none">
+      <summary><span id="legGWTitle">💧 地下水</span><span class="car">▾</span></summary>
+      <div class="lsec-body">
+        <div id="legGWBody"></div>
+        <div id="legGWNote" style="font-size:11px;color:var(--muted);margin-top:6px"></div>
+      </div>
+    </details>
+    <div id="legIoW"></div>
   </div>
+
+  <details class="lsec" data-k="radar">
+    <summary>🌀 雷達圖層<span class="car">▾</span></summary>
+    <div class="lsec-body">
+      <span class="chip" id="radarStat" style="margin-top:0">未啟用</span>
+      <span class="chip" id="radarTime"></span>
+    </div>
+  </details>
+
   </div><!-- /lbody -->
 </div>
 
@@ -755,6 +1021,9 @@ const RADAR_DEFS={
     stops:[[0.5,[156,251,255]],[2,[0,205,255]],[6,[0,150,250]],[10,[0,105,250]],[15,[50,150,0]],
       [20,[50,255,0]],[30,[255,255,0]],[40,[255,200,0]],[50,[255,150,0]],[70,[250,0,0]],
       [90,[200,0,0]],[110,[160,0,0]],[130,[150,0,155]],[150,[200,0,210]],[200,[255,0,245]],[300,[255,200,255]]]},
+  // 對流胞即時監測（圖像型產品：整合雷達回波＋對流胞追蹤標示，等距圓柱投影 PNG）
+  cell:{id:"O-B0054-001",label:"對流胞即時監測",unit:"",img:true,
+    geo:{lonW:115.0,lonE:126.5,latS:18.0,latN:29.0}},
   // 結束 RADAR_DEFS
 };
 function stopColor(stops,v){
@@ -762,6 +1031,82 @@ function stopColor(stops,v){
   for(let i=stops.length-1;i>=0;i--)if(v>=stops[i][0])return stops[i][1];
   return null;
 }
+// 圖像型雷達產品：由 JSON 取出經緯度範圍（datasetInfo.parameterSet），失敗則用預設值
+function parseGeoRange(j,def){
+  try{
+    const txt=JSON.stringify(j);
+    const lon=txt.match(/"Long?titudeRange"\s*:\s*"?\s*([\d.]+)\s*[-~]\s*([\d.]+)/i);
+    const lat=txt.match(/"LatitudeRange"\s*:\s*"?\s*([\d.]+)\s*[-~]\s*([\d.]+)/i);
+    if(lon&&lat){
+      const g={lonW:Math.min(+lon[1],+lon[2]),lonE:Math.max(+lon[1],+lon[2]),
+               latS:Math.min(+lat[1],+lat[2]),latN:Math.max(+lat[1],+lat[2])};
+      if(isFinite(g.lonW)&&isFinite(g.lonE)&&isFinite(g.latS)&&isFinite(g.latN)&&g.lonE>g.lonW&&g.latN>g.latS)return g;
+    }
+  }catch(e){}
+  return def&&def.geo;
+}
+// 觀測時間：優先取 DateTime（實際觀測時刻），否則退回 sent / obsTime
+function findProductTime(o){
+  const m=JSON.stringify(o).match(/"DateTime"\s*:\s*"([^"]+)"/);
+  return m?m[1]:findRadarTime(o);
+}
+// 等距圓柱（Plate Carrée）影像 → Web Mercator 逐列重採樣；
+// 原圖若無透明像素，將近白底色去除，避免整片遮住底圖。
+function reprojectEquirect(bmp,geo){
+  const SW=bmp.width,SH=bmp.height;
+  const sc=document.createElement("canvas");sc.width=SW;sc.height=SH;
+  const sctx=sc.getContext("2d");sctx.drawImage(bmp,0,0);
+  const sd=sctx.getImageData(0,0,SW,SH).data;
+  let opaque=true;
+  for(let i=3;i<sd.length;i+=4*997){if(sd[i]<250){opaque=false;break;}}
+  // 原圖若無透明像素：取邊框像素眾數當作底色（白／黑／單色背景皆適用），佔比過半才去背
+  let bg=null;
+  if(opaque){
+    const cnt=new Map();let tot=0;
+    const push=(x,y)=>{const p=(y*SW+x)*4;
+      const k=((sd[p]>>4)<<8)|((sd[p+1]>>4)<<4)|(sd[p+2]>>4);
+      cnt.set(k,(cnt.get(k)||0)+1);tot++;};
+    for(let x=0;x<SW;x+=2){push(x,0);push(x,SH-1);}
+    for(let y=0;y<SH;y+=2){push(0,y);push(SW-1,y);}
+    let best=null,bn=0;
+    for(const[k,n]of cnt)if(n>bn){bn=n;best=k;}
+    if(best!=null&&bn/tot>0.5)bg=[((best>>8)&15)*17,((best>>4)&15)*17,(best&15)*17];
+  }
+  const mercY=lat=>Math.log(Math.tan(Math.PI/4+lat*Math.PI/360));
+  const yN=mercY(geo.latN),yS=mercY(geo.latS);
+  const W=Math.min(SW,1600);
+  const H=Math.max(1,Math.round(W*(yN-yS)/((geo.lonE-geo.lonW)*Math.PI/180)));
+  const oc=document.createElement("canvas");oc.width=W;oc.height=H;
+  const octx=oc.getContext("2d");
+  const od=octx.createImageData(W,H),dd=od.data;
+  for(let r=0;r<H;r++){
+    const my=yN-(r+0.5)/H*(yN-yS);
+    const lat=(2*Math.atan(Math.exp(my))-Math.PI/2)*180/Math.PI;
+    const sy=Math.max(0,Math.min(SH-1,Math.floor((geo.latN-lat)/(geo.latN-geo.latS)*SH)));
+    for(let c=0;c<W;c++){
+      const sx=Math.max(0,Math.min(SW-1,Math.floor((c+0.5)/W*SW)));
+      const sp=(sy*SW+sx)*4,op=(r*W+c)*4;
+      const R=sd[sp],G=sd[sp+1],B=sd[sp+2],A=sd[sp+3];
+      dd[op]=R;dd[op+1]=G;dd[op+2]=B;
+      dd[op+3]=(bg&&Math.abs(R-bg[0])<=16&&Math.abs(G-bg[1])<=16&&Math.abs(B-bg[2])<=16)?0:A;
+    }
+  }
+  octx.putImageData(od,0,0);
+  return oc.toDataURL("image/png");
+}
+// 圖像型雷達產品：JSON → ProductURL 影像 → 重投影後的疊圖資料
+async function loadRadarImage(def,j){
+  const mu=JSON.stringify(j).match(/https?:\/\/[^"'\\]+\.(?:jpg|jpeg|png|gif)/i);
+  const imgURL=mu?mu[0]:"https://cwaopendata.s3.ap-northeast-1.amazonaws.com/Observation/"+def.id+".png";
+  const geo=parseGeoRange(j,def);
+  const blob=await fetch(imgURL,{cache:"reload"}).then(r=>{if(!r.ok)throw new Error("圖檔 HTTP "+r.status);return r.blob();});
+  const bmp=await createImageBitmap(blob);
+  let url;
+  try{ url=reprojectEquirect(bmp,geo); }finally{ if(bmp.close)bmp.close(); }
+  return {img:true,url,bounds:[[geo.latS,geo.lonW],[geo.latN,geo.lonE]],
+    time:utcDate(findProductTime(j)),src:imgURL};
+}
+
 // 在檔案型 JSON 中尋找網格內容（大量逗號分隔字串）與時間
 function findContent(o){
   if(typeof o==="string")return(o.match(/,/g)||[]).length>10000?o:null;
@@ -793,18 +1138,22 @@ async function loadRadar(kind){
   if(!KEY){$("radarSel").value="";radarKind="";$("radarOpWrap").style.display="none";openGate();return;}
   const def=RADAR_DEFS[kind];
   if(!radarCache[kind]){
-    $("radarStat").textContent="⏳ 下載中（檔案較大，請稍候）…";
+    $("radarStat").textContent=def.img?"⏳ 載入影像圖資…":"⏳ 下載中（檔案較大，請稍候）…";
     try{
       const url="https://opendata.cwa.gov.tw/fileapi/v1/opendataapi/"+def.id
         +"?Authorization="+encodeURIComponent(KEY)+"&downloadType=WEB&format=JSON&_t="+Date.now();
       const j=await fetch(url).then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json();});
-      const content=findContent(j);
-      if(!content)throw new Error("找不到網格資料內容");
-      const parts=content.trim().split(/[,\s]+/);
-      const vals=new Float32Array(parts.length);
-      for(let i=0;i<parts.length;i++){const v=parseFloat(parts[i]);vals[i]=def.bad(v)?NaN:v;}
-      const g=KNOWN_GRIDS.find(x=>x.nx*x.ny===vals.length)||def.grid;
-      radarCache[kind]={values:vals,grid:g,time:findRadarTime(j)};
+      if(def.img){   // 圖像型產品（對流胞即時監測）
+        radarCache[kind]=await loadRadarImage(def,j);
+      }else{
+        const content=findContent(j);
+        if(!content)throw new Error("找不到網格資料內容");
+        const parts=content.trim().split(/[,\s]+/);
+        const vals=new Float32Array(parts.length);
+        for(let i=0;i<parts.length;i++){const v=parseFloat(parts[i]);vals[i]=def.bad(v)?NaN:v;}
+        const g=KNOWN_GRIDS.find(x=>x.nx*x.ny===vals.length)||def.grid;
+        radarCache[kind]={values:vals,grid:g,time:findRadarTime(j)};
+      }
     }catch(e){
       $("radarStat").textContent="載入失敗："+e.message+"（可能為瀏覽器 CORS 限制）";
       if(radarKind===kind){$("radarSel").value="";radarKind="";$("radarOpWrap").style.display="none";}
@@ -813,7 +1162,9 @@ async function loadRadar(kind){
   }
   if(radarKind!==kind)return;   // 下載期間使用者已切換
   buildRadarOverlay();
-  $("radarStat").textContent=def.label+"（"+def.unit+"）";
+  if(def.img) $("radarStat").innerHTML="🌀 "+def.label+"（"+def.id+"）"
+    +"<br>圖像產品：整合雷達回波＋對流胞追蹤標示（不提供數值讀取）";
+  else $("radarStat").textContent=def.label+"（"+def.unit+"）";
   $("radarTime").textContent=radarCache[kind].time
     ?"🕒 "+new Date(radarCache[kind].time).toLocaleString("zh-TW"):"";
   updatePosBox(lastLL);
@@ -824,6 +1175,12 @@ async function loadRadar(kind){
 function buildRadarOverlay(){
   const def=RADAR_DEFS[radarKind],c=radarCache[radarKind];
   if(!def||!c)return;
+  if(c.img){   // 圖像型產品（對流胞即時監測）：重投影後的 PNG 直接疊圖
+    if(radarOverlay)map.removeLayer(radarOverlay);
+    radarOverlay=L.imageOverlay(c.url,c.bounds,
+      {opacity:+$("radarOp").value/100,pane:"radar",interactive:false}).addTo(map);
+    return;
+  }
   const{nx:NXr,ny:NYr,lon0:LO,lat0:LA,res:RS}=c.grid;
   const LON1=LO+(NXr-1)*RS,LAT1=LA+(NYr-1)*RS;
   // 1) 原始網格 → 影像（資料由南到北 → 北在上）
@@ -866,25 +1223,71 @@ function radarAt(lat,lng){
 }
 
 // 游標移動 / 點擊（手機）更新下方中間讀值
-function updatePosBox(ll){
-  if(!ll)return;
-  lastLL=ll;
+let hovered=false;
+function updatePosBox(ll,fromUser){
+  if(!ll)ll=map.getCenter();              // 游標尚未進入地圖時退回畫面中心
+  if(fromUser){hovered=true;lastLL=ll;}
   $("posLL").textContent=ll.lat.toFixed(3)+"°N, "+ll.lng.toFixed(3)+"°E";
   const def=RADAR_DEFS[radarKind],el=$("posVal");
-  if(!def){el.textContent="（未啟用雷達圖層）";el.style.color="var(--muted)";return;}
+  if(!def){el.textContent=hovered?"（未啟用雷達圖層）":"畫面中心 ‧ 移動游標或點擊地圖可讀取座標";
+    el.style.color="var(--muted)";return;}
   if(def.img){el.textContent=def.label+"：圖像產品（無數值讀取）";el.style.color="var(--muted)";return;}
   const v=radarAt(ll.lat,ll.lng);
   const cc=v==null?null:stopColor(def.stops,v);
   el.textContent=def.label+"："+(v==null?"--":v.toFixed(1)+" "+def.unit);
   el.style.color=cc?`rgb(${cc[0]},${cc[1]},${cc[2]})`:"var(--muted)";
 }
-map.on("mousemove",e=>updatePosBox(e.latlng));
-map.on("click",e=>updatePosBox(e.latlng));
+map.on("mousemove",e=>updatePosBox(e.latlng,true));
+map.on("click",e=>updatePosBox(e.latlng,true));
+// 游標未進入地圖前先顯示畫面中心座標，讓「座標 / 點擊讀值」一開圖就有值
+map.on("moveend",()=>{if(!lastLL)updatePosBox(map.getCenter());});
+updatePosBox(map.getCenter());
 
 $("radarSel").onchange=e=>loadRadar(e.target.value);
 $("radarOp").oninput=e=>{
   $("radarOpV").textContent=e.target.value+"%";
   if(radarOverlay)radarOverlay.setOpacity(e.target.value/100);
+};
+
+// ===== 對流胞即時監測（O-B0054-001）=====
+// 圖像型產品，獨立圖層：可與雷達整合回波／估計降雨同時疊加（pane 352，位於雷達 350 之上）
+map.createPane("cellpane");
+map.getPane("cellpane").style.zIndex=352;
+map.getPane("cellpane").style.pointerEvents="none";
+let cellCache=null,cellOverlay=null;
+
+async function loadCell(on){
+  if(cellOverlay){map.removeLayer(cellOverlay);cellOverlay=null;}
+  const st=$("cellStat");
+  $("cellOpWrap").style.display=on?"block":"none";   // 透明度調整條僅在啟用時顯示
+  if(!on){st.style.display="none";st.textContent="";return;}
+  if(!KEY){$("cellChk").checked=false;$("cellOpWrap").style.display="none";openGate();return;}
+  const def=RADAR_DEFS.cell;
+  st.style.display="block";
+  if(!cellCache){
+    st.textContent="⏳ 載入對流胞即時監測影像…";
+    try{
+      const url="https://opendata.cwa.gov.tw/fileapi/v1/opendataapi/"+def.id
+        +"?Authorization="+encodeURIComponent(KEY)+"&downloadType=WEB&format=JSON&_t="+Date.now();
+      const j=await fetch(url).then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json();});
+      cellCache=await loadRadarImage(def,j);
+    }catch(e){
+      st.textContent="⚠️ 對流胞即時監測載入失敗："+e.message+"（可能為瀏覽器 CORS 限制）";
+      $("cellChk").checked=false;$("cellOpWrap").style.display="none";
+      return;
+    }
+  }
+  if(!$("cellChk").checked)return;   // 下載期間使用者已取消
+  cellOverlay=L.imageOverlay(cellCache.url,cellCache.bounds,
+    {opacity:+$("cellOp").value/100,pane:"cellpane",interactive:false}).addTo(map);
+  st.innerHTML="🎯 "+def.label+"（"+def.id+"）"
+    +(cellCache.time?"<br>🕒 "+cellCache.time.toLocaleString("zh-TW"):"")
+    +"<br>圖像產品：整合雷達回波＋對流胞追蹤標示（不提供數值讀取）";
+}
+$("cellChk").onchange=e=>loadCell(e.target.checked);
+$("cellOp").oninput=e=>{
+  $("cellOpV").textContent=e.target.value+"%";
+  if(cellOverlay)cellOverlay.setOpacity(e.target.value/100);
 };
 
 // ===== 閃電落雷即時觀測圖層（O-A0039-001，KMZ 檔）=====
@@ -1016,6 +1419,209 @@ function lightStatUI(){
     +`<br>　新 ${bar} 舊（落雷距今 0–60 分鐘）`;
 }
 $("lightChk").onchange=e=>loadLightning(e.target.checked);
+
+// ===== 台灣電力公司 落雷即時資料（不需 API 金鑰）=====
+// 來源①（預設）政府資料開放平臺 JSON：
+//   https://quality.data.gov.tw/dq_download_json.php?nid=61139&md5_url=28bd0a0bb70c8b32590649e68d3c2ac5
+//   ※ 平臺轉檔時把「第一列資料」誤當成欄位名稱，所以物件的 key 本身就是一筆真實紀錄，
+//     且 key 每次更新都會變 → 一律用 Object.values() 依「順序」取值，並額外把 key 還原成一筆資料。
+//   ※ 此版本只有 4 欄（時間、經度、緯度、電流），沒有奈秒與閃電型態欄位。
+// 來源②台電網站 CSV：https://service.taipower.com.tw/data/opendata/apply/file/d546005/001.csv
+//   欄位：時間、奈秒、經度、緯度、電流強度(kA)、閃電型態(0=CG 雲對地 1=IC 雲間)，含 UTF-8 BOM 與標題列。
+// 兩種來源共用同一套「依值判斷欄位」的解析器：先找出相鄰的經緯度欄，其後一欄＝電流、再後一欄＝型態，
+// 經緯度之前若還有欄位則視為奈秒 → 4 欄 / 6 欄都能正確解讀，上游調換欄序也不會畫錯位置。
+// 時間為臺灣時間（UTC+8），解析時明確補上時區，避免瀏覽器在非臺灣時區解讀錯誤。
+// 繪製：沿用 O-A0039-001 閃電圖層的⚡圖示（`lightBoltIcon`）與距今時間色階，
+//       實心＝雲對地（落雷）/型態不明、空心描邊＝雲間閃電；電流強度顯示於彈窗。
+const TP_JSON="https://quality.data.gov.tw/dq_download_json.php?nid=61139&md5_url=28bd0a0bb70c8b32590649e68d3c2ac5";
+const TP_CSV="https://service.taipower.com.tw/data/opendata/apply/file/d546005/001.csv";
+const TP_SRC_LABEL={json:"政府資料開放平臺 JSON",csv:"台電網站 CSV"};
+const TP_PROXY_LS="tp_light_proxy";
+const tpLayer=L.layerGroup();
+let tpCache=null;
+
+// 取檔候選網址：使用者自訂轉送 → 直連 → 公用 CORS 轉送（來源網站未回應 CORS 標頭時的備援）
+function tpURLs(base){
+  const raw=base+(base.indexOf("?")>=0?"&":"?")+"_t="+Date.now();
+  const list=[];
+  const p=($("tpProxy")?.value||"").trim();
+  if(p)list.push(p.indexOf("{url}")>=0?p.replace("{url}",encodeURIComponent(raw)):p+encodeURIComponent(raw));
+  list.push(raw);
+  list.push("https://corsproxy.io/?url="+encodeURIComponent(raw));
+  list.push("https://api.allorigins.win/raw?url="+encodeURIComponent(raw));
+  return list;
+}
+function tpSources(){
+  const m=$("tpSrc")?.value||"auto";
+  if(m==="json")return[["json",TP_JSON]];
+  if(m==="csv") return[["csv",TP_CSV]];
+  return[["json",TP_JSON],["csv",TP_CSV]];       // 自動：JSON 取不到再退回台電 CSV
+}
+async function tpFetchOne(base){
+  let err=null;
+  for(const u of tpURLs(base)){
+    try{
+      const r=await fetch(u,{cache:"no-store"});
+      if(!r.ok)throw new Error("HTTP "+r.status);
+      const buf=await r.arrayBuffer();
+      if(!buf.byteLength)throw new Error("回傳內容為空");
+      let t=new TextDecoder("utf-8").decode(buf);
+      if(t.indexOf("�")>=0){                 // UTF-8 解碼失敗 → 改用 Big5
+        try{t=new TextDecoder("big5").decode(buf);}catch(e){}
+      }
+      return t.replace(/^﻿/,"");             // 去除 BOM
+    }catch(e){err=e;}
+  }
+  throw err||new Error("無法取得資料");
+}
+async function tpFetchData(){
+  const errs=[];
+  for(const [kind,base] of tpSources()){
+    try{
+      const text=await tpFetchOne(base);
+      const strikes=tpParseAny(text);
+      if(!strikes.length&&text.trim().length<3)throw new Error("內容為空");
+      return {strikes,src:kind};
+    }catch(e){errs.push(TP_SRC_LABEL[kind]+"："+e.message);}
+  }
+  throw new Error(errs.join("；"));
+}
+
+// 臺灣時間字串 → Date（"2026-06-17 07:53:07.00" / "2026/6/17 07:53:07"）
+function tpParseTime(s){
+  const m=String(s).trim().match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})[T ](\d{1,2}):(\d{2})(?::(\d{2}(?:\.\d+)?))?/);
+  if(!m)return null;
+  const sec=parseFloat(m[6]||"0");
+  const d=new Date(Date.UTC(+m[1],+m[2]-1,+m[3],+m[4]-8,+m[5],Math.floor(sec),Math.round((sec%1)*1000)));
+  return isNaN(d)?null:d;
+}
+const tpFmt=d=>d?d.toLocaleString("zh-TW",{timeZone:"Asia/Taipei",hour12:false}):"—";
+const tpNum=v=>{const n=parseFloat(String(v??"").trim());return isFinite(n)?n:null;};   // "-"、"" 視為缺值
+
+// 單列 → 落雷物件；欄位以數值範圍判斷，4 欄（時間,經,緯,電流）與 6 欄（＋奈秒,型態）皆適用
+function tpRow(f){
+  const t=tpParseTime(f[0]);
+  if(!t)return null;                                  // 標題列 / 非資料列自動略過
+  let i=-1,lat=null,lon=null;
+  for(let k=1;k<f.length-1;k++){                      // 找出相鄰的一組經緯度
+    const a=tpNum(f[k]),b=tpNum(f[k+1]);
+    if(a==null||b==null)continue;
+    const isLL=(x,y)=>Math.abs(x)>=100&&Math.abs(x)<=140&&Math.abs(y)>=5&&Math.abs(y)<=40;
+    if(isLL(a,b)){lon=a;lat=b;i=k;break;}
+    if(isLL(b,a)){lon=b;lat=a;i=k;break;}
+  }
+  if(i<0)return null;
+  const ka=tpNum(f[i+2]);
+  const tyRaw=String(f[i+3]??"").trim();
+  const ty=/^[01]$/.test(tyRaw)?+tyRaw:null;          // 0=CG（雲對地/落雷）、1=IC（雲間）
+  const ns=i>1?tpNum(f[1]):null;                      // 經緯度之前若有欄位＝奈秒
+  return {t,ns,lat,lon,ka,cg:ty===1?false:(ty===0?true:null)};
+}
+
+// 文字內容自動判斷 JSON / CSV（無論由哪個網址或轉送服務取得都能解析）
+function tpParseAny(text){
+  const s=text.trim();
+  return (s[0]==="["||s[0]==="{")?tpParseJSON(s):tpParseCSV(text);
+}
+function tpParseJSON(text){
+  let j;try{j=JSON.parse(text);}catch(e){throw new Error("JSON 解析失敗");}
+  const arr=Array.isArray(j)?j:(j.result?.records||j.records||j.data||[]);
+  const out=[];
+  if(arr.length&&typeof arr[0]==="object"&&arr[0]!==null){
+    const r0=tpRow(Object.keys(arr[0]));              // 平臺誤把首列資料當欄名 → 還原成一筆
+    if(r0)out.push(r0);
+  }
+  arr.forEach(o=>{
+    const r=tpRow(Array.isArray(o)?o:Object.values(o));
+    if(r)out.push(r);
+  });
+  out.sort((x,y)=>x.t-y.t);
+  return out;
+}
+function tpParseCSV(text){
+  const out=[];
+  text.split(/\r?\n/).forEach(line=>{
+    if(!line.trim())return;
+    const r=tpRow(line.split(",").map(x=>x.trim().replace(/^"|"$/g,"")));
+    if(r)out.push(r);
+  });
+  out.sort((x,y)=>x.t-y.t);
+  return out;
+}
+
+function tpPopup(s){
+  const row=(k,v)=>`<div class="row"><span class="k">${k}</span><span>${v}</span></div>`;
+  const type=s.cg===true?"雲對地閃電（落雷 CG）":s.cg===false?"雲間閃電（IC）":"閃電（型態未提供）";
+  let html=`<div class="pop"><h3>🔌 台電落雷｜${type}</h3>`;
+  html+=row("時間",tpFmt(s.t)+"（臺灣時間）");
+  if(s.ns!=null)html+=row("奈秒",Math.round(s.ns).toLocaleString("zh-TW")+" ns");
+  const a=lightAgeMin(s.t);
+  if(a!=null)html+=row("距今",a<60?Math.round(a)+" 分鐘前":(a/60).toFixed(1)+" 小時前");
+  html+=row("電流強度",s.ka==null?"—（缺值）":s.ka.toFixed(1)+" kA（"+(s.ka<0?"負極性":"正極性")+"）");
+  html+=row("位置",s.lat.toFixed(4)+"°N, "+s.lon.toFixed(4)+"°E");
+  const sl=tpCache?TP_SRC_LABEL[tpCache.src]:"";
+  html+=`<div style="color:#9fb0c8;font-size:11px;margin-top:4px">台灣電力公司 落雷即時資料${sl?"（"+sl+"）":""}</div></div>`;
+  return html;
+}
+
+async function loadTPLight(on){
+  if(!on){map.removeLayer(tpLayer);tpStatUI();return;}
+  if($("tpOptWrap"))$("tpOptWrap").style.display="block";
+  if(!tpCache){
+    $("tpStat").style.display="block";
+    $("tpStat").textContent="⏳ 載入台電落雷即時資料…";
+    try{
+      const {strikes,src}=await tpFetchData();
+      let latest=null;strikes.forEach(s=>{if(s.t&&(!latest||s.t>latest))latest=s.t;});
+      tpCache={strikes,latest,src};
+      $("tpProxyWrap").style.display="none";
+    }catch(e){
+      $("tpChk").checked=false;
+      $("tpStat").innerHTML="⚠️ 台電落雷載入失敗："+e.message
+        +"<br>　來源網站未開放跨網域存取時，可於下方填入自建 CORS 轉送網址再試。";
+      $("tpProxyWrap").style.display="block";
+      return;
+    }
+  }
+  if(!$("tpChk").checked)return;                      // 下載期間使用者已取消勾選
+  tpLayer.clearLayers();
+  tpCache.strikes.forEach(s=>{
+    const col=lightColor(s.t);
+    L.marker([s.lat,s.lon],{icon:lightBoltIcon(col,s.cg!==false),keyboard:false})
+      .bindPopup(()=>tpPopup(s)).addTo(tpLayer);
+  });
+  tpLayer.addTo(map);
+  tpStatUI();
+}
+function tpStatUI(){
+  const el=$("tpStat");
+  if($("tpOptWrap"))$("tpOptWrap").style.display=$("tpChk").checked?"block":"none";
+  if(!$("tpChk").checked||!tpCache){el.style.display="none";el.textContent="";return;}
+  const st=tpCache.strikes,sl=TP_SRC_LABEL[tpCache.src]||"";
+  el.style.display="block";
+  if(!st.length){el.textContent="🔌 台電落雷：目前資料內無落雷紀錄（"+sl+"）";return;}
+  const cg=st.filter(s=>s.cg===true).length,ic=st.filter(s=>s.cg===false).length;
+  const neg=st.filter(s=>s.ka!=null&&s.ka<0).length;
+  const mx=st.reduce((m,s)=>Math.max(m,Math.abs(s.ka||0)),0);
+  const bar=LIGHT_RAMP.map(x=>`<span style="display:inline-block;width:13px;height:8px;background:${x[1]}"></span>`).join("");
+  el.innerHTML="🔌 台電落雷："+st.length.toLocaleString("zh-TW")+" 筆"
+    +(cg||ic?`（⚡實心=雲對地 ${cg}｜⚡空心=雲間 ${ic}）`:"（此來源未提供閃電型態）")
+    +`｜負極性 ${neg}`
+    +(mx?"｜⚡最強 "+mx.toFixed(1)+" kA":"")
+    +(tpCache.latest?"｜🕒 最新 "+tpFmt(tpCache.latest):"")
+    +`<br>　來源：${sl}｜新 ${bar} 舊（距今 0–60 分鐘）`;
+}
+$("tpChk").onchange=e=>loadTPLight(e.target.checked);
+$("tpSrc").onchange=()=>{                             // 切換來源 → 清快取重抓
+  tpCache=null;
+  if($("tpChk").checked)loadTPLight(true);
+};
+try{$("tpProxy").value=localStorage.getItem(TP_PROXY_LS)||"";}catch(e){}
+$("tpProxy").onchange=e=>{
+  try{localStorage.setItem(TP_PROXY_LS,e.target.value.trim());}catch(err){}
+  tpCache=null;
+  if($("tpChk").checked)loadTPLight(true);
+};
 
 // ===== 颱風消息與警報：熱帶氣旋路徑（W-C0034-005，datastore API）=====
 // 結構（依 CWA 資料說明文件）：records.tropicalCyclones.tropicalCyclone[]
@@ -1980,9 +2586,12 @@ $("dayNightChk").onchange=()=>{
   render(false);
 };
 // 重新抓取所有已啟用圖層的資料；fit=false 時不改變視角與使用者選擇（變數 / 縣市 / 搜尋 / 圖層）
-function refreshAll(fit){
+function refreshAll(fit,force){
   Object.keys(radarCache).forEach(k=>delete radarCache[k]);   // 一併更新雷達資料
+  cellCache=null;
+  if(cellOverlay){map.removeLayer(cellOverlay);cellOverlay=null;}
   lightCache=null;
+  tpCache=null;
   satCache=null;
   if(satOverlay){map.removeLayer(satOverlay);satOverlay=null;}
   Object.keys(cloudCache).forEach(k=>delete cloudCache[k]);
@@ -1992,15 +2601,18 @@ function refreshAll(fit){
   typClearCache();
   load(fit);
   if(radarKind)loadRadar(radarKind);
+  if($("cellChk").checked)loadCell(true);
   if($("lightChk").checked)loadLightning(true);
+  if($("tpChk").checked)loadTPLight(true);
   if($("satChk").checked)loadSat(true);
   if(cloudKind)loadCloud(cloudKind);
   if(gtLoadKind)loadGeoTiff(gtLoadKind);
   if($("tyChk").checked)loadTyphoon(true);
   if($("typChk").checked)loadTyProb(true);
+  WRA.refresh(!!force);   // 水情圖層自帶 5 分鐘節流
 }
 $("reload").onclick=()=>{
-  refreshAll(true);
+  refreshAll(true,true);
   if(autoTimer){autoNext=Date.now()+AUTO_MS;autoStatUI();}   // 手動更新後重新起算倒數
 };
 // ===== 自動更新：每 2 分鐘重新抓取資料，不更動視角與使用者選擇 =====
@@ -2034,7 +2646,7 @@ $("autoChk").onchange=e=>{
     autoStatUI();
   }
 };
-$("fit").onclick=()=>{$("countySel").value="";$("search").value="";map.fitBounds(TAIWAN);render(false);};
+$("fit").onclick=()=>{$("countySel").value="";$("search").value="";map.fitBounds(TAIWAN);render(false);WRA.resetFilters();};
 $("baseSel").onchange=e=>{map.removeLayer(curBase);curBase=BASES[e.target.value].addTo(map);curBase.bringToBack();};
 $("changeKey").onclick=()=>openGate();
 
@@ -2047,6 +2659,27 @@ function bindCollapse(boxId,btnId){
   };
 }
 bindCollapse("legend","legToggle");
+
+/* ===== 圖例區塊：展開／收合狀態記在 localStorage =====
+   預設只展開「座標 / 點擊讀值」與「觀測變數色階」，其餘圖層色階收合，
+   避免同時開啟多個圖層時圖例長到超出畫面。 */
+const LEG_LS="cwa_leg_open";
+let LEGOPEN=new Set(["pos","var"]);
+try{const a=JSON.parse(localStorage.getItem(LEG_LS)||"null");if(Array.isArray(a))LEGOPEN=new Set(a);}catch(e){}
+function legApplyOpen(){                       // innerHTML 重建後要重新套用
+  document.querySelectorAll("#legend details.lsec").forEach(d=>{
+    const k=d.dataset.k;if(k)d.open=LEGOPEN.has(k);
+  });
+}
+// toggle 事件不會冒泡 → 於容器上用捕獲階段接收
+$("legend").addEventListener("toggle",e=>{
+  const d=e.target;
+  if(!d.classList||!d.classList.contains("lsec"))return;
+  const k=d.dataset.k;if(!k)return;
+  if(d.open)LEGOPEN.add(k);else LEGOPEN.delete(k);
+  try{localStorage.setItem(LEG_LS,JSON.stringify([...LEGOPEN]));}catch(e){}
+},true);
+legApplyOpen();
 // 面板收合：整片側欄滑出畫面左側，把手按鈕跟隨移動（參考 O-B0055 頁面）
 $("panelTab").onclick=()=>{
   const c=$("panel").classList.toggle("collapsed");
@@ -2084,7 +2717,10 @@ function submitKey(){
   if($("rememberKey").checked){try{localStorage.setItem(STORE,k);}catch(e){}}
   else{try{localStorage.removeItem(STORE);}catch(e){}}
   closeGate();
+  cellCache=null;
+  if(cellOverlay){map.removeLayer(cellOverlay);cellOverlay=null;}
   lightCache=null;
+  tpCache=null;
   satCache=null;
   if(satOverlay){map.removeLayer(satOverlay);satOverlay=null;}
   Object.keys(cloudCache).forEach(k2=>delete cloudCache[k2]);
@@ -2093,7 +2729,9 @@ function submitKey(){
   tyCache=null;
   typClearCache();
   load();
+  if($("cellChk").checked)loadCell(true);
   if($("lightChk").checked)loadLightning(true);
+  if($("tpChk").checked)loadTPLight(true);
   if($("satChk").checked)loadSat(true);
   if(cloudKind)loadCloud(cloudKind);
   if(gtLoadKind)loadGeoTiff(gtLoadKind);
@@ -2302,6 +2940,1546 @@ $("camThbLive").onclick=async()=>{
   }catch(e){st.textContent="省道即時清單載入失敗："+e.message+"（維持內建快照）";}
 };
 
+/* ==================== 水利署即時水位／地下水／IoW 圖層（來源：WRA_waterlevel_realtime_display.html）==================== */
+const WRA=(function(){
+/* =========================================================================
+   經濟部水利署 即時水位地圖
+   - 即時水位資料 (73c4c3de-4045-4765-abeb-89f9f9cd5ff0)：stationid / datetime / waterlevel / volt / checkresult
+   - 河川水位測站站況 (c4acc691-7416-40ca-9464-292c0c00da92)：basinidentifier / 站名 / 河川 / 警戒水位 / TWD97 TM2 座標
+   兩者以 stationid ⇄ basinidentifier 對應。站況無經緯度欄位，需自 TWD97（缺值時退回 TWD67）
+   二度分帶座標反算 WGS84。
+   ========================================================================= */
+
+const API_WL="https://opendata.wra.gov.tw/api/v2/73c4c3de-4045-4765-abeb-89f9f9cd5ff0?sort=_importdate%20asc&format=JSON";
+const API_ST="https://opendata.wra.gov.tw/api/v2/c4acc691-7416-40ca-9464-292c0c00da92?sort=_importdate%20asc&format=JSON";
+const API_GW  ="https://opendata.wra.gov.tw/api/v2/58a7aa39-287a-4b96-985d-47ffbc7abbd4?sort=_importdate%20asc&format=JSON";  // 即時地下水水位
+const API_GWST="https://opendata.wra.gov.tw/api/v2/3e86faea-e94a-4a91-a870-852d73e83c3d?sort=_importdate%20asc&format=JSON";  // 地下水水位觀測井井況
+const STCACHE_LS="wra_wl_stations_v1";  // 站況精簡快取（站況極少變動，2 MB 原始檔不每次重抓）
+const GWCACHE_LS="wra_gw_wells_v2";     // 井位精簡快取（KMZ ＋ 井況 API 合併結果）
+const STCACHE_TTL=24*3600*1000;         // 快取 24 小時
+
+const $=id=>document.getElementById(id);
+const NA=v=>v===null||v===undefined||v===""||v==="-"||(typeof v==="number"&&v<=-900);
+// 水利署以 -999 / -999998 等極大負值代表缺測 → 一律視為無資料
+const num=v=>{if(NA(v))return null;const n=parseFloat(String(v).trim());return (isFinite(n)&&n>-900)?n:null;};
+// 警戒水位：空字串、0 以下、-999 皆視為「未訂定」
+const alv=v=>{const n=num(v);return (n===null||n<=-90)?null:n;};
+
+/* ===== 取檔：直連水利署來源（無 CORS 轉送） ===== */
+async function fetchJSON(base,tag){
+  try{
+    const r=await fetch(base,{cache:"no-store"});
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    const t=await r.text();
+    let j;try{j=JSON.parse(t);}catch(e){throw new Error("非 JSON 回應");}
+    return {data:j,via:"直連"};
+  }catch(e){throw new Error(tag+" 取檔失敗（"+e.message+"）");}
+}
+// WRA v2 回傳通常是純陣列，仍容錯常見包裝結構
+function asRows(j){
+  if(Array.isArray(j))return j;
+  for(const k of ["responseData","data","records","result","Data","rows"]){
+    const v=j?.[k];
+    if(Array.isArray(v))return v;
+    if(v&&Array.isArray(v.records))return v.records;
+    if(v&&Array.isArray(v.data))return v.data;
+  }
+  return [];
+}
+
+/* ===== TWD97 / TWD67 二度分帶 (TM2, 中央經線 121°E, k0=0.9999) → WGS84 ===== */
+const TM_A=6378137.0, TM_F=1/298.257222101, TM_LON0=121*Math.PI/180, TM_K0=0.9999, TM_DX=250000;
+function tm2ll(X,Y){
+  const e2=TM_F*(2-TM_F);
+  X-=TM_DX;
+  const M=Y/TM_K0;
+  const mu=M/(TM_A*(1-e2/4-3*e2*e2/64-5*e2*e2*e2/256));
+  const e1=(1-Math.sqrt(1-e2))/(1+Math.sqrt(1-e2));
+  const fp=mu+(3*e1/2-27*Math.pow(e1,3)/32)*Math.sin(2*mu)
+            +(21*e1*e1/16-55*Math.pow(e1,4)/32)*Math.sin(4*mu)
+            +(151*Math.pow(e1,3)/96)*Math.sin(6*mu)
+            +(1097*Math.pow(e1,4)/512)*Math.sin(8*mu);
+  const e2p=e2/(1-e2);
+  const C1=e2p*Math.pow(Math.cos(fp),2), T1=Math.pow(Math.tan(fp),2);
+  const R1=TM_A*(1-e2)/Math.pow(1-e2*Math.pow(Math.sin(fp),2),1.5);
+  const N1=TM_A/Math.sqrt(1-e2*Math.pow(Math.sin(fp),2));
+  const D=X/(N1*TM_K0);
+  const lat=fp-(N1*Math.tan(fp)/R1)*(D*D/2
+      -(5+3*T1+10*C1-4*C1*C1-9*e2p)*Math.pow(D,4)/24
+      +(61+90*T1+298*C1+45*T1*T1-3*C1*C1-252*e2p)*Math.pow(D,6)/720);
+  const lon=TM_LON0+(D-(1+2*T1+C1)*Math.pow(D,3)/6
+      +(5-2*C1+28*T1-3*C1*C1+8*e2p+24*T1*T1)*Math.pow(D,5)/120)/Math.cos(fp);
+  return [lat*180/Math.PI, lon*180/Math.PI];
+}
+// TWD67 → TWD97 平移量（臺灣本島常用近似值，誤差約數十公尺）
+const D67_DX=807.8, D67_DY=-248.6;
+function parseXY(s){
+  const p=String(s||"").trim().split(/[\s,]+/);
+  if(p.length<2)return null;
+  const x=parseFloat(p[0]),y=parseFloat(p[1]);
+  return (isFinite(x)&&isFinite(y)&&x>0&&y>0)?[x,y]:null;
+}
+function stationLL(s){
+  let xy=parseXY(s.xy97!==undefined?s.xy97:(s.locationbytwd97_xy||s.locationbytwd97)), src="TWD97";
+  if(!xy){
+    const c=parseXY(s.xy67!==undefined?s.xy67:(s.locationbytwd67_xy||s.locationbytwd67));
+    if(c){xy=[c[0]+D67_DX,c[1]+D67_DY];src="TWD67→97";}
+  }
+  if(!xy)return null;
+  const ll=tm2ll(xy[0],xy[1]);
+  if(!isFinite(ll[0])||!isFinite(ll[1]))return null;
+  return {lat:ll[0],lon:ll[1],src};
+}
+
+/* ===== 縣市正規化（台→臺、巿→市；並歸併已改制的縣市）===== */
+const COUNTIES=["臺北市","新北市","基隆市","桃園市","新竹縣","新竹市","苗栗縣","臺中市","彰化縣","南投縣",
+  "雲林縣","嘉義縣","嘉義市","臺南市","高雄市","屏東縣","宜蘭縣","花蓮縣","臺東縣","澎湖縣","金門縣","連江縣"];
+const OLD={"臺北縣":"新北市","桃園縣":"桃園市","臺中縣":"臺中市","臺南縣":"臺南市","高雄縣":"高雄市"};
+const normName=s=>String(s||"").replace(/台/g,"臺").replace(/巿/g,"市").replace(/苗粟/g,"苗栗");
+function countyOf(s){
+  const n=normName(s.addr!==undefined?s.addr:s.locationaddress);
+  for(const c of COUNTIES)if(n.startsWith(c))return c;
+  for(const k in OLD)if(n.startsWith(k))return OLD[k];
+  return "";
+}
+
+/* ===== 警戒等級 =====
+   水利署河川水位站警戒水位分三級，數值大小為 一級 > 二級 > 三級，
+   一級警戒最嚴重（水位預期未來 3 小時將達計畫洪水位或堤頂）。 */
+const LEVELS=[
+  {k:1,label:"一級警戒",color:"#dc2626",r:9},
+  {k:2,label:"二級警戒",color:"#f97316",r:8},
+  {k:3,label:"三級警戒",color:"#facc15",r:7},
+  {k:0,label:"未達警戒",color:"#22c55e",r:5.5},
+  {k:-1,label:"未訂警戒值",color:"#38bdf8",r:5},
+  {k:-9,label:"無即時資料",color:"#7a8aa3",r:4}
+];
+/* 河川水位站圖示：▽ 倒三角形。測量學上 ▽ 即水面高程符號；
+   同時避開氣象站／IoW 沖刷深度的圓形、地下水的菱形、IoW 揚塵的正三角形。 */
+function wlTriSVG(color,size){
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24">`
+    +`<path d="M1.8 4 L22.2 4 L12 21.5 Z" fill="${color}" stroke="#fff" stroke-width="1.7" stroke-linejoin="round"/></svg>`;
+}
+function wlTriIcon(color,size){
+  return L.divIcon({className:"wl-tri",html:wlTriSVG(color,size),iconSize:[size,size],iconAnchor:[size/2,size/2]});
+}
+const LEVEL_BY_K=Object.fromEntries(LEVELS.map(l=>[l.k,l]));
+function alertLevel(s){
+  if(s.wl===null)return -9;
+  const a1=s.a1,a2=s.a2,a3=s.a3;
+  if(a1===null&&a2===null&&a3===null)return -1;
+  if(a1!==null&&s.wl>=a1)return 1;
+  if(a2!==null&&s.wl>=a2)return 2;
+  if(a3!==null&&s.wl>=a3)return 3;
+  return 0;
+}
+
+/* ===== 離散色階 ===== */
+function colorFor(v,def){
+  const L=def.levels,C=def.colors;
+  if(v<L[0])return C[0];
+  for(let i=0;i<L.length;i++){if(v<L[i])return C[i];}
+  return C[L.length];
+}
+// 水位值（m）：各站零點高程差異極大（-1 ~ 830 m），採非線性分級
+const WL_LEVELS=[0,0.5,1,2,5,10,20,50,100,200,500];
+const WL_COLORS=["#4a2c8f","#3730a3","#1d4ed8","#0284c7","#0891b2","#0d9488",
+                 "#16a34a","#65a30d","#ca8a04","#ea580c","#dc2626","#831843"];
+// 距一級警戒（m）：負值＝已超過
+const MG_LEVELS=[0,0.5,1,2,3,5,10];
+const MG_COLORS=["#dc2626","#f97316","#fb923c","#facc15","#a3e635","#4ade80","#22c55e","#0ea5e9"];
+
+const VARS=[
+  {key:"alert",label:"警戒等級",unit:"",kind:"alert"},
+  {key:"level",label:"水位值",unit:"m",kind:"num",levels:WL_LEVELS,colors:WL_COLORS,
+   get:s=>s.wl,note:"各站水位為「該站零點高程之上」的讀數，跨站比較僅供分佈參考。"},
+  {key:"margin",label:"距一級警戒水位",unit:"m",kind:"num",levels:MG_LEVELS,colors:MG_COLORS,
+   get:s=>(s.a1===null||s.wl===null)?null:(s.a1-s.wl),
+   note:"＝一級警戒水位 − 目前水位；負值代表已超過一級警戒。未訂警戒值之測站不參與上色。"},
+  {key:"none",label:"無（不顯示本圖層）",unit:"",kind:"none"}
+];
+function curVar(){return VARS.find(v=>v.key===$("wlVarSel").value)||VARS[0];}
+$("wlVarSel").innerHTML=VARS.map(v=>`<option value="${v.key}">${v.label}${v.unit?"（"+v.unit+"）":""}</option>`).join("");
+
+/* ===== 圖層（map / BASES / TAIWAN / curBase 共用外層 10min 的定義）===== */
+map.createPane("pulse");
+map.getPane("pulse").style.zIndex=395;
+map.getPane("pulse").style.pointerEvents="none";
+// 河川水位站專用 pane：疊在氣象站圓點（overlayPane 400）之上，避免兩層交錯
+map.createPane("wlpane");
+map.getPane("wlpane").style.zIndex=410;
+const pulseLayer=L.layerGroup();
+const layer=L.layerGroup();
+
+let refZoom=null;
+function sizeScale(){
+  if(refZoom===null)refZoom=map.getBoundsZoom(TAIWAN);
+  return Math.max(0.7,Math.min(2.6,Math.pow(2,(map.getZoom()-refZoom)*0.45)));
+}
+
+/* ===== 狀態 ===== */
+const S={
+  stations:[],       // 站況（精簡後）
+  stById:{},
+  water:[],          // 即時水位
+  wlById:{},
+  merged:[],         // 上圖用的合併結果
+  basinName:{},      // 流域代碼 → 代表河川名
+  dropped:{noXY:0,badXY:0,noMeta:0},
+  obsTime:null,
+  viaSt:"",viaWl:"",
+  stFromCache:false
+};
+
+/* ===== 站況精簡（快取用）===== */
+function slimStation(s){
+  return {
+    id:s.basinidentifier||"",
+    name:s.observatoryname||"",
+    en:s.englishname||"",
+    river:normName(s.rivername),
+    basin:s.affiliatedbasin||"",
+    addr:s.locationaddress||"",
+    status:s.observationstatus||"",
+    zero:s.elevationofwaterlevelzeropoint||"",
+    est:s.establishdate||"",
+    a1:s.alertlevel1||"",a2:s.alertlevel2||"",a3:s.alertlevel3||"",
+    xy97:s.locationbytwd97_xy||"",xy67:s.locationbytwd67_xy||""
+  };
+}
+
+/* ===== 座標異常自動剔除 =====
+   以「同縣市所有測站的中位數座標」為基準，超過 90 km 者視為原始資料座標錯誤
+   （例：1140H052 中正橋 地址在臺北市，TWD97 座標卻落在臺南外海）。
+   門檻取 90 km 是因為花蓮／臺東等狹長縣市的正常站距中位數最遠可達約 77 km。 */
+const BAD_KM=90;
+function median(a){const b=a.slice().sort((x,y)=>x-y);const n=b.length;return n?(n%2?b[(n-1)/2]:(b[n/2-1]+b[n/2])/2):null;}
+function kmDist(la1,lo1,la2,lo2){return Math.hypot((la1-la2)*111.0,(lo1-lo2)*101.0);}
+function geocodeStations(list){
+  const pts=[];
+  list.forEach(s=>{
+    const ll=stationLL(s);
+    if(!ll){s.lat=null;s.lon=null;s.geoSrc="";return;}
+    s.lat=ll.lat;s.lon=ll.lon;s.geoSrc=ll.src;
+    s.county=countyOf(s);
+    pts.push(s);
+  });
+  // 各縣市中位數
+  const g={};
+  pts.forEach(s=>{if(s.county){(g[s.county]=g[s.county]||[]).push(s);}});
+  const med={};
+  Object.keys(g).forEach(c=>{
+    if(g[c].length<3)return;
+    med[c]=[median(g[c].map(s=>s.lat)),median(g[c].map(s=>s.lon))];
+  });
+  pts.forEach(s=>{
+    let bad=false,why="";
+    if(!(s.lat>=21.5&&s.lat<=25.5&&s.lon>=118.0&&s.lon<=122.5)){bad=true;why="超出臺灣範圍";}
+    else if(med[s.county]){
+      const d=kmDist(s.lat,s.lon,med[s.county][0],med[s.county][1]);
+      if(d>BAD_KM){bad=true;why=`距 ${s.county} 測站中位數 ${d.toFixed(0)} km`;}
+    }
+    s.badXY=bad;s.badWhy=why;
+    if(bad){s.lat=null;s.lon=null;}
+  });
+}
+
+/* ===== 載入 ===== */
+async function loadStations(force){
+  if(!force){
+    try{
+      const c=JSON.parse(localStorage.getItem(STCACHE_LS)||"null");
+      if(c&&Array.isArray(c.d)&&c.d.length&&(Date.now()-c.t)<STCACHE_TTL){
+        S.stations=c.d;S.stFromCache=true;S.viaSt="localStorage 快取";
+        return;
+      }
+    }catch(e){}
+  }
+  const {data,via}=await fetchJSON(API_ST,"河川水位測站站況");
+  const rows=asRows(data);
+  if(!rows.length)throw new Error("河川水位測站站況：查無資料");
+  S.stations=rows.map(slimStation).filter(s=>s.id);
+  S.stFromCache=false;S.viaSt=via;
+  try{localStorage.setItem(STCACHE_LS,JSON.stringify({t:Date.now(),d:S.stations}));}catch(e){}
+}
+async function loadWater(){
+  const {data,via}=await fetchJSON(API_WL,"即時水位資料");
+  const rows=asRows(data);
+  if(!rows.length)throw new Error("即時水位資料：查無資料");
+  S.water=rows;S.viaWl=via;
+}
+
+// 水位資料時間無時區標示，實為臺灣時間 → 以 UTC+8 解析
+function twTime(s){
+  const m=String(s||"").match(/(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if(!m)return null;
+  return new Date(Date.UTC(+m[1],+m[2]-1,+m[3],+m[4]-8,+m[5],+(m[6]||0)));
+}
+const fmtT=d=>d?d.toLocaleString("zh-TW",{timeZone:"Asia/Taipei",hour12:false}):"—";
+
+function mergeData(){
+  S.stById={};S.stations.forEach(s=>S.stById[s.id]=s);
+  S.wlById={};S.water.forEach(r=>{if(r&&r.stationid)S.wlById[r.stationid]=r;});
+  geocodeStations(S.stations);
+
+  // 流域代碼 → 代表河川名（取該流域內出現最多次的河川）
+  const bc={};
+  S.stations.forEach(s=>{
+    if(!s.basin||!s.river)return;
+    (bc[s.basin]=bc[s.basin]||{})[s.river]=((bc[s.basin]||{})[s.river]||0)+1;
+  });
+  S.basinName={};
+  Object.keys(bc).forEach(b=>{
+    S.basinName[b]=Object.keys(bc[b]).sort((x,y)=>bc[b][y]-bc[b][x])[0]||b;
+  });
+
+  S.dropped={noXY:0,badXY:0,noMeta:0};
+  const out=[];
+  // 現存站全部納入；有即時資料但站況查無者另計
+  S.stations.forEach(s=>{
+    const r=S.wlById[s.id];
+    if(s.status!=="現存"&&!r)return;              // 已廢且無即時資料 → 不上圖
+    if(s.lat===null){ (s.badXY?S.dropped.badXY++:S.dropped.noXY++); return; }
+    const t=r?twTime(r.datetime):null;
+    out.push({
+      id:s.id,name:s.name,en:s.en,river:s.river,basin:s.basin,addr:s.addr,county:s.county,
+      status:s.status,zero:num(s.zero),est:s.est,geoSrc:s.geoSrc,
+      lat:s.lat,lon:s.lon,
+      a1:alv(s.a1),a2:alv(s.a2),a3:alv(s.a3),
+      wl:r?num(r.waterlevel):null,
+      volt:r?num(r.volt):null,
+      obs:t,
+      ok:r?String(r.checkresult).toLowerCase()!=="false":null,
+      desc:r?(r.checkdesc||""):"",
+      dev:r?(r.observatoryidentifier||""):""
+    });
+  });
+  S.water.forEach(r=>{if(r&&r.stationid&&!S.stById[r.stationid])S.dropped.noMeta++;});
+  out.forEach(s=>{s.lv=alertLevel(s);});
+  S.merged=out;
+  const ts=out.map(s=>s.obs).filter(Boolean);
+  S.obsTime=ts.length?new Date(Math.max(...ts.map(d=>d.getTime()))):null;
+}
+
+/* ===== 篩選選單 ===== */
+function fillSelects(){
+  const keepC=$("wlCountySel").value,keepB=$("basinSel").value,keepR=$("riverSel").value;
+  // 縣市清單取所有已載入圖層的聯集：河川站雖涵蓋廣，但地下水井與 IoW 感測器
+  // 可能有河川站沒有的縣市，只由 S.merged 產生會讓那些縣市選不到。
+  const cs=[...new Set([].concat(
+      S.merged.map(s=>s.county),
+      (typeof GW!=="undefined"&&GW.merged?GW.merged:[]).map(w=>w.county),
+      (typeof IOW!=="undefined"?Object.keys(IOW).reduce((a,k)=>a.concat((IOW[k].stations||[]).map(o=>o.county)),[]):[])
+    ).filter(Boolean))]
+    .sort((a,b)=>COUNTIES.indexOf(a)-COUNTIES.indexOf(b));
+  $("wlCountySel").innerHTML='<option value="">全部（縮放至全臺）</option>'+cs.map(c=>`<option>${c}</option>`).join("");
+  if(cs.includes(keepC))$("wlCountySel").value=keepC;
+
+  const scope=S.merged.filter(s=>!$("wlCountySel").value||s.county===$("wlCountySel").value);
+  const bs=[...new Set(scope.map(s=>s.basin).filter(Boolean))]
+    .sort((a,b)=>a.localeCompare(b));
+  $("basinSel").innerHTML='<option value="">全部水系</option>'
+    +bs.map(b=>`<option value="${b}">${S.basinName[b]||b}（${b}）</option>`).join("");
+  if(bs.includes(keepB))$("basinSel").value=keepB;
+
+  const scope2=scope.filter(s=>!$("basinSel").value||s.basin===$("basinSel").value);
+  const rs=[...new Set(scope2.map(s=>s.river).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"zh-Hant"));
+  $("riverSel").innerHTML='<option value="">全部河川</option>'+rs.map(r=>`<option>${r}</option>`).join("");
+  if(rs.includes(keepR))$("riverSel").value=keepR;
+}
+
+/* ===== 彈窗 ===== */
+function buildPopup(s){
+  const v=curVar();
+  const lv=LEVEL_BY_K[s.lv];
+  const row=(k,val)=>`<div class="row"><span class="k">${k}</span><span>${val}</span></div>`;
+  const wlTxt=s.wl===null?"無資料":s.wl.toLocaleString("zh-TW",{maximumFractionDigits:3})+" m";
+  const mg=(s.a1!==null&&s.wl!==null)?(s.a1-s.wl):null;
+  const lag=s.obs?Math.round((Date.now()-s.obs.getTime())/60000):null;
+  const alertRow=(lab,val,k)=>{
+    if(val===null)return "";
+    const hit=(s.wl!==null&&s.wl>=val);
+    const col=LEVEL_BY_K[k].color;
+    return `<div class="row"><span class="k">${lab}</span><span style="${hit?`color:${col};font-weight:700`:""}">${val.toFixed(2)} m${hit?" ⚠":""}</span></div>`;
+  };
+  let html=`<div class="pop">
+    <h3>${s.name||"—"} <small style="color:#9fb0c8">${s.id}</small></h3>
+    <div class="row"><span class="k">目前水位</span><span class="big" style="color:${s.wl===null?'#9fb0c8':lv.color}">${wlTxt}</span></div>
+    <div style="margin:4px 0 2px"><span class="badge" style="background:${lv.color}">${lv.label}</span>
+      ${s.status!=="現存"?'<span class="badge" style="background:#9aa0a6;margin-left:5px">站況：'+s.status+'</span>':''}</div>
+    ${row("河川 / 水系",(s.river||"—")+" / "+(S.basinName[s.basin]||s.basin||"—"))}
+    ${row("地址",s.addr||"—")}
+    ${row("觀測時間",s.obs?fmtT(s.obs)+(lag!==null?`（${lag} 分鐘前）`:""):"—")}`;
+
+  if(s.a1!==null||s.a2!==null||s.a3!==null){
+    html+=`<div class="sechd">警戒水位（一級最嚴重）</div>`
+      +alertRow("一級警戒",s.a1,1)+alertRow("二級警戒",s.a2,2)+alertRow("三級警戒",s.a3,3)
+      +(mg!==null?row("距一級警戒",(mg>=0?"尚差 ":"已超過 ")+Math.abs(mg).toFixed(2)+" m"):"");
+  }else{
+    html+=`<div class="sechd">警戒水位</div>`+row("狀態","本站未訂定警戒水位");
+  }
+
+  html+=`<div class="sechd">測站資料</div>`
+    +row("零點高程",s.zero===null?"—":s.zero.toFixed(2)+" m")
+    +row("設站日期",s.est?String(s.est).slice(0,10):"—")
+    +row("傳輸 / 電壓",(s.dev?s.dev.split("_").slice(1).join("_")||"—":"—")+(s.volt!==null?" / "+s.volt.toFixed(2)+" V":" / —"))
+    +row("資料檢核",s.ok===null?"—":(s.ok?"✅ 通過":"⚠ 未通過")+(s.desc?"（"+s.desc+"）":""))
+    +row("座標來源",s.geoSrc+" 二度分帶反算")
+    +row("經緯度",s.lat.toFixed(5)+", "+s.lon.toFixed(5));
+
+  html+=`<div class="sechd"></div>
+    <a href="https://www.google.com/maps?q=${s.lat.toFixed(6)},${s.lon.toFixed(6)}" target="_blank" rel="noopener">📍 Google 地圖</a>
+    ｜<a href="https://fhy.wra.gov.tw/fhy/Monitor/River" target="_blank" rel="noopener">🌐 水利署防災資訊網</a>
+  </div>`;
+  return html;
+}
+
+/* ===== 繪圖 ===== */
+let openId="";                            // 目前開啟彈窗的站號（重繪後復原）
+function render(fit){
+  layer.clearLayers();pulseLayer.clearLayers();
+  const v=curVar();
+  const q=normName($("wlSearch").value.trim()).toLowerCase();
+  const county=$("wlCountySel").value,basin=$("basinSel").value,river=$("riverSel").value;
+  const showNA=$("naChk").checked, alertOnly=$("alertChk").checked, pulse=$("pulseChk").checked;
+  const sc=sizeScale();
+  const pts=[];const cnt={1:0,2:0,3:0,0:0,"-1":0,"-9":0};
+  let shown=0,reopen=null;
+
+  if(v.kind==="none"){
+    // 觀測變數＝無：河川即時水位圖層整層不上圖（保留其他圖層照常運作）
+    if(fit)map.fitBounds(TAIWAN);
+    $("wlInfo").textContent="河川即時水位：未顯示（觀測變數＝無）";
+    legend(v,cnt,0);
+    renderGW();
+    renderIoW();
+    saveHash();
+    return;
+  }
+
+  S.merged.forEach(s=>{
+    if(county&&s.county!==county)return;
+    if(basin&&s.basin!==basin)return;
+    if(river&&s.river!==river)return;
+    if(q&&!((normName(s.name).toLowerCase().includes(q))||s.id.toLowerCase().includes(q)
+          ||normName(s.addr).toLowerCase().includes(q)||normName(s.river).toLowerCase().includes(q)))return;
+    if(s.wl===null&&!showNA)return;
+    if(alertOnly&&!(s.lv>=1&&s.lv<=3))return;
+
+    let color,r;
+    if(v.kind==="alert"){
+      const lv=LEVEL_BY_K[s.lv];color=lv.color;r=lv.r;
+    }else{
+      const val=v.get(s);
+      if(val===null){color="#7a8aa3";r=4;}
+      else{color=colorFor(val,v);r=6;}
+    }
+    const ll=[s.lat,s.lon];
+    // 三角形視覺重量比同外接框的圓形輕，尺寸放大約 1.2 倍以維持一致的視覺大小
+    const m=L.marker(ll,{pane:"wlpane",icon:wlTriIcon(color,Math.round(2.4*r*sc))});
+    m.bindPopup(()=>buildPopup(s),{maxWidth:330});
+    m.bindTooltip(`${s.name}｜${s.wl===null?"無資料":s.wl.toFixed(2)+" m"}`,{direction:"top",offset:[0,-4]});
+    m.on("popupopen",()=>{openId=s.id;});
+    m.on("popupclose",()=>{if(openId===s.id)openId="";});
+    m.addTo(layer);
+    if(openId===s.id)reopen=m;
+    if(pulse&&s.lv>=1&&s.lv<=3){
+      const size=Math.round(30*sc);
+      const col=LEVEL_BY_K[s.lv].color;
+      L.marker(ll,{pane:"pulse",interactive:false,icon:L.divIcon({className:"wl-pulse",
+        html:`<i style="background:${col};opacity:.55"></i>`,iconSize:[size,size],iconAnchor:[size/2,size/2]})}).addTo(pulseLayer);
+    }
+    pts.push(ll);cnt[s.lv]++;shown++;
+  });
+
+  if(fit){
+    if((county||basin||river||q)&&pts.length)map.fitBounds(L.latLngBounds(pts),{padding:[40,40]});
+    else map.fitBounds(TAIWAN);
+  }
+  if(reopen)reopen.openPopup();          // 縮放重繪後保留原本開啟的彈窗
+  const alerts=cnt[1]+cnt[2]+cnt[3];
+  $("wlInfo").textContent=`顯示 ${shown} 站 ‧ 變數：${v.label}`+(alerts?` ‧ 🚨 達警戒 ${alerts} 站`:" ‧ 目前無測站達警戒");
+  legend(v,cnt,shown);
+  renderGW();
+  renderIoW();
+  saveHash();
+}
+
+// 離散分級的垂直色階（下小上大），門檻值標在色塊交界
+function blockHTML(v,h){
+  const C=v.colors,LV=v.levels,N=C.length;h=h||13;
+  let html='<div style="display:flex;flex-direction:column;border:1px solid var(--line);width:26px;margin-left:2px">';
+  for(let t=0;t<N;t++){
+    const di=N-1-t;
+    const lab=(di-1>=0)?LV[di-1]:"";
+    html+=`<div style="position:relative;height:${h}px;background:${C[di]}">
+      ${lab!==""?`<span style="position:absolute;right:-38px;bottom:-7px;font-size:10px;color:var(--muted)">${lab}</span>`:""}
+    </div>`;
+  }
+  return html+'</div>';
+}
+
+function legend(v,cnt,shown){
+  const body=$("legBody");
+  $("legNA").style.display=(v.kind==="none")?"none":"flex";
+  if(v.kind==="none"){
+    $("wlLegTitle").textContent="🌊 河川即時水位（未顯示）";
+    body.innerHTML="";
+    $("wlLegNote").textContent="觀測變數選擇「無」，本圖層暫不上圖；其他圖層不受影響。";
+  }else if(v.kind==="alert"){
+    $("wlLegTitle").textContent="🌊 河川警戒等級";
+    body.innerHTML=LEVELS.filter(l=>l.k!==-9).map(l=>
+      `<div class="lgrow"><span class="lgi">${wlTriSVG(l.color,13)}</span>${l.label}<span class="cnt">${cnt[l.k]||0}</span></div>`).join("");
+    $("wlLegNote").innerHTML="警戒水位由水利署訂定，數值 <b>一級 &gt; 二級 &gt; 三級</b>，一級最嚴重。";
+  }else{
+    $("wlLegTitle").textContent=`🌊 ${v.label}（${v.unit}）`;
+    body.innerHTML=blockHTML(v);
+    $("wlLegNote").textContent=v.note||"";
+  }
+}
+
+
+/* ==================== 地下水觀測井圖層 ====================
+   即時地下水水位 58a7aa39-…：wellidentifier / name / recordtime / waterlevel / voltage /
+     governmentunitidentifier。同一口井有多筆時間（實測 3591 筆 / 744 口井 / 6 個時間點，
+     10 分鐘一筆、涵蓋近 1 小時）→ 取最新一筆上圖，整段序列用來算漲落與畫走勢圖。
+
+   井位來源有兩個，預設「自動」＝ KMZ 優先、缺的再用井況 API 補：
+   ① 水利署地理資訊服務平台 KMZ（gic.wra.gov.tw，fname=gwobwell_e）
+      － 副檔名寫 .kml 但實際是 ZIP（KMZ），需 JSZip 解壓後取 doc.kml。
+      － 805 口井，**直接是 WGS84 經緯度**，不必反算；欄位在 description 的 HTML 表格內
+        （ST_NO / NAME_C / GW_ZONE / LAYER / LAYER_ATTR / AQUIFER / FIN_DEPTH /
+         EQUIP_LIMI / EQUIP_LI_1 / G_HEIGHT / ELEV_CUR / TM_X / TM_Y …）。
+      － 以 ST_NO 對應即時檔的 wellidentifier：ST_NO = parseInt(id 之 "GW" 後段)。
+        實測 744 口即時井中 728 口對得上、井名 100% 相符；對不到的 16 口全在澎湖與金門
+        （本 KMZ 只涵蓋 121° 分帶，Document id 為 gwobwell_121）。ST_NO="0" 的 8 口無編號、無法對應。
+      － KMZ 內 TM_X/TM_Y 以 tm2ll() 反算，與其 WGS84 經緯度誤差 0.0 m（805 口全數），
+        等於官方替本頁的座標反算做了驗證。
+   ② 地下水水位觀測井井況 API 3e86faea-…：欄位 locationbytwd97（沒有 _xy）需自行反算，
+      涵蓋澎湖／金門，用來補 KMZ 缺的井。其 countyname/townname 與 locationaddress 不一致，
+      故縣市一律由 locationaddress 推導。
+
+   埋深基準的選擇（實測結論）：
+     KMZ 的 G_HEIGHT 與 ELEV_CUR 彼此矛盾（中位差 4.5 m、最大 223 m）。以「兩者相差 ≤2 m」
+     的 272 口井當對照組，三種基準算出的埋深中位數幾乎一樣（7.16 / 7.30 / 7.42 m）；但在
+     兩者矛盾的 397 口井裡，G_HEIGHT 會算出 256 個負值（顯然錯誤），EQUIP_LIMI 則 0 個負值。
+     → 埋深一律以 EQUIP_LIMI（設備量測上限 ≒ 管口高程）為基準，缺值時依序退回 ELEV_CUR、
+       G_HEIGHT、API 的 wellelevation / groundheight。
+   ======================================================== */
+const GW_KMZ="https://gic.wra.gov.tw/gis/gic/API/Google/DownLoad.aspx?fname=gwobwell_e&filetype=KML";
+
+// 專用 pane：置於河川測站（wlpane 410）、氣象站（overlayPane 400）與脈動環（395）之下，
+// 避免數百個菱形把達警戒的河川站蓋掉
+map.createPane("gwpane");
+map.getPane("gwpane").style.zIndex=385;
+const gwLayer=L.layerGroup();
+const GW={wells:[],byKey:{},rows:[],series:{},merged:[],
+  dropped:{noXY:0,badXY:0,noMeta:0},obsTime:null,viaW:"",viaS:"",loaded:false,fromCache:false};
+
+// 地下水位高程（m）：與河川水位相同的非線性分級
+const GL_LEVELS=[0,2,5,10,20,50,100,200,400];
+const GL_COLORS=["#3b0764","#4c1d95","#1e40af","#0369a1","#0891b2","#0d9488","#16a34a","#ca8a04","#ea580c","#b91c1c"];
+// 水位埋深（管口以下 m）：實測 p5≈1.3、中位≈8、p95≈24、最大≈50
+const GD_LEVELS=[0,1,2,5,10,15,20,30,50];
+const GD_COLORS=["#1e3a8a","#0369a1","#0ea5e9","#38bdf8","#7dd3fc","#a7f3d0","#fde68a","#fb923c","#dc2626","#7f1d1d"];
+// 近 1 小時變化（m）：負值＝下降
+const GC_LEVELS=[-0.2,-0.05,-0.01,0.01,0.05,0.2];
+const GC_COLORS=["#b91c1c","#f97316","#fbbf24","#9ca3af","#7dd3fc","#2563eb","#1e3a8a"];
+
+const GW_VARS=[
+  {key:"lv",label:"地下水位高程",unit:"m",levels:GL_LEVELS,colors:GL_COLORS,get:w=>w.wl,
+   note:"井中水位的絕對高程（測值本身）。各井地表高程差異大，跨井比較建議改看「埋深」。"},
+  {key:"dep",label:"水位埋深（管口以下）",unit:"m",levels:GD_LEVELS,colors:GD_COLORS,
+   get:w=>(w.ref===null||w.wl===null)?null:(w.ref-w.wl),
+   note:"＝管口高程 − 水位高程。基準優先取 KMZ 的設備量測上限（≒管口），缺值才退回井口／地表高程；負值代表自流。"},
+  {key:"chg",label:"近 1 小時水位變化",unit:"m",levels:GC_LEVELS,colors:GC_COLORS,get:w=>w.chg,
+   note:"即時檔內最新一筆 − 最早一筆（約 1 小時）；正值＝水位上升。"}
+];
+function curGWVar(){return GW_VARS.find(v=>v.key===$("gwVarSel").value)||GW_VARS[0];}
+$("gwVarSel").innerHTML=GW_VARS.map(v=>`<option value="${v.key}">${v.label}（${v.unit}）</option>`).join("");
+
+// wellidentifier → ST_NO（"3132011GW02010111" → "2010111"）
+function stNo(id){
+  const t=String(id||"");const i=t.indexOf("GW");
+  if(i<0)return "";
+  const d=t.slice(i+2).replace(/\D/g,"");
+  if(!d)return "";
+  const n=parseInt(d,10);
+  return (isFinite(n)&&n>0)?String(n):"";
+}
+const gwKey=id=>stNo(id)||String(id||"");
+
+/* ---- 取二進位檔（KMZ）：同樣直連 ---- */
+async function fetchBuf(base,tag){
+  try{
+    const r=await fetch(base,{cache:"no-store"});
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    const b=await r.arrayBuffer();
+    if(!b||b.byteLength<200)throw new Error("回應過短");
+    return {buf:b,via:"直連"};
+  }catch(e){throw new Error(tag+" 取檔失敗（"+e.message+"）");}
+}
+// 檔頭 "PK" → 其實是 KMZ（ZIP），需 JSZip 解壓；否則直接當純文字 KML
+async function kmzText(buf){
+  const u8=new Uint8Array(buf.slice(0,2));
+  if(u8[0]===0x50&&u8[1]===0x4B){
+    if(typeof JSZip==="undefined")throw new Error("缺少 JSZip，無法解壓 KMZ");
+    const z=await JSZip.loadAsync(buf);
+    const nm=Object.keys(z.files).find(n=>/\.kml$/i.test(n));
+    if(!nm)throw new Error("KMZ 內找不到 .kml");
+    return await z.files[nm].async("string");
+  }
+  return new TextDecoder("utf-8").decode(buf);
+}
+function parseKmlText(t){
+  let d=new DOMParser().parseFromString(t,"application/xml");
+  if(d.querySelector("parsererror")){
+    // 部分官方 KML 會用到未宣告的 xsi: 前綴 → 補上命名空間再試一次
+    const fixed=t.replace(/<kml([^>]*)>/,(m,a)=>/xmlns:xsi/.test(a)?m:`<kml${a} xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">`);
+    d=new DOMParser().parseFromString(fixed,"application/xml");
+    if(d.querySelector("parsererror"))throw new Error("KML 解析失敗");
+  }
+  return d;
+}
+// description 內是 ArcGIS 匯出的 HTML 表格：<td>KEY</td><td>VALUE</td>
+function kmlFields(desc){
+  const o={};const re=/<td>\s*([A-Z_][A-Z_0-9]*)\s*<\/td>\s*<td>([\s\S]*?)<\/td>/g;
+  let m;while((m=re.exec(desc)))o[m[1]]=m[2].replace(/<[^>]*>/g,"").trim();
+  return o;
+}
+const gwNZ=v=>{const n=num(v);return (n===null||n===0)?null:n;};   // 0 視為缺值（G_HEIGHT 常填 0）
+
+async function loadGWKMZ(){
+  const {buf,via}=await fetchBuf(GW_KMZ,"地下水觀測井 KMZ");
+  const doc=parseKmlText(await kmzText(buf));
+  const pms=doc.getElementsByTagName("Placemark");
+  const out=[];
+  for(let i=0;i<pms.length;i++){
+    const pm=pms[i];
+    const co=pm.getElementsByTagName("coordinates")[0];
+    if(!co)continue;
+    const c=co.textContent.trim().split(/[,\s]+/);
+    const lon=parseFloat(c[0]),lat=parseFloat(c[1]);
+    if(!isFinite(lat)||!isFinite(lon))continue;
+    const de=pm.getElementsByTagName("description")[0];
+    const f=de?kmlFields(de.textContent):{};
+    const nmEl=pm.getElementsByTagName("name")[0];
+    const sn=stNo("GW"+(f.ST_NO||""));
+    out.push({
+      key:sn||("KMZ#"+i), stno:sn, id:"",
+      name:f.NAME_C||(nmEl?nmEl.textContent.trim():""),
+      addr:f.ADDRESS||"", zone:f.GW_ZONE||"", dist:f.WR_DI_NAME||"",
+      layerAttr:(f.LAYER_ATTR&&f.LAYER_ATTR!=="NULL")?f.LAYER_ATTR:"",
+      layerNo:f.LAYER||"", aquifer:(f.AQUIFER&&f.AQUIFER!=="-")?f.AQUIFER:"",
+      gh:gwNZ(f.G_HEIGHT), we:num(f.ELEV_CUR), lim:num(f.EQUIP_LIMI), limLo:num(f.EQUIP_LI_1),
+      wd:null, fd:num(f.FIN_DEPTH), est:f.DAT_ESTABL||"", fin:f.FIN_DATE||"",
+      remark:(f.REMARK&&f.REMARK!=="-")?f.REMARK:"",
+      status:f.STATUS||"", abolish:f.ABOLISH_DA||"",
+      lat,lon,geoSrc:"KMZ 內建 WGS84 經緯度",src:"KMZ"
+    });
+  }
+  if(!out.length)throw new Error("KMZ 內查無觀測井");
+  return {wells:out,via};
+}
+
+async function loadGWAPI(){
+  const {data,via}=await fetchJSON(API_GWST,"地下水水位觀測井井況");
+  const rows=asRows(data);
+  if(!rows.length)throw new Error("地下水水位觀測井井況：查無資料");
+  const out=rows.map(w=>({
+    key:gwKey(w.wellidentifier), stno:stNo(w.wellidentifier), id:w.wellidentifier||"",
+    name:w.wellname||"", addr:w.locationaddress||"",
+    zone:w.groundwaterzone||"", dist:w.waterresourcesdistrictname||"",
+    layerAttr:w.layerattribute||"", layerNo:"", aquifer:"",
+    gh:gwNZ(w.groundheight), we:num(w.wellelevation), lim:null, limLo:null,
+    wd:num(w.welldepth), fd:num(w.finishdepth),
+    est:String(w.establishdate||""), fin:String(w.finishdate||""),
+    remark:w.remarks||"", status:"", abolish:String(w.disusedate||""),
+    xy97:w.locationbytwd97||w.locationbytwd97_xy||"",
+    xy67:w.locationbytwd67||w.locationbytwd67_xy||"",
+    src:"API"
+  })).filter(w=>w.key);
+  geocodeStations(out);                       // TM2 反算 ＋ 縣市中位數異常剔除
+  out.forEach(w=>{if(w.geoSrc)w.geoSrc=w.geoSrc+" 二度分帶反算";});
+  return {wells:out,via};
+}
+
+// 即時檔中有幾口井是目前井位清單對不到的
+function gwUnmatched(wells){
+  const have=new Set(wells.map(w=>w.key));
+  const seen=new Set();let miss=0;
+  GW.rows.forEach(r=>{
+    const k=gwKey(r.wellidentifier);
+    if(!k||seen.has(k))return;seen.add(k);
+    if(!have.has(k))miss++;
+  });
+  return miss;
+}
+
+async function loadGWWells(force){
+  const mode=$("gwSrc").value||"auto";
+  if(!force){
+    try{
+      const c=JSON.parse(localStorage.getItem(GWCACHE_LS)||"null");
+      if(c&&c.mode===mode&&Array.isArray(c.d)&&c.d.length&&(Date.now()-c.t)<STCACHE_TTL){
+        GW.wells=c.d;GW.fromCache=true;GW.viaS="localStorage 快取";return;
+      }
+    }catch(e){}
+  }
+  const notes=[];let wells=[];
+  if(mode!=="api"){
+    try{const r=await loadGWKMZ();wells=r.wells;notes.push(`GIC KMZ（${r.via}）${r.wells.length} 口`);}
+    catch(e){notes.push("KMZ 失敗："+e.message);}
+  }
+  if(mode==="api"||(mode==="auto"&&(!wells.length||gwUnmatched(wells)>0))){
+    try{
+      const r=await loadGWAPI();
+      const have=new Set(wells.map(w=>w.key));
+      const add=r.wells.filter(w=>!have.has(w.key)&&w.lat!==null&&w.lat!==undefined);
+      wells=wells.concat(add);
+      notes.push(`井況 API（${r.via}）補 ${add.length} 口`);
+    }catch(e){notes.push("井況 API 失敗："+e.message);}
+  }
+  if(!wells.length)throw new Error(notes.join("；")||"無可用的觀測井位置資料");
+  GW.wells=wells;GW.fromCache=false;GW.viaS=notes.join(" ‧ ");
+  try{localStorage.setItem(GWCACHE_LS,JSON.stringify({t:Date.now(),mode,d:wells}));}catch(e){}
+}
+
+async function loadGWWater(){
+  const {data,via}=await fetchJSON(API_GW,"即時地下水水位");
+  const rows=asRows(data);
+  if(!rows.length)throw new Error("即時地下水水位：查無資料");
+  GW.rows=rows;GW.viaW=via;
+}
+
+// ABOLISH_DA / disusedate 為 99999999（或空、未來日期）代表尚未廢井
+function gwActive(w){
+  if(w.status&&w.status!=="現存"&&/廢/.test(w.status))return false;
+  const d=parseInt(String(w.abolish||"").replace(/\D/g,""),10);
+  if(!isFinite(d)||d>=99999999)return true;
+  const t=new Date();
+  return d>(t.getFullYear()*10000+(t.getMonth()+1)*100+t.getDate());
+}
+
+function gwMerge(){
+  GW.byKey={};GW.wells.forEach(w=>{if(w.key)GW.byKey[w.key]=w;});
+
+  // 依井分組時序（同井多筆 recordtime）
+  const ser={};
+  GW.rows.forEach(r=>{
+    const k=gwKey(r.wellidentifier);if(!k)return;
+    (ser[k]=ser[k]||[]).push({t:twTime(r.recordtime),v:num(r.waterlevel),
+      volt:num(r.voltage),unit:r.governmentunitidentifier||"",nm:r.name||"",id:r.wellidentifier||""});
+  });
+  Object.keys(ser).forEach(k=>ser[k].sort((a,b)=>(a.t?a.t.getTime():0)-(b.t?b.t.getTime():0)));
+  GW.series=ser;
+
+  GW.dropped={noXY:0,badXY:0,noMeta:0};
+  const out=[];
+  GW.wells.forEach(w=>{
+    const a=ser[w.key];
+    if(!gwActive(w)&&!a)return;                      // 已廢且無即時資料 → 不上圖
+    if(w.lat===null||w.lat===undefined){(w.badXY?GW.dropped.badXY++:GW.dropped.noXY++);return;}
+    if(!w.county)w.county=countyOf(w);
+    const valid=a?a.filter(x=>x.v!==null):[];
+    const last=valid.length?valid[valid.length-1]:null;
+    const first=valid.length?valid[0]:null;
+    const ref=(w.lim!==null&&w.lim!==undefined)?w.lim
+             :((w.we!==null&&w.we!==undefined)?w.we:(w.gh!==null&&w.gh!==undefined?w.gh:null));
+    const wl=last?last.v:null;
+    out.push({
+      key:w.key,stno:w.stno,
+      id:w.id||(last?last.id:"")||(a&&a[0]?a[0].id:""),
+      name:w.name||(a&&a[0]?a[0].nm:"")||"",
+      addr:w.addr,county:w.county,zone:w.zone,dist:w.dist,
+      layerAttr:w.layerAttr,layerNo:w.layerNo,aquifer:w.aquifer,
+      gh:w.gh,we:w.we,lim:w.lim,limLo:w.limLo,ref:ref,wd:w.wd,fd:w.fd,
+      est:w.est,fin:w.fin,remark:w.remark,
+      lat:w.lat,lon:w.lon,geoSrc:w.geoSrc||"",src:w.src,
+      wl:wl,
+      chg:(valid.length>=2)?(last.v-first.v):null,
+      span:(valid.length>=2&&last.t&&first.t)?Math.round((last.t-first.t)/60000):null,
+      obs:last?last.t:null,volt:last?last.volt:null,unit:last?last.unit:"",
+      outRange:(wl!==null&&w.lim!==null&&w.lim!==undefined&&w.limLo!==null&&w.limLo!==undefined
+                &&(wl>w.lim+0.5||wl<w.limLo-0.5)),
+      ser:valid
+    });
+  });
+  Object.keys(ser).forEach(k=>{if(!GW.byKey[k])GW.dropped.noMeta++;});
+  GW.merged=out;
+  const ts=out.map(w=>w.obs).filter(Boolean);
+  GW.obsTime=ts.length?new Date(Math.max(...ts.map(d=>d.getTime()))):null;
+
+  const zones=[...new Set(out.map(w=>w.zone).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"zh-Hant"));
+  const keep=$("gwZoneSel").value;
+  $("gwZoneSel").innerHTML='<option value="">全部分區</option>'+zones.map(z=>`<option>${z}</option>`).join("");
+  if(zones.includes(keep))$("gwZoneSel").value=keep;
+}
+
+async function loadGW(force){
+  $("gwStat").style.display="block";
+  $("gwStat").textContent="⏳ 載入地下水資料中…";
+  try{
+    await loadGWWater();          // 先取即時值，才知道井位清單缺哪幾口
+    await loadGWWells(force);
+    gwMerge();
+    GW.loaded=true;
+    fillSelects();          // 新圖層可能帶進河川站沒有的縣市
+    gwStatUI();
+  }catch(e){
+    GW.loaded=false;
+    $("gwStat").textContent="地下水載入失敗："+e.message;
+  }
+}
+function gwStatUI(){
+  const d=GW.dropped;
+  const kmz=GW.merged.filter(w=>w.src==="KMZ").length;
+  $("gwStat").style.display="block";
+  $("gwStat").innerHTML=`💧 觀測井 ${GW.merged.length} 口（KMZ ${kmz} ‧ API ${GW.merged.length-kmz}）‧ 最新 ${fmtT(GW.obsTime)}`
+    +`<br><span style="color:var(--muted)">井位：${GW.viaS}｜即時值：${GW.viaW}`
+    +`｜未上圖：缺座標 ${d.noXY} ‧ 座標異常 ${d.badXY} ‧ 井位查無 ${d.noMeta}</span>`
+    +`<br><span style="color:var(--muted)">※ 地下水僅套用「縣市 / 分區 / 搜尋」條件，不受水系與河川篩選影響</span>`;
+}
+
+// 迷你走勢圖（近 1 小時、最多數點）
+function gwSpark(ser,w,h){
+  w=w||212;h=h||42;
+  if(!ser||ser.length<2)return "";
+  const vs=ser.map(p=>p.v);
+  const mn=Math.min(...vs),mx=Math.max(...vs),rg=(mx-mn)||1;
+  const step=w/(ser.length-1);
+  const y=v=>(h-4-(v-mn)/rg*(h-10)).toFixed(1);
+  const d=ser.map((p,i)=>`${i?"L":"M"}${(i*step).toFixed(1)},${y(p.v)}`).join(" ");
+  const dots=ser.map((p,i)=>`<circle cx="${(i*step).toFixed(1)}" cy="${y(p.v)}" r="2" fill="#8ab4f8"/>`).join("");
+  return `<div style="margin-top:6px">
+    <svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="overflow:visible">
+      <path d="${d}" fill="none" stroke="#8ab4f8" stroke-width="1.6"/>${dots}
+    </svg>
+    <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted)">
+      <span>${ser[0].t?ser[0].t.toLocaleTimeString("zh-TW",{timeZone:"Asia/Taipei",hour12:false,hour:"2-digit",minute:"2-digit"}):""}</span>
+      <span>${mn.toFixed(3)} ~ ${mx.toFixed(3)} m</span>
+      <span>${ser[ser.length-1].t?ser[ser.length-1].t.toLocaleTimeString("zh-TW",{timeZone:"Asia/Taipei",hour12:false,hour:"2-digit",minute:"2-digit"}):""}</span>
+    </div></div>`;
+}
+
+function gwPopup(w){
+  const row=(k,val)=>`<div class="row"><span class="k">${k}</span><span>${val}</span></div>`;
+  const dep=(w.ref===null||w.ref===undefined||w.wl===null)?null:(w.ref-w.wl);
+  const lag=w.obs?Math.round((Date.now()-w.obs.getTime())/60000):null;
+  const chgTxt=w.chg===null?"—":(w.chg>0?"▲ +":(w.chg<0?"▼ ":"± "))+w.chg.toFixed(3)+" m"
+    +(w.span?`（${w.span} 分鐘）`:"");
+  const v=curGWVar();
+  const cv=v.get(w);
+  const col=(w.wl===null||cv===null)?"#9fb0c8":colorFor(cv,v);
+  const LA={U:"U（非受壓／自由水面）",C:"C（受壓）"};
+  const fmtD=d=>{const t=String(d||"").replace(/\D/g,"");return /^\d{8}$/.test(t)?t.replace(/(\d{4})(\d{2})(\d{2})/,"$1-$2-$3"):(d||"—");};
+  let html=`<div class="pop">
+    <h3>💧 ${w.name||"—"} <small style="color:#9fb0c8">${w.stno||w.id||""}</small></h3>
+    <div class="row"><span class="k">地下水位高程</span><span class="big" style="color:${col}">${w.wl===null?"無資料":w.wl.toFixed(3)+" m"}</span></div>
+    ${row("水位埋深（管口以下）",dep===null?"—":dep.toFixed(3)+" m"+(dep<0?"（自流）":""))}
+    ${row("近 1 小時變化",chgTxt)}
+    ${gwSpark(w.ser)}
+    ${row("觀測時間",w.obs?fmtT(w.obs)+(lag!==null?`（${lag} 分鐘前）`:""):"—")}
+    ${w.outRange?`<div style="color:#fbbf24;font-size:11.5px;margin-top:4px">⚠ 測值超出設備量測範圍（${w.limLo.toFixed(2)} ~ ${w.lim.toFixed(2)} m），請留意資料品質</div>`:""}
+    <div class="sechd">觀測井資料</div>
+    ${row("地下水分區",(w.zone||"—")+(w.dist?`（${w.dist}）`:""))}
+    ${row("含水層",(w.layerNo?`第 ${w.layerNo} 層 `:"")+(LA[w.layerAttr]||w.layerAttr||"—"))}
+    ${w.aquifer?row("含水層深度",w.aquifer+" m"):""}
+    ${row("管口高程 / 量測範圍",(w.lim===null||w.lim===undefined?"—":w.lim.toFixed(2)+" m")
+        +((w.limLo!==null&&w.limLo!==undefined&&w.lim!==null&&w.lim!==undefined)?`（${w.limLo.toFixed(2)} ~ ${w.lim.toFixed(2)}）`:""))}
+    ${row("井口 / 地表高程",(w.we===null||w.we===undefined?"—":w.we.toFixed(2))+" / "+(w.gh===null||w.gh===undefined?"—":w.gh.toFixed(2))+" m")}
+    ${row("成井深度"+(w.wd!==null&&w.wd!==undefined?" / 井深":""),(w.fd===null||w.fd===undefined?"—":w.fd.toFixed(1))
+        +(w.wd!==null&&w.wd!==undefined?" / "+w.wd.toFixed(1):"")+" m")}
+    ${row("管理單位",w.unit||"—")}
+    ${row("電壓",w.volt===null?"—":w.volt.toFixed(2)+" V")}
+    ${row("設站 / 成井日期",fmtD(w.est)+" / "+fmtD(w.fin))}
+    ${row("地址",w.addr||"—")}
+    ${row("井位來源",w.geoSrc||w.src||"—")}
+    ${row("經緯度",w.lat.toFixed(5)+", "+w.lon.toFixed(5))}
+    ${w.remark?row("備註",w.remark):""}
+    <div class="sechd"></div>
+    <a href="https://www.google.com/maps?q=${w.lat.toFixed(6)},${w.lon.toFixed(6)}" target="_blank" rel="noopener">📍 Google 地圖</a>
+    ｜<a href="https://gic.wra.gov.tw/gic/" target="_blank" rel="noopener">🌐 水利署地理資訊服務平台</a>
+  </div>`;
+  return html;
+}
+
+function renderGW(){
+  gwLayer.clearLayers();
+  $("gwOpt").style.display=$("gwChk").checked?"block":"none";
+  $("legGW").style.display=($("gwChk").checked&&GW.merged.length)?"block":"none";
+  if(!$("gwChk").checked){$("gwStat").style.display=GW.loaded?"none":$("gwStat").style.display;return;}
+  if(!GW.merged.length)return;
+
+  const v=curGWVar();
+  const q=normName($("wlSearch").value.trim()).toLowerCase();
+  const county=$("wlCountySel").value, zone=$("gwZoneSel").value, showNA=$("gwNaChk").checked;
+  const sc=sizeScale();
+  let shown=0,reopen=null;
+  GW.merged.forEach(w=>{
+    if(county&&w.county!==county)return;
+    if(zone&&w.zone!==zone)return;
+    if(q&&!(normName(w.name).toLowerCase().includes(q)||String(w.id).toLowerCase().includes(q)
+          ||String(w.stno).includes(q)
+          ||normName(w.addr).toLowerCase().includes(q)||normName(w.zone).toLowerCase().includes(q)))return;
+    if(w.wl===null&&!showNA)return;
+    const val=v.get(w);
+    const color=(w.wl===null||val===null)?"#7a8aa3":colorFor(val,v);
+    const size=Math.round(((w.wl===null?8:11))*sc);
+    const m=L.marker([w.lat,w.lon],{pane:"gwpane",icon:L.divIcon({className:"gw-di",
+      html:`<i style="background:${color}"></i>`,iconSize:[size,size],iconAnchor:[size/2,size/2]})});
+    m.bindPopup(()=>gwPopup(w),{maxWidth:330});
+    m.bindTooltip(`💧 ${w.name}｜${w.wl===null?"無資料":w.wl.toFixed(2)+" m"}`,{direction:"top",offset:[0,-6]});
+    m.on("popupopen",()=>{openId="gw:"+w.key;});
+    m.on("popupclose",()=>{if(openId==="gw:"+w.key)openId="";});
+    m.addTo(gwLayer);
+    if(openId==="gw:"+w.key)reopen=m;
+    shown++;
+  });
+  if(reopen)reopen.openPopup();
+  $("legGWTitle").textContent=`💧 ${v.label}（${v.unit}）`;
+  $("legGWBody").innerHTML=blockHTML(v,12);
+  $("legGWNote").innerHTML=v.note+`<br>目前顯示 <b>${shown}</b> 口井（共 ${GW.merged.length}）`;
+}
+
+/* ==================== IoW 物聯網感測器圖層（淹水深度 / 揚塵）====================
+   水利署 IoW 系列的「基本資料」與「最新資料」是同一組欄位結構，因此兩個資料集共用一支模組：
+   ‧ 基本資料：category / orgname / sensorid / sensorname / sensorfullname / sensordescription /
+       unit / observatoryidentifier / observatoryname / longitude / latitude /
+       countyname / townname / isenable / createdate / modifydate
+     → **直接就是 WGS84 經緯度**，不必反算；實測 1355 個淹水感測器 0 個座標異常。
+   ‧ 最新資料：sensorid / latestvalue / timestamp / areacode / countycode（每個 sensorid 只有一筆）
+     → timestamp 帶 +08:00 時區，可直接 new Date() 解析（與河川／地下水的無時區欄位不同）。
+
+   踩過的坑：
+   ‧ observatoryname 與 sensordescription 內含 HTML 實體（&#40; &#41; &gt; &lt;），須先解碼。
+   ‧ 淹水深度用 999.9 當異常／失聯值（實測該站已 3 個月未更新）→ ≥999 一律視為無效。
+   ‧ 乾燥時感測器每小時才回傳一次，逾時未更新屬正常；但仍有 23 個站超過 24 小時、22 個超過 7 天。
+   ‧ 揚塵一站有 4 個 sensor（Pm10 / 氣溫 / 相對溼度 / 風速），須依 observatoryidentifier 併站，
+     以 PM10 上色，其餘值列在彈窗；淹水則是一站一個 sensor。
+   ============================================================================= */
+map.createPane("iowpane");
+map.getPane("iowpane").style.zIndex=386;
+
+// HTML 實體解碼（站名含 &#40; &#41; 等）
+const deEnt=(()=>{const t=document.createElement("textarea");
+  return v=>{if(v===null||v===undefined||v==="")return "";t.innerHTML=String(v);return t.value;};})();
+
+// 由 sensorfullname 去除慣用後綴，估計叢集（同一物理結構／護岸）的顯示名稱。
+// 僅影響地圖上顯示的名稱，不影響任何實際數值；個別感測器原始名稱仍完整列於彈窗。
+function trimSensorLabel(full){
+  let s=deEnt(full);
+  s=s.replace(/[\(（]\s*\d+\s*[\)）]/g,"");            // 去除任意位置的純數字括號，如 "(1)"
+  s=s.replace(/(閘門)\d+$/,"$1");                        // "自動閘門1" → "自動閘門"
+  for(let i=0;i<4;i++){
+    const t=s.replace(/\s*[\(（][^()（）]*[\)）]\s*$/,"");  // 去除結尾括號註記，如 "(H1_0)"、"(警戒)"
+    if(t===s)break; s=t;
+  }
+  s=s.replace(/\s*\d+[-－]?\d*cm\s*$/,"");               // 去除結尾的公分數字，如 " 021-100cm"
+  s=s.replace(/(\d*號)?(閘門)?(絕對開度|開度|內水位|外水位)$/,"");
+  s=s.replace(/(沖出深度|沖刷深度|號孔)$/,"");
+  s=s.replace(/[\s.．_-]+$/,"");
+  return s.trim();
+}
+function modeStr(arr){
+  const cnt={};arr.forEach(c=>{if(c)cnt[c]=(cnt[c]||0)+1;});
+  const keys=Object.keys(cnt);
+  if(!keys.length)return "";
+  return keys.sort((a,b)=>cnt[b]-cnt[a]||a.length-b.length)[0];
+}
+function sensorsGroupName(sensors){
+  let name=modeStr(sensors.map(s=>trimSensorLabel(s.full||s.name)));
+  if(!name||/^\d+$/.test(name)){
+    const alt=modeStr(sensors.map(s=>s.oname).filter(Boolean));
+    if(alt)name=alt;
+  }
+  if(!name)name=deEnt(sensors[0]&&(sensors[0].full||sensors[0].name))||"—";
+  return name;
+}
+function gateAnom(unit,v){
+  if(v===null||v===undefined)return false;
+  if(unit==="%")return v<-1||v>105;
+  if(unit==="cm")return Math.abs(v)>1000;
+  return false;
+}
+// 沖刷深度：同一物理測點常設有多深度感測器，其座標各自量測、彼此有數十~數百公尺誤差，
+// 不能單純以座標四捨五入分群；但名稱／觀測站代碼多帶有「測點代號_深度」括號（如 (D1_120)）。
+// 有此代碼時以「站名＋測點代號」分群（同一測點的不同深度感測器合併一圖示，不同測點分開）；
+// 沒有代碼（如逐孔命名 1號孔..27號孔，座標完全相同）則退回座標分群。
+function scourGroupKey(x){
+  const src=x.oname||x.sfull||"";
+  const m=src.match(/[\(（]([^_()（）]+)_\d+[\)）]/);
+  if(m){
+    const site=(x.sfull||x.sname||"").replace(/[\(（][^()（）]*[\)）]/g,"").trim();
+    return (site||"—")+"#"+m[1];
+  }
+  return x.lat.toFixed(3)+","+x.lon.toFixed(3);
+}
+
+const IOW_DEFS={
+  flood:{
+    id:"flood", label:"淹水深度", icon:"🌊", shape:"sq",
+    base:"https://opendata.wra.gov.tw/api/v2/21c50be1-7c4a-4fdf-a386-790625e984e7?sort=_importdate%20asc&format=JSON",
+    live:"https://opendata.wra.gov.tw/api/v2/1b991bbb-ad85-4e7a-b931-06ce8749d3ed?sort=_importdate%20asc&format=JSON",
+    cache:"wra_iow_flood_v1", primary:"淹水深度", unit:"cm",
+    levels:[0.5,5,10,20,30,50,100],
+    colors:["#1e3a5f","#0369a1","#0ea5e9","#38bdf8","#fbbf24","#fb923c","#dc2626","#7f1d1d"],
+    bad:v=>(v<0||v>=999),
+    pulseAt:20,
+    chk:"floodChk", stat:"floodStat",
+    note:"IoW 淹水深度感測器（單位 cm）。0 cm＝無積水；≥999 為異常／失聯值，不上色。乾燥時多為每小時回傳一次。"
+  },
+  dust:{
+    id:"dust", label:"揚塵 PM10", icon:"🌫️", shape:"tri",
+    base:"https://opendata.wra.gov.tw/api/v2/a2ea1f32-9876-4228-8ee6-2284e49ea28d?sort=_importdate%20asc&format=JSON",
+    live:"https://opendata.wra.gov.tw/api/v2/ae7bd821-a879-4b65-ad34-b3dac36874e0?sort=_importdate%20asc&format=JSON",
+    cache:"wra_iow_dust_v1", primary:"Pm10", unit:"μg/m³",
+    // 依環境部 AQI 之 PM10 分級色（原為日均值分級，此處用於即時值僅供參考）
+    levels:[55,126,255,355,425],
+    colors:["#009865","#fffb26","#ff9800","#cf0a2c","#8f3f97","#7e0023"],
+    bad:v=>(v<0||v>5000),
+    pulseAt:null,
+    chk:"dustChk", stat:"dustStat",
+    note:"河川分署揚塵監控站 PM10（μg/m³），色階採環境部 AQI 之 PM10 分級（原為日均值分級，即時值僅供參考）。同站的氣溫／溼度／風速列於彈窗。"
+  },
+  gate:{
+    id:"gate", label:"閘門相關監測", icon:"🚪", shape:"hex",
+    base:"https://opendata.wra.gov.tw/api/v2/d82e29eb-22f8-4e94-8d27-be27ac601d5e?sort=_importdate%20asc&format=JSON",
+    live:"https://opendata.wra.gov.tw/api/v2/3e9e4c4d-9758-49fe-8a65-90c88e11ea54?sort=_importdate%20asc&format=JSON",
+    cache:"wra_iow_gate_v1", unit:"",
+    levels:[0.5], colors:["#22c55e","#f97316"],
+    bad:v=>false,
+    pulseAt:0.5,
+    chk:"gateChk", stat:"gateStat", hotLabel:"有開啟",
+    groupKey:x=>x.lat.toFixed(3)+","+x.lon.toFixed(3),
+    groupName:sensorsGroupName,
+    deriveVal:sensors=>{
+      const openers=sensors.filter(s=>s.name==="閘門開度"||s.name==="閘門絕對開度");
+      const openVals=openers.map(s=>s.v).filter(v=>v!==null);
+      let val=null;
+      if(openVals.length)val=openVals.some(v=>Math.abs(v)>0.05)?1:0;
+      const rep=openers.find(s=>s.v!==null)||sensors.find(s=>s.v!==null)||sensors[0];
+      return {val,unit:"",bad:false,repSensor:rep};
+    },
+    legendMode:"binary", binaryLabels:["🔒 全部關閉／無開度資料","🔓 有閘門開啟"],
+    note:"閘門開度／絕對開度單位（% 或 cm）由各河川分署自訂，跨站數值不可直接比較，本圖僅以「讀值是否偏離 0」判斷是否有開啟；內／外水位（m）另列於彈窗。少數第四河川分署站的開度讀值明顯超出常理範圍（如 &gt;105% 或 |cm| 過大），可能是感測器或單位標示問題，彈窗會以 ⚠ 標示。"
+  },
+  scour:{
+    id:"scour", label:"沖刷深度", icon:"🕳️", shape:"circle",
+    base:"https://opendata.wra.gov.tw/api/v2/4d3ec222-8ce9-4f3a-bf20-f743441006a4?sort=_importdate%20asc&format=JSON",
+    live:"https://opendata.wra.gov.tw/api/v2/0e51a4ed-1e8d-4c20-9dcb-6efdc7dd87c7?sort=_importdate%20asc&format=JSON",
+    cache:"wra_iow_scour_v1", unit:"m",
+    levels:[0.1,0.3,0.5,1,2,3],
+    colors:["#22c55e","#a3e635","#facc15","#fb923c","#f97316","#dc2626","#7f1d1d"],
+    bad:v=>false,
+    pulseAt:0.5,
+    chk:"scourChk", stat:"scourStat", hotLabel:"有沖刷紀錄",
+    groupKey:scourGroupKey,
+    groupName:sensorsGroupName,
+    deriveVal:sensors=>{
+      const withVal=sensors.filter(s=>s.v!==null);
+      if(!withVal.length)return {val:null,unit:"m",bad:false,repSensor:sensors[0]};
+      const rep=withVal.reduce((a,b)=>b.v>a.v?b:a);
+      return {val:rep.v,unit:"m",bad:false,repSensor:rep};
+    },
+    note:"顯示叢集內各沖刷感測粒子／監測孔目前讀值的最大者（單位 m，0＝尚未沖刷至該深度）；個別讀值列於彈窗，部分站名內含「預警／警戒／危險」等字樣為該粒子埋設深度對應的警戒層級，非即時警報。"
+  },
+  flow:{
+    id:"flow", label:"累計流量(雨水貯留)", icon:"💧", shape:"drop",
+    base:"https://opendata.wra.gov.tw/api/v2/ad756630-2246-4569-8910-a865cdfa7984?sort=_importdate%20asc&format=JSON",
+    live:"https://opendata.wra.gov.tw/api/v2/ffa4febb-bc2d-4f6e-ad03-a7c7e6b66c8f?sort=_importdate%20asc&format=JSON",
+    cache:"wra_iow_flow_v1", unit:"m3",
+    bad:v=>(v<0),
+    pulseAt:null,
+    fixedColor:"#0891b2",
+    chk:"flowChk", stat:"flowStat",
+    deriveVal:sensors=>{
+      const withVal=sensors.filter(s=>s.v!==null);
+      const rep=withVal.find(s=>/總累積|總量|合計/.test(s.full||s.name||""))||withVal[0]||sensors[0];
+      return {val:rep?rep.v:null,unit:"m3",bad:false,repSensor:rep};
+    },
+    legendMode:"none",
+    note:"各測站顯示安裝以來的累計總水量（m³），為單調遞增的累計值而非流速／流量速率；不同測站因用途與規模不同，數值不可直接比較，個別測點列於彈窗。"
+  }
+};
+const IOW={};   // id → 各圖層狀態
+Object.keys(IOW_DEFS).forEach(k=>{
+  IOW[k]={sensors:[],live:{},stations:[],obsTime:null,viaB:"",viaL:"",loaded:false,fromCache:false,
+    dropped:{noXY:0,noMeta:0},layer:L.layerGroup()};
+});
+
+function iowSlim(r){
+  return {
+    sid:r.sensorid||"", oid:r.observatoryidentifier||"",
+    sname:deEnt(r.sensorname), sfull:deEnt(r.sensorfullname), sdesc:deEnt(r.sensordescription),
+    unit:deEnt(r.unit), oname:deEnt(r.observatoryname),
+    org:deEnt(r.orgname), county:normName(r.countyname), town:deEnt(r.townname),
+    lat:parseFloat(r.latitude), lon:parseFloat(r.longitude),
+    enable:String(r.isenable).toLowerCase()!=="false"
+  };
+}
+
+async function iowLoadBase(def,force){
+  const st=IOW[def.id];
+  if(!force){
+    try{
+      const c=JSON.parse(localStorage.getItem(def.cache)||"null");
+      if(c&&Array.isArray(c.d)&&c.d.length&&(Date.now()-c.t)<STCACHE_TTL){
+        st.sensors=c.d;st.fromCache=true;st.viaB="localStorage 快取";return;
+      }
+    }catch(e){}
+  }
+  const {data,via}=await fetchJSON(def.base,"IoW "+def.label+"基本資料");
+  const rows=asRows(data);
+  if(!rows.length)throw new Error("IoW "+def.label+"基本資料：查無資料");
+  st.sensors=rows.map(iowSlim).filter(x=>x.sid);
+  st.fromCache=false;st.viaB=via;
+  try{localStorage.setItem(def.cache,JSON.stringify({t:Date.now(),d:st.sensors}));}catch(e){}
+}
+async function iowLoadLive(def){
+  const st=IOW[def.id];
+  const {data,via}=await fetchJSON(def.live,"IoW "+def.label+"最新資料");
+  const rows=asRows(data);
+  const m={};
+  rows.forEach(r=>{if(r&&r.sensorid)m[r.sensorid]={v:num(r.latestvalue),t:r.timestamp?new Date(r.timestamp):null,raw:r.latestvalue};});
+  st.live=m;st.viaL=via;
+}
+
+// 依 observatoryidentifier 併站（揚塵一站 4 個 sensor；淹水一站 1 個）；
+// 閘門／沖刷則改用座標叢集（groupKey），因這兩者的 observatoryidentifier 常是單一感測器層級，
+// 同一物理結構（護岸、閘門群組）的多個感測器彼此座標幾乎相同但 observatoryidentifier 不同。
+function iowMerge(def){
+  const st=IOW[def.id];
+  st.dropped={noXY:0,noMeta:0};
+  const byObs={};
+  const keyFn=def.groupKey||(x=>x.oid||x.sid);
+  st.sensors.forEach(x=>{
+    if(!isFinite(x.lat)||!isFinite(x.lon)||!(x.lat>=21.5&&x.lat<=25.5&&x.lon>=118&&x.lon<=122.5)){st.dropped.noXY++;return;}
+    const k=keyFn(x);
+    const o=byObs[k]||(byObs[k]={key:k,name:x.oname||x.sfull,org:x.org,county:x.county,town:x.town,
+      lat:x.lat,lon:x.lon,sensors:[]});
+    const lv=st.live[x.sid];
+    let v=lv?lv.v:null;
+    const bad=(v!==null&&def.bad(v));
+    if(bad)v=null;
+    o.sensors.push({sid:x.sid,name:x.sname,full:x.sfull,desc:x.sdesc,unit:x.unit,oname:x.oname,
+      v:v,raw:lv?lv.raw:null,t:lv?lv.t:null,bad:bad});
+  });
+  const pk=normName(def.primary||"").toLowerCase();
+  const out=Object.values(byObs).map(o=>{
+    if(def.groupName)o.name=def.groupName(o.sensors);
+    let p,val,unit,badVal;
+    if(def.deriveVal){
+      const d=def.deriveVal(o.sensors);
+      val=d.val;unit=(d.unit!==undefined?d.unit:def.unit);badVal=!!d.bad;p=d.repSensor||o.sensors[0];
+    }else{
+      p=o.sensors.find(x=>normName(x.name).toLowerCase()===pk)||o.sensors[0];
+      val=p?p.v:null;unit=p?p.unit:def.unit;badVal=p?p.bad:false;
+    }
+    o.val=val;o.unit=unit;o.badVal=badVal;o.repSensor=p;
+    const ts=o.sensors.map(x=>x.t).filter(Boolean);
+    o.obs=ts.length?new Date(Math.max(...ts.map(d=>d.getTime()))):null;
+    o.age=o.obs?Math.round((Date.now()-o.obs.getTime())/60000):null;
+    o.stale=(o.age!==null&&o.age>1440);
+    return o;
+  });
+  const known=new Set(st.sensors.map(x=>x.sid));
+  Object.keys(st.live).forEach(sid=>{if(!known.has(sid))st.dropped.noMeta++;});
+  st.stations=out;
+  const ts=out.map(o=>o.obs).filter(Boolean);
+  st.obsTime=ts.length?new Date(Math.max(...ts.map(d=>d.getTime()))):null;
+
+  if(def.id==="flood"){
+    const orgs=[...new Set(out.map(o=>o.org).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"zh-Hant"));
+    const keep=$("floodOrgSel").value;
+    $("floodOrgSel").innerHTML='<option value="">全部單位</option>'+orgs.map(o=>`<option>${o}</option>`).join("");
+    if(orgs.includes(keep))$("floodOrgSel").value=keep;
+  }
+}
+
+async function iowLoad(id,force){
+  const def=IOW_DEFS[id],st=IOW[id];
+  $(def.stat).style.display="block";
+  $(def.stat).textContent="⏳ 載入 IoW "+def.label+"…";
+  try{
+    await Promise.all([iowLoadBase(def,force),iowLoadLive(def)]);
+    iowMerge(def);
+    st.loaded=true;
+    fillSelects();          // 新圖層可能帶進河川站沒有的縣市
+    iowStatUI(id);
+  }catch(e){
+    st.loaded=false;
+    $(def.stat).textContent="IoW "+def.label+" 載入失敗："+e.message;
+  }
+}
+function iowStatUI(id){
+  const def=IOW_DEFS[id],st=IOW[id],d=st.dropped;
+  const live=st.stations.filter(o=>o.val!==null).length;
+  const hot=st.stations.filter(o=>o.val!==null&&o.val>0).length;
+  $(def.stat).style.display="block";
+  $(def.stat).innerHTML=`${def.icon} ${def.label} ${st.stations.length} 站（有效值 ${live}`
+    +(def.hotLabel?` ‧ ${def.hotLabel} ${hot}`:"")+`）‧ 最新 ${fmtT(st.obsTime)}`
+    +`<br><span style="color:var(--muted)">取檔：基本＝${st.viaB} ‧ 最新＝${st.viaL}`
+    +`｜未上圖：缺座標 ${d.noXY} ‧ 基本資料查無 ${d.noMeta}</span>`;
+}
+
+function iowIcon(def,color,size,dim){
+  const op=dim?0.45:1;
+  let svg;
+  if(def.shape==="tri"){
+    svg=`<svg width="${size}" height="${size}" viewBox="0 0 24 24" opacity="${op}"><path d="M12 2.5 L22.5 21 L1.5 21 Z" fill="${color}" stroke="#fff" stroke-width="1.6"/></svg>`;
+  }else if(def.shape==="diamond"){
+    svg=`<svg width="${size}" height="${size}" viewBox="0 0 24 24" opacity="${op}"><path d="M12 1.5 L22.5 12 L12 22.5 L1.5 12 Z" fill="${color}" stroke="#fff" stroke-width="1.6"/></svg>`;
+  }else if(def.shape==="hex"){
+    svg=`<svg width="${size}" height="${size}" viewBox="0 0 24 24" opacity="${op}"><path d="M12 1.5 L21.5 7 L21.5 17 L12 22.5 L2.5 17 L2.5 7 Z" fill="${color}" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>`;
+  }else if(def.shape==="circle"){
+    svg=`<svg width="${size}" height="${size}" viewBox="0 0 24 24" opacity="${op}"><circle cx="12" cy="12" r="10" fill="${color}" stroke="#fff" stroke-width="1.6"/></svg>`;
+  }else if(def.shape==="drop"){
+    svg=`<svg width="${size}" height="${size}" viewBox="0 0 24 24" opacity="${op}"><path d="M12 2 C12 2 4 12.5 4 17.5 A8 8 0 0 0 20 17.5 C20 12.5 12 2 12 2 Z" fill="${color}" stroke="#fff" stroke-width="1.6"/></svg>`;
+  }else{
+    svg=`<svg width="${size}" height="${size}" viewBox="0 0 24 24" opacity="${op}"><rect x="2.5" y="2.5" width="19" height="19" rx="4" fill="${color}" stroke="#fff" stroke-width="1.6"/></svg>`;
+  }
+  return L.divIcon({className:"iow-mk",html:svg,iconSize:[size,size],iconAnchor:[size/2,size/2]});
+}
+
+function iowPopup(def,o){
+  const row=(k,v)=>`<div class="row"><span class="k">${k}</span><span>${v}</span></div>`;
+  const col=(o.val===null)?"#9fb0c8":(def.fixedColor?def.fixedColor:colorFor(o.val,def));
+  const ageTxt=o.age===null?"—":(o.age<60?`${o.age} 分鐘前`:(o.age<1440?`${(o.age/60).toFixed(1)} 小時前`:`${(o.age/1440).toFixed(1)} 天前`));
+  const p=o.repSensor||o.sensors[0];
+  const isGate=(def.id==="gate");
+  const bigTxt=isGate
+    ? (o.val===null?"—（無開度資料）":(o.val>=0.5?"🔓 有閘門開啟":"🔒 全部關閉"))
+    : (o.val===null?(o.badVal?"異常值":"無資料"):o.val.toLocaleString("zh-TW",{maximumFractionDigits:o.unit==="m3"?1:2})+" "+(o.unit||def.unit));
+  let html=`<div class="pop">
+    <h3>${def.icon} ${o.name||"—"} <small style="color:#9fb0c8">${def.id==="scour"?o.lat.toFixed(3)+","+o.lon.toFixed(3):o.key}</small></h3>
+    <div class="row"><span class="k">${def.label}</span><span class="big" style="color:${col}">${bigTxt}</span></div>`;
+  if(def.id==="flood"&&o.val!==null){
+    html+=`<div style="margin:2px 0 4px"><span class="badge" style="background:${o.val>0?col:"#22c55e"}">${o.val>0?"積水中":"無積水"}</span>`
+      +(o.stale?'<span class="badge" style="background:#9aa0a6;margin-left:5px">逾 24 小時未更新</span>':"")+`</div>`;
+  }
+  if(o.badVal)html+=`<div style="color:#fbbf24;font-size:11.5px;margin:2px 0">⚠ 原始回傳值 ${p?p.raw:"—"}，判定為異常／失聯值</div>`;
+  html+=row("觀測時間",o.obs?fmtT(o.obs)+`（${ageTxt}）`:"—");
+  const listSensors=isGate?o.sensors:o.sensors.filter(x=>x!==p);
+  if(listSensors.length){
+    html+=`<div class="sechd">${isGate?"各感測項目":"同站其他感測項目"}</div>`
+      +listSensors.map(x=>{
+        const anom=isGate&&gateAnom(x.unit,x.v);
+        return row((x.full||x.name)+(anom?" ⚠":""),
+          x.v===null?"—":x.v.toLocaleString("zh-TW",{maximumFractionDigits:2})+" "+(x.unit||""));
+      }).join("");
+  }
+  html+=`<div class="sechd">感測器資料</div>`
+    +row("管理單位",o.org||"—")
+    +row("縣市鄉鎮",(o.county||"—")+" "+(o.town||""))
+    +(p&&p.desc?row("說明",p.desc):"")
+    +(p?row("感測器 ID",`<span style="font-size:10.5px">${p.sid}</span>`):"")
+    +row("經緯度",o.lat.toFixed(5)+", "+o.lon.toFixed(5))
+    +`<div class="sechd"></div>
+    <a href="https://www.google.com/maps?q=${o.lat.toFixed(6)},${o.lon.toFixed(6)}" target="_blank" rel="noopener">📍 Google 地圖</a>
+    ｜<a href="https://iow.wra.gov.tw/" target="_blank" rel="noopener">🌐 水利署智慧水資源物聯網</a>
+  </div>`;
+  return html;
+}
+
+function renderIoWOne(id){
+  const def=IOW_DEFS[id],st=IOW[id];
+  st.layer.clearLayers();
+  const on=$(def.chk).checked;
+  if(def.id==="flood")$("floodOpt").style.display=on?"block":"none";
+  if(!on||!st.stations.length)return {shown:0,hot:0};
+
+  const q=normName($("wlSearch").value.trim()).toLowerCase();
+  const county=$("wlCountySel").value;
+  const org=(def.id==="flood")?$("floodOrgSel").value:"";
+  const onlyWet=(def.id==="flood")&&$("floodOnlyChk").checked;
+  const hideStale=(def.id==="flood")&&$("floodStaleChk").checked;
+  const pulse=$("pulseChk").checked;
+  const sc=sizeScale();
+  let shown=0,hot=0,reopen=null;
+
+  st.stations.forEach(o=>{
+    if(county&&o.county!==county)return;
+    if(org&&o.org!==org)return;
+    if(q&&!(normName(o.name).toLowerCase().includes(q)||String(o.key).toLowerCase().includes(q)
+          ||normName(o.org).toLowerCase().includes(q)||normName(o.town).toLowerCase().includes(q)))return;
+    if(onlyWet&&!(o.val!==null&&o.val>0))return;
+    if(hideStale&&o.stale)return;
+    let color;
+    if(def.fixedColor){
+      const anyLive=o.sensors.some(s=>s.v!==null);
+      color=anyLive?def.fixedColor:"#7a8aa3";
+    }else{
+      color=o.val===null?"#7a8aa3":colorFor(o.val,def);
+    }
+    const isHot=(o.val!==null&&o.val>0);
+    const size=Math.round((def.id==="flood"?(isHot?13:9):16)*sc);
+    const m=L.marker([o.lat,o.lon],{pane:"iowpane",icon:iowIcon(def,color,size,o.stale)});
+    m.bindPopup(()=>iowPopup(def,o),{maxWidth:330});
+    const tipVal=(def.id==="gate")
+      ? (o.val===null?"無開度資料":(o.val>=0.5?"有開啟":"關閉"))
+      : (o.val===null?"無資料":o.val+" "+(o.unit||def.unit));
+    m.bindTooltip(`${def.icon} ${o.name}｜${tipVal}`,{direction:"top",offset:[0,-6]});
+    m.on("popupopen",()=>{openId=id+":"+o.key;});
+    m.on("popupclose",()=>{if(openId===id+":"+o.key)openId="";});
+    m.addTo(st.layer);
+    if(openId===id+":"+o.key)reopen=m;
+    if(pulse&&def.pulseAt!==null&&o.val!==null&&o.val>=def.pulseAt&&!o.stale){
+      const ps=Math.round(30*sc);
+      L.marker([o.lat,o.lon],{pane:"pulse",interactive:false,icon:L.divIcon({className:"wl-pulse",
+        html:`<i style="background:${color};opacity:.55"></i>`,iconSize:[ps,ps],iconAnchor:[ps/2,ps/2]})}).addTo(pulseLayer);
+    }
+    shown++;if(isHot)hot++;
+  });
+  if(reopen)reopen.openPopup();
+  return {shown,hot};
+}
+
+function renderIoW(){
+  let html="";
+  Object.keys(IOW_DEFS).forEach(id=>{
+    const def=IOW_DEFS[id],st=IOW[id];
+    const r=renderIoWOne(id);
+    if(!$(def.chk).checked||!st.stations.length)return;
+    let colorBlock;
+    if(def.legendMode==="binary"){
+      colorBlock=`<div class="lgrow"><span class="dot" style="background:${def.colors[1]};border-radius:3px"></span>${def.binaryLabels[1]}</div>`
+        +`<div class="lgrow"><span class="dot" style="background:${def.colors[0]};border-radius:3px"></span>${def.binaryLabels[0]}</div>`;
+    }else if(def.legendMode==="none"){
+      colorBlock="";
+    }else{
+      colorBlock=blockHTML(def,12);
+    }
+    html+=`<details class="lsec" data-k="iow:${id}">
+      <summary>${def.icon} ${def.label}${def.unit?"（"+def.unit+"）":""}<span class="car">▾</span></summary>
+      <div class="lsec-body">
+        ${colorBlock}
+        <div style="font-size:11px;color:var(--muted);margin-top:6px">${def.note}<br>
+          目前顯示 <b>${r.shown}</b> 站${def.hotLabel?` ‧ ${def.hotLabel} <b>${r.hot}</b>`:""}（共 ${st.stations.length}）</div>
+      </div>
+    </details>`;
+  });
+  $("legIoW").innerHTML=html;
+  legApplyOpen();
+}
+
+async function iowToggle(id){
+  const def=IOW_DEFS[id];
+  if($(def.chk).checked&&!IOW[id].loaded){
+    $("loader").style.display="flex";
+    await iowLoad(id,false);
+    $("loader").style.display="none";
+  }
+  if(!$(def.chk).checked)$(def.stat).style.display="none";
+  else if(IOW[id].loaded)iowStatUI(id);
+  render(false);
+}
+
+/* ===== 網址 hash 狀態 ===== */
+let hashLoading=false;
+function saveHash(){
+  if(hashLoading)return;
+  const p=new URLSearchParams();
+  const put=(k,val)=>{if(val)p.set(k,val);};
+  put("v",$("wlVarSel").value!=="alert"?$("wlVarSel").value:"");
+  put("c",$("wlCountySel").value);put("b",$("basinSel").value);put("r",$("riverSel").value);
+  put("q",$("wlSearch").value.trim());
+  if(!$("naChk").checked)p.set("na","0");
+  if($("alertChk").checked)p.set("al","1");
+  if(!$("pulseChk").checked)p.set("pu","0");
+  if($("gwChk").checked){
+    p.set("gw","1");
+    put("gv",$("gwVarSel").value!=="lv"?$("gwVarSel").value:"");
+    put("gz",$("gwZoneSel").value);
+    put("gs",$("gwSrc").value!=="auto"?$("gwSrc").value:"");
+    if($("gwNaChk").checked)p.set("gn","1");
+  }
+  if($("floodChk").checked){
+    p.set("fl","1");
+    put("fo",$("floodOrgSel").value);
+    if($("floodOnlyChk").checked)p.set("fw","1");
+    if($("floodStaleChk").checked)p.set("fs","1");
+  }
+  if($("dustChk").checked)p.set("du","1");
+  if($("gateChk").checked)p.set("gt","1");
+  if($("scourChk").checked)p.set("sr","1");
+  if($("flowChk").checked)p.set("fv","1");
+  if($("wlChk").checked)p.set("wl","1");
+  const s=p.toString();
+  history.replaceState(null,"",s?("#"+s):location.pathname+location.search);
+}
+function loadHash(){
+  hashLoading=true;
+  const p=new URLSearchParams(location.hash.replace(/^#/,""));
+  if(p.get("v"))$("wlVarSel").value=p.get("v");
+  if(p.get("q"))$("wlSearch").value=p.get("q");
+  if(p.get("na")==="0")$("naChk").checked=false;
+  if(p.get("al")==="1")$("alertChk").checked=true;
+  if(p.get("pu")==="0")$("pulseChk").checked=false;
+  if(p.get("gw")==="1")$("gwChk").checked=true;
+  if(p.get("gv"))$("gwVarSel").value=p.get("gv");
+  if(p.get("gs"))$("gwSrc").value=p.get("gs");
+  if(p.get("fl")==="1")$("floodChk").checked=true;
+  if(p.get("fw")==="1")$("floodOnlyChk").checked=true;
+  if(p.get("fs")==="1")$("floodStaleChk").checked=true;
+  if(p.get("du")==="1")$("dustChk").checked=true;
+  if(p.get("gt")==="1")$("gateChk").checked=true;
+  if(p.get("sr")==="1")$("scourChk").checked=true;
+  if(p.get("fv")==="1")$("flowChk").checked=true;
+  if(p.get("gn")==="1")$("gwNaChk").checked=true;
+  if(p.get("wl")==="1")$("wlChk").checked=true;
+  hashLoading=false;
+  return {c:p.get("c")||"",b:p.get("b")||"",r:p.get("r")||"",z:p.get("gz")||"",fo:p.get("fo")||""};
+}
+
+/* ===== 主流程 ===== */
+let pendingSel=null,pendingZone="",pendingOrg="";
+async function loadAll(fit=true,forceSt=false){
+  $("loader").style.display="flex";
+  try{
+    await Promise.all([loadStations(forceSt),loadWater()]);
+    mergeData();
+    fillSelects();
+    if(pendingSel){
+      if(pendingSel.c)$("wlCountySel").value=pendingSel.c;
+      if(pendingSel.b){fillSelects();$("basinSel").value=pendingSel.b;}
+      if(pendingSel.r){fillSelects();$("riverSel").value=pendingSel.r;}
+      pendingZone=pendingSel.z||"";pendingOrg=pendingSel.fo||"";
+      pendingSel=null;
+    }
+    $("wlObsTime").textContent="🕒 最新資料時間："+fmtT(S.obsTime)
+      +`（即時水位 ${S.water.length} 筆 ‧ 測站站況 ${S.stations.length} 站）`;
+    $("srcStat").textContent=`取檔來源：站況＝${S.viaSt}${S.stFromCache?"":"（已快取 24 小時）"}｜即時水位＝${S.viaWl}`;
+    $("srcStat").style.display="block";
+    if($("gwChk").checked){
+      await loadGW(forceSt);
+      if(pendingZone){
+        const o=Array.from($("gwZoneSel").options).map(x=>x.value);
+        if(o.includes(pendingZone))$("gwZoneSel").value=pendingZone;
+        pendingZone="";
+      }
+    }
+    for(const id of Object.keys(IOW_DEFS)){
+      if($(IOW_DEFS[id].chk).checked)await iowLoad(id,forceSt);
+    }
+    if(pendingOrg){                       // 管理單位選單要等 IoW 載入後才存在
+      const o=Array.from($("floodOrgSel").options).map(x=>x.value);
+      if(o.includes(pendingOrg))$("floodOrgSel").value=pendingOrg;
+      pendingOrg="";
+    }
+    const d=S.dropped;
+    if(d.noXY||d.badXY||d.noMeta){
+      $("warnStat").style.display="block";
+      $("warnStat").innerHTML=`⚠ 未上圖：站況缺座標 ${d.noXY} 站 ‧ 座標明顯錯誤自動剔除 ${d.badXY} 站 ‧ 有即時值但站況查無 ${d.noMeta} 站`;
+    }else{$("warnStat").style.display="none";}
+    render(fit);
+  }catch(e){
+    $("wlInfo").textContent="載入失敗："+e.message;
+    $("srcStat").style.display="block";
+    $("srcStat").textContent="請確認網路連線，或稍後按「重新整理」再試（來源網站偶有維護）。";
+    const det=$("srcStat").closest("details");if(det)det.open=true;
+  }
+  $("loader").style.display="none";
+}
+
+/* ===== 事件 ===== */
+$("wlVarSel").onchange=()=>render(false);
+$("wlCountySel").onchange=()=>{fillSelects();render(true);};
+$("basinSel").onchange=()=>{fillSelects();render(true);};
+$("riverSel").onchange=()=>render(true);
+$("wlSearch").addEventListener("input",()=>render(false));
+$("wlSearch").addEventListener("keydown",e=>{if(e.key==="Enter")render(true);});
+$("naChk").onchange=()=>render(false);
+$("alertChk").onchange=()=>render(false);
+$("pulseChk").onchange=()=>render(false);
+$("gwChk").onchange=async e=>{
+  if(e.target.checked&&!GW.loaded){
+    $("loader").style.display="flex";
+    await loadGW(false);
+    $("loader").style.display="none";
+  }
+  if(!e.target.checked)$("gwStat").style.display="none";
+  else if(GW.loaded)gwStatUI();
+  render(false);
+};
+$("gwVarSel").onchange=()=>render(false);
+$("gwSrc").onchange=async()=>{
+  if(!$("gwChk").checked)return;
+  $("loader").style.display="flex";
+  await loadGW(false);              // 快取以來源模式為 key，切換即重新取檔
+  $("loader").style.display="none";
+  render(false);
+};
+$("gwZoneSel").onchange=()=>render(false);
+$("gwNaChk").onchange=()=>render(false);
+$("floodChk").onchange=()=>iowToggle("flood");
+$("dustChk").onchange=()=>iowToggle("dust");
+$("gateChk").onchange=()=>iowToggle("gate");
+$("scourChk").onchange=()=>iowToggle("scour");
+$("flowChk").onchange=()=>iowToggle("flow");
+$("floodOnlyChk").onchange=()=>render(false);
+$("floodStaleChk").onchange=()=>render(false);
+$("floodOrgSel").onchange=()=>render(true);
+/* baseSel / fit / reload 由外層 10min 主程式統一處理（見 wlResetFilters / WRA.refresh）*/
+$("clearCache").onclick=()=>{
+  try{
+    localStorage.removeItem(STCACHE_LS);localStorage.removeItem(GWCACHE_LS);
+    Object.keys(IOW_DEFS).forEach(k=>localStorage.removeItem(IOW_DEFS[k].cache));
+  }catch(e){}
+  loadAll(false,true);
+};
+map.on("zoomend",()=>{if($("wlChk").checked&&S.merged.length)render(false);});   // 縮放時等比例調整標示大小
+
+/* ===== 對外介面（供 10min 主程式呼叫）===== */
+let wlLoaded=false,wlLastLoad=0;
+const WL_MIN_MS=300000;                       // 即時水位 10 分鐘一筆 → 最快 5 分鐘才重抓一次
+function wlGroups(){
+  return [layer,pulseLayer,gwLayer].concat(Object.keys(IOW_DEFS).map(k=>IOW[k].layer));
+}
+function wlShow(on){
+  wlGroups().forEach(g=>{
+    if(on){if(!map.hasLayer(g))g.addTo(map);}
+    else if(map.hasLayer(g))map.removeLayer(g);
+  });
+  $("wlLeg").style.display=on?"block":"none";
+  $("wlInfo").style.display=on?"":"none";
+  if(!on)$("warnStat").style.display="none";
+}
+async function wlEnable(on){
+  $("wlOpt").style.display=on?"block":"none";
+  $("wlSections").style.display=on?"block":"none";
+  if(on){
+    wlShow(true);
+    if(!wlLoaded){
+      wlLoaded=true;
+      await loadAll(false,false);
+      wlLastLoad=Date.now();
+    }else{render(false);}
+  }else{wlShow(false);}
+  saveHash();
+}
+return {
+  enable:wlEnable,
+  refresh:async force=>{
+    if(!$("wlChk").checked||!wlLoaded)return;
+    if(!force&&Date.now()-wlLastLoad<WL_MIN_MS)return;
+    wlLastLoad=Date.now();
+    await loadAll(false,false);
+  },
+  resetFilters:()=>{
+    if(!wlLoaded)return;
+    $("wlCountySel").value="";$("basinSel").value="";$("riverSel").value="";
+    $("wlSearch").value="";$("gwZoneSel").value="";$("floodOrgSel").value="";
+    fillSelects();render(false);
+  },
+  init:()=>{
+    pendingSel=loadHash();
+    wlShow(false);
+    if($("wlChk").checked)wlEnable(true);
+  }
+};
+})();
+
 // 啟動：若瀏覽器已記住金鑰則直接載入，否則顯示輸入畫面
 (function init(){
   let saved="";
@@ -2315,6 +4493,15 @@ $("camThbLive").onclick=async()=>{
     openGate();
   }
 })();
+
+/* ===== 水利署水情圖層：與主程式的掛鉤 ===== */
+$("wlChk").onchange=async e=>{
+  $("loader").style.display="flex";
+  try{await WRA.enable(e.target.checked);}
+  catch(err){$("wlInfo").textContent="水情圖層載入失敗："+err.message;}
+  $("loader").style.display="none";
+};
+WRA.init();
 </script>
 </body>
 </html>

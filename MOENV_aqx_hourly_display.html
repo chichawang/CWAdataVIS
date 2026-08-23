@@ -171,7 +171,7 @@
     <h1>🌫️ 空品測項小時值地圖</h1>
   </div>
   <div class="pbody">
-  <div class="sub">環境部 aqx_p_133/134 空品小時值 ＋ aqx_p_432 AQI ＋ aqx_p_07 站點座標 ＋ aqf_p_01 空品預報 ＋ aqx_p_04/29 河川揚塵 ＋ aqx_p_266/267/268 工業區監測 ＋ aqx_p_25/27 光化測站 VOC ＋ aqx_p_189~264 單站時序</div>
+  <div class="sub">環境部 aqx_p_133/134 空品小時值 ＋ aqx_p_432 AQI ＋ aqx_p_07 站點座標 ＋ aqf_p_01 空品預報 ＋ aqx_p_04/29 河川揚塵 ＋ aqx_p_266/267/268 工業區監測 ＋ aqx_p_25/27 光化測站 VOC ＋ aqx_p_189~264 單站時序 ＋ aqx_p_26 鹿林山背景站</div>
   <span class="chip time" id="obsTime">🕒 資料時間：—</span>
   <label>監測測項</label>
   <select id="varSel"></select>
@@ -196,6 +196,8 @@
   <span class="chip" id="indStat" style="display:none"></span>
   <label class="ckrow"><input type="checkbox" id="vocChk"> 🧪 光化測站 VOC 物種 (aqx_p_25) ⬢</label>
   <span class="chip" id="vocStat" style="display:none"></span>
+  <label class="ckrow"><input type="checkbox" id="lulinChk"> 🏔️ 鹿林山背景站小時值 (aqx_p_26) ★</label>
+  <span class="chip" id="lulinStat" style="display:none"></span>
   <div class="btns">
     <button id="reload">↻ 重新整理</button>
     <button class="ghost" id="fit">⤢ 重置視角</button>
@@ -213,6 +215,16 @@
       <summary style="cursor:pointer;font-size:11px;color:var(--muted)">預報說明全文</summary>
       <div id="fcText" style="font-size:11px;color:var(--muted);line-height:1.6;margin-top:4px;white-space:pre-wrap"></div>
     </details>
+  </div>
+  <div class="stats" id="lulinBox" style="display:none">
+    <div class="t">🏔️ 鹿林山背景站 最新時間值</div>
+    <div id="lulinRows"></div>
+    <span class="chip time" id="lulinTime">🕒 —</span>
+    <span class="chip" id="lulinNote">aqx_p_26 ‧ 海拔約 2862 m 高山背景測站</span>
+    <div class="btns">
+      <button class="ghost" id="lulinZoom">🔍 移至測站</button>
+      <button class="ghost" id="lulinTsBtn">📈 時序圖</button>
+    </div>
   </div>
   <div class="stats" id="stats" style="display:none">
     <div class="t">📊 全臺測站極值</div>
@@ -1018,7 +1030,7 @@ function drawTS(){
   const key=$("tsVar").value,se=c.series[key];if(!se)return;
   const dates=isVoc?Object.keys(se.pts):Object.keys(se.pts).sort();
   const vals=dates.map(d=>{const v=se.pts[d];return(v!==null&&v<0)?null:v;});
-  const def=isVoc?null:VARS.find(v=>v.key===key);
+  const def=isVoc?null:(tsSite===LULIN_TS_KEY?lulinDef(key,se.unit):VARS.find(v=>v.key===key));
   const line=isVoc?"#c084fc":"#8ab4f8";
   const ptCols=vals.map(v=>v==null?"#7a8aa3":(def?colorFor(v,def):line));
   $("tsInfo").textContent=isVoc
@@ -1045,6 +1057,151 @@ $("tsClose").onclick=()=>{
   if(tsChart){tsChart.destroy();tsChart=null;}
 };
 
+
+// ===== 鹿林山背景站小時值（aqx_p_26）=====
+// 結構同單站資料集：一列＝單站／單測項／單小時（siteid 82，欄位 itemengname/monitordate/concentration）
+// 鹿林山為高山背景測站，未併入 aqx_p_133/134 一般空品站，故獨立成圖層並強調「最新時間」的各測項值
+const LULIN_ID="aqx_p_26";
+const LULIN_SITEID="82";
+const LULIN_LL=[23.4686,120.8736];      // 座標備援：aqx_p_07 若無此站則使用
+const LULIN_TS_KEY="lulin:"+LULIN_SITEID;
+const lulinLayerG=L.layerGroup().addTo(map);
+let lulinCache=null;
+
+// 取色階定義：鹿林山大氣壓力單位為 ㎜/Hg，與 VARS 的 hPa 色階不相容 → 不上色
+function lulinDef(key,unit){
+  const d=VARS.find(v=>v.key===key);
+  if(!d)return null;
+  if(key==="PRESSURE"&&!/hpa/i.test(unit||""))return null;
+  return d;
+}
+// 顯示順序：VARS 既有測項優先，其餘（PM2.5-Coarse、UVB、H2O-Picarro…）依名稱排在後面
+function lulinOrder(keys){
+  return keys.slice().sort((a,b)=>{
+    const ia=VARS.findIndex(v=>v.key===a),ib=VARS.findIndex(v=>v.key===b);
+    return (ia<0?99:ia)-(ib<0?99:ib)||a.localeCompare(b);
+  });
+}
+const lulinFmt=v=>v===null?"—":v.toLocaleString("zh-TW",{maximumFractionDigits:2});
+
+async function loadLulin(force){
+  const st=$("lulinStat"),box=$("lulinBox");
+  if(!$("lulinChk").checked){lulinLayerG.clearLayers();st.style.display="none";box.style.display="none";return;}
+  if(!KEY){$("lulinChk").checked=false;openGate();return;}
+  st.style.display="block";st.textContent="⏳ 載入鹿林山測站資料…";
+  try{
+    if(force||!lulinCache){
+      // 以 monitordate 倒序取回，第一頁即含最新時間；同時保留近日時序供圖表使用
+      const recs=await fetchJSON(api2(LULIN_ID,1000,{sort:"monitordate desc"}));
+      if(!recs.length)throw new Error("查無資料");
+      const series={};let latest="",name="鹿林山";
+      const times=new Set();
+      recs.forEach(r=>{
+        const k=r.itemengname||r.itemname;
+        if(!k||!r.monitordate)return;
+        if(r.sitename)name=r.sitename;
+        times.add(r.monitordate);
+        (series[k]=series[k]||{name:r.itemname||k,unit:r.itemunit||"",pts:{}}).pts[r.monitordate]=num(r.concentration);
+        if(r.monitordate>latest)latest=r.monitordate;
+      });
+      // 最新時間的各測項值；該時刻缺測則回溯最近有效值並標記 stale
+      const now={};
+      Object.entries(series).forEach(([k,se])=>{
+        const ts=Object.keys(se.pts).sort();
+        let v=se.pts[latest]!==undefined?se.pts[latest]:null,t=latest,stale=false;
+        if(v===null){
+          for(let i=ts.length-1;i>=0;i--){
+            const tv=se.pts[ts[i]];
+            if(tv!==null){v=tv;t=ts[i];stale=(t!==latest);break;}
+          }
+        }
+        now[k]={v,t,stale,name:se.name,unit:se.unit};
+      });
+      lulinCache={series,now,latest,name,hours:times.size,
+        ll:(META[LULIN_SITEID]&&META[LULIN_SITEID].ll)||LULIN_LL,
+        meta:META[LULIN_SITEID]||null};
+    }
+    renderLulin();
+  }catch(e){
+    st.textContent="鹿林山測站載入失敗："+e.message;
+    box.style.display="none";
+  }
+}
+
+function renderLulin(){
+  const c=lulinCache;if(!c)return;
+  const st=$("lulinStat");
+  lulinLayerG.clearLayers();
+  const keys=lulinOrder(Object.keys(c.now));
+  const pm=c.now["PM2.5"],pmDef=VARS.find(v=>v.key==="PM2.5");
+  const col=(!pm||pm.v===null)?"#8ab4f8":colorFor(pm.v,pmDef);
+
+  // ★ 星形標記，與一般空品站（圓）／揚塵（▲）／工業區（◆）／光化（⬢）區隔
+  const size=22;
+  const ic='<svg width="'+size+'" height="'+size+'" viewBox="0 0 20 20">'
+    +'<polygon points="10,1 12.5,7.2 19,7.6 14,11.9 15.6,18.5 10,14.9 4.4,18.5 6,11.9 1,7.6 7.5,7.2" '
+    +'fill="'+col+'" stroke="#fff" stroke-width="1.1" stroke-linejoin="round"/></svg>';
+  const mk=L.marker(c.ll,{icon:L.divIcon({className:"windarrow",html:ic,iconSize:[size,size],iconAnchor:[size/2,size/2]}),zIndexOffset:600});
+
+  const cells=keys.map(k=>{
+    const it=c.now[k],d=lulinDef(k,it.unit);
+    const cc=(it.v===null||!d)?"#e8eaed":colorFor(it.v,d);
+    return '<div class="cell"><span>'+(it.name||k)+'</span><b style="color:'+cc+'">'
+      +lulinFmt(it.v)+(it.unit?' <span style="color:#9fb0c8;font-weight:400">'+it.unit+'</span>':'')
+      +(it.stale?' <span style="color:#f0a" title="'+it.t+'">*</span>':'')+'</b></div>';
+  }).join("");
+  const stale=keys.filter(k=>c.now[k].stale);
+  mk.bindPopup('<div class="pop"><h3>🏔️ '+c.name+' <small style="color:#9fb0c8;font-weight:400">背景站 '+LULIN_SITEID+' ‧ '+LULIN_ID+'</small></h3>'
+    +'<div class="meta">'+((c.meta&&(c.meta.township||c.meta.address))?(c.meta.township+" "+c.meta.address).trim()+" ‧ ":"南投縣信義鄉 ‧ ")
+    +'海拔約 2862 m 高山背景測站</div>'
+    +'<div class="hero"><span class="hv" style="color:'+col+'">'+((pm&&pm.v!==null)?pm.v:"—")+'</span>'
+    +'<span class="hl">PM2.5 μg/m3 ‧ 最新 '+c.latest+'</span></div>'
+    +'<div class="grid">'+cells+'</div>'
+    +'<div class="sect">🕒 最新資料時間 '+c.latest+' ‧ 可查 '+c.hours+' 小時'
+    +(stale.length?' ‧ * 該時刻缺測，顯示前一有效值':'')+'</div>'
+    +'<button type="button" class="popbtn" onclick="openLulinTS()">📈 近日時序圖</button></div>',{maxWidth:340});
+  mk.addTo(lulinLayerG);
+
+  // 面板同步顯示最新時間的所有測項
+  $("lulinBox").style.display="block";
+  $("lulinRows").innerHTML=keys.map(k=>{
+    const it=c.now[k],d=lulinDef(k,it.unit);
+    const cc=(it.v===null||!d)?"#ffffff":colorFor(it.v,d);
+    return '<div class="row"><span>'+(it.name||k)+(it.unit?' ('+it.unit+')':'')+(it.stale?' *':'')
+      +'</span><span class="v" style="color:'+cc+'">'+lulinFmt(it.v)+'</span></div>';
+  }).join("");
+  $("lulinTime").textContent="🕒 資料時間："+c.latest;
+  $("lulinNote").textContent="aqx_p_26 ‧ 海拔約 2862 m 高山背景測站 ‧ 共 "+c.hours+" 小時"
+    +(stale.length?" ‧ *"+stale.length+" 項該時刻缺測，顯示前一有效值":"");
+  st.textContent="🏔️ 鹿林山 "+keys.length+" 測項｜🕒 "+c.latest;
+}
+$("lulinChk").onchange=()=>loadLulin(false);
+$("lulinZoom").onclick=()=>{
+  if(!lulinCache)return;
+  map.setView(lulinCache.ll,11);
+  lulinLayerG.eachLayer(l=>l.openPopup&&l.openPopup());
+};
+$("lulinTsBtn").onclick=()=>openLulinTS();
+
+// 鹿林山時序：資料格式與單站資料集相同 → 直接沿用 tsCache／drawTS
+function openLulinTS(){
+  if(!lulinCache){$("lulinChk").checked=true;loadLulin(false).then(()=>{if(lulinCache)openLulinTS();});return;}
+  tsCache[LULIN_TS_KEY]={ds:LULIN_ID,series:lulinCache.series};
+  tsSite=LULIN_TS_KEY;tsMode="station";
+  $("tsBox").style.display="block";
+  $("tsTitle").textContent="📈 "+lulinCache.name+"站 時序（"+LULIN_ID+"）";
+  const keys=lulinOrder(Object.keys(lulinCache.series));
+  const sel=$("tsVar");
+  const prev=sel.dataset.site===LULIN_TS_KEY?sel.value:(keys.includes("PM2.5")?"PM2.5":keys[0]);
+  sel.innerHTML=keys.map(k=>{
+    const se=lulinCache.series[k];
+    return '<option value="'+k+'">'+(se.name||k)+(se.unit?" ("+se.unit+")":"")+'</option>';
+  }).join("");
+  sel.value=keys.includes(prev)?prev:keys[0];
+  sel.dataset.site=LULIN_TS_KEY;
+  drawTS();
+}
+
 // 重新抓取所有已啟用資料
 function refreshAll(fit){
   tsCache={};vocCache={};
@@ -1052,6 +1209,7 @@ function refreshAll(fit){
   if($("dustChk").checked){dustCache=null;loadDust(true);}
   if($("indChk").checked){indCache=null;loadInd(true);}
   if($("vocChk").checked)loadVOC();
+  if($("lulinChk").checked){lulinCache=null;loadLulin(true);}
 }
 
 map.on("zoomend",()=>{if(Object.keys(SITES).length)render(false);});
@@ -1142,11 +1300,12 @@ function submitKey(){
   else{try{localStorage.removeItem(STORE);}catch(e){}}
   closeGate();
   META={};metaLoaded=false;dustMeta=null;dustCache=null;indMeta=null;indCache=null;
-  vocMeta=null;vocCache={};tsCache={};
+  vocMeta=null;vocCache={};tsCache={};lulinCache=null;
   load();
   if($("dustChk").checked)loadDust(true);
   if($("indChk").checked)loadInd(true);
   if($("vocChk").checked)loadVOC();
+  if($("lulinChk").checked)loadLulin(true);
 }
 $("enterBtn").onclick=submitKey;
 $("demoBtn").onclick=()=>{
