@@ -32,6 +32,9 @@
   --warn:#fdd663;
   --err:#f28b82;
   --panelW:310px;
+  /* 浮動工具列預留的安全距離，讓三個控制區可以各自縮放而不重疊。 */
+  --edgeGap:12px;
+  --timebarClearance:84px;
 }
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;font-family:"Roboto","Noto Sans TC",system-ui,-apple-system,sans-serif;color:var(--txt);background:var(--bg);-webkit-font-smoothing:antialiased}
@@ -62,7 +65,7 @@ button{font-family:inherit}
 #keyGate a{color:var(--accent)}
 
 /* ── 控制面板（左）：全高側欄，半透明＋毛玻璃 ── */
-#panel{position:absolute;top:0;left:0;bottom:0;z-index:1000;width:var(--panelW);
+#panel{position:absolute;top:0;left:0;bottom:0;z-index:1200;width:var(--panelW);
   background:rgba(23,28,40,0.65);backdrop-filter:blur(24px) saturate(1.8);-webkit-backdrop-filter:blur(24px) saturate(1.8);
   border-right:1px solid var(--line);box-shadow:0 12px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1);
   overflow-y:auto;transition:transform .25s cubic-bezier(0.4, 0, 0.2, 1);font-size:13px}
@@ -77,7 +80,7 @@ button{font-family:inherit}
   cursor:pointer;font-weight:700}
 .panel-head .mini:hover{color:var(--txt);border-color:var(--accent);background:rgba(138,180,248,0.15)}
 .panel-body{padding:4px 16px 20px}
-#panelTab{position:absolute;top:50%;left:var(--panelW);transform:translateY(-50%);z-index:1001;
+#panelTab{position:absolute;top:50%;left:var(--panelW);transform:translateY(-50%);z-index:1201;
   width:24px;height:60px;padding:0;background:rgba(23,28,40,0.65);backdrop-filter:blur(24px) saturate(1.8);
   -webkit-backdrop-filter:blur(24px) saturate(1.8);border:1px solid var(--line);
   border-left:none;border-radius:0 12px 12px 0;color:var(--muted);font-size:13px;cursor:pointer;
@@ -145,12 +148,14 @@ select:focus{border-color:var(--accent)}
   font-size:12.5px;cursor:pointer;transition:all .2s ease}
 .btn2:hover{border-color:var(--accent);color:var(--accent);background:rgba(138,180,248,0.1)}
 
-/* ── 時間軸（下） ─────────────────────── */
-#timebar{position:absolute;left:50%;transform:translateX(-50%);bottom:12px;z-index:1000;
-  width:min(1120px,calc(100% - 24px));background:rgba(23,28,40,0.65);
+/* ── 時間軸（下）：左右避開面板，向上替圖例預留固定安全區 ───────── */
+#timebar{position:absolute;left:calc(var(--panelW) + 36px);right:18px;bottom:var(--edgeGap);z-index:1300;
+  width:min(940px,calc(100% - var(--panelW) - 54px));margin-inline:auto;background:rgba(23,28,40,0.65);
   backdrop-filter:blur(24px) saturate(1.8);-webkit-backdrop-filter:blur(24px) saturate(1.8);
   border:1px solid var(--line);border-radius:16px;padding:10px 18px;
-  box-shadow:0 8px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.1)}
+  box-shadow:0 8px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.1);
+  transition:left .25s cubic-bezier(0.4, 0, 0.2, 1),right .25s cubic-bezier(0.4, 0, 0.2, 1),width .25s cubic-bezier(0.4, 0, 0.2, 1)}
+body.panel-collapsed #timebar{left:var(--edgeGap);right:var(--edgeGap);width:min(1120px,calc(100% - 24px))}
 #timebar .tb-top{display:flex;align-items:flex-end;gap:8px}
 #tPlay{width:36px;height:36px;border-radius:12px;border:1px solid var(--line);background:var(--accent);
   color:#041e49;font-size:14px;cursor:pointer;flex:none;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
@@ -194,12 +199,13 @@ select:focus{border-color:var(--accent)}
 .tcell.on b,.tcell.on i{color:#041e49}
 .tcell.on.now::after{background:#041e49}
 
-/* ── 圖例（右下） ─────────────────────── */
-#legend{position:absolute;right:12px;bottom:12px;z-index:1000;max-width:260px;max-height:55%;
-  overflow-y:auto;background:rgba(23,28,40,0.65);
+/* ── 圖例（右側浮動，永遠位於時間軸安全區上方） ─────────────── */
+#legend{position:absolute;right:var(--edgeGap);bottom:calc(var(--timebarClearance) + env(safe-area-inset-bottom,0px));z-index:1300;width:max-content;max-width:min(330px,calc(100% - var(--panelW) - 36px));max-height:55%;
+  overflow-y:auto;background:rgba(23,28,40,0.72);
   backdrop-filter:blur(24px) saturate(1.8);-webkit-backdrop-filter:blur(24px) saturate(1.8);
   border:1px solid var(--line);border-radius:16px;padding:12px 14px;font-size:12px;
   box-shadow:0 8px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.1)}
+body.panel-collapsed #legend{max-width:min(330px,calc(100% - 24px))}
 #legend.collapsed .lg-body{display:none}
 #legend .lg-head{font-weight:700;cursor:pointer;user-select:none;display:flex;gap:8px;color:#ffffff}
 #legend .lg-head .tgl{margin-left:auto;color:var(--muted)}
@@ -215,6 +221,30 @@ select:focus{border-color:var(--accent)}
 .lg-bivar .ax{font-size:9px;color:var(--muted);display:flex;align-items:center;justify-content:center;text-align:center}
 .lg-bivar .sw{height:18px;border-radius:4px;border:1px solid rgba(255,255,255,.18)}
 .lg-bivar .cap{grid-column:1/-1;font-size:10px;color:var(--muted);line-height:1.35;margin-top:2px}
+
+/* ── NOAA 長期展望機率色彩條與圖樣樣式（清晰區塊化與非重疊標籤） ─────────────── */
+.noaa-legend-wrap{display:flex;flex-direction:column;gap:9px;margin-top:4px;min-width:280px}
+.noaa-bar-block{background:rgba(255,255,255,0.04);border:1px solid var(--line);border-radius:10px;padding:9px 8px}
+.noaa-bar-title{font-size:11.5px;font-weight:700;color:#ffffff;display:flex;align-items:center;justify-content:space-between;line-height:1.3}
+.noaa-bar-note{color:var(--muted);font-size:9.5px;margin:2px 0 6px;line-height:1.35}
+.noaa-labels-row{display:grid;grid-template-columns:7fr auto 7fr;font-size:9.5px;font-weight:700;margin-bottom:4px;align-items:center}
+.noaa-lbl-below{text-align:left;color:#70bbfd;padding-left:1px}
+.noaa-lbl-above{text-align:right;color:#fca5a5;padding-right:1px}
+.noaa-lbl-dry{text-align:left;color:#cbd5e1;padding-left:1px}
+.noaa-lbl-wet{text-align:right;color:#93c5fd;padding-right:1px}
+.noaa-lbl-normal{text-align:center;color:#ffffff;padding:0 4px;font-size:9px}
+.noaa-strip-wrap{overflow-x:hidden;padding:1px 0 2px}
+.noaa-strip{display:grid;grid-template-columns:repeat(15,minmax(0,1fr));gap:2px;align-items:stretch}
+.noaa-swatch{height:24px;min-width:0;border:1px solid rgba(255,255,255,0.18);position:relative;border-radius:3px;padding:0;transition:transform .12s ease,box-shadow .12s ease;cursor:help}
+.noaa-swatch:hover{transform:scale(1.18);z-index:3;outline:2px solid #ffffff;outline-offset:1px;box-shadow:0 4px 10px rgba(0,0,0,0.6)}
+.noaa-swatch.normal{background:#d9dcda!important;border:1px solid rgba(255,255,255,0.55)!important;margin:0 1px}
+.noaa-precip-dry,.noaa-precip-wet{background-color:#ffffff!important}
+.noaa-precip-dry::after,.noaa-precip-wet::after{content:"";position:absolute;inset:0;opacity:.88;background-size:var(--pattern-size) var(--pattern-size);border-radius:2px}
+.noaa-precip-dry::after{background-image:repeating-linear-gradient(135deg,#374151 0 2px,transparent 2px 8px)}
+.noaa-precip-wet::after{background-image:radial-gradient(circle,#1f2937 0 2px,transparent 2.4px)}
+.noaa-range-labels{display:grid;grid-template-columns:repeat(15,minmax(0,1fr));gap:2px;margin-top:4px;color:var(--muted);font-size:8px;font-weight:600;text-align:center;line-height:1}
+.noaa-range-labels span{display:block;text-align:center;white-space:nowrap;letter-spacing:-0.4px}
+.noaa-range-labels span.n-norm{color:#ffffff;font-weight:700}
 
 /* ── 右上按鈕列與狀態 ─────────────────── */
 #toprt{position:absolute;top:12px;right:12px;z-index:1000;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
@@ -324,10 +354,10 @@ select:focus{border-color:var(--accent)}
 
 /* 行動裝置 */
 @media (max-width:640px){
-  :root{--panelW:min(290px,88vw)}
+  :root{--panelW:min(290px,88vw);--edgeGap:6px;--timebarClearance:66px}
 
   /* 時間軸：單列、可橫向滑動，隱藏次要控制 */
-  #timebar{bottom:calc(6px + env(safe-area-inset-bottom,0px));left:0;right:0;transform:none;
+  #timebar,body.panel-collapsed #timebar{bottom:calc(var(--edgeGap) + env(safe-area-inset-bottom,0px));left:0;right:0;transform:none;
     width:auto;margin:0 6px;padding:6px 8px;border-radius:14px}
   #timebar .tb-top{gap:6px}
   #tPlay{width:34px;height:34px;font-size:13px;border-radius:11px}
@@ -343,7 +373,7 @@ select:focus{border-color:var(--accent)}
   .tcell b{font-size:11px}
   .tcell i{font-size:8.5px}
 
-  /* 面板：全高抽屜＋較大點擊區 */
+  /* 面板：在直式手機上停在時間軸上方，不遮擋最下方的時間軸。 */
   #panel{font-size:13.5px}
   .panel-head{position:sticky;top:0;z-index:2;background:rgba(23,28,40,0.92);
     backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);padding:12px 14px 10px}
@@ -361,8 +391,8 @@ select:focus{border-color:var(--accent)}
   #status{font-size:10px;padding:5px 9px;max-width:60vw;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-  /* 圖例：預設收合、貼在時間軸上方 */
-  #legend{bottom:calc(66px + env(safe-area-inset-bottom,0px));right:8px;left:auto;
+  /* 圖例：預設收合、貼在時間軸的安全區上方 */
+  #legend{bottom:calc(var(--timebarClearance) + env(safe-area-inset-bottom,0px));right:8px;left:auto;
     max-width:min(240px,calc(100% - 16px));font-size:11px;max-height:38%;padding:9px 11px}
   #legend .lg-head{font-size:12px}
   #drawer{width:100%}
@@ -372,6 +402,9 @@ select:focus{border-color:var(--accent)}
   .leaflet-control-zoom{margin-top:8px!important;margin-left:8px!important}
   .leaflet-control-attribution{font-size:9px;max-width:58vw;white-space:nowrap;
     overflow:hidden;text-overflow:ellipsis}
+}
+@media (max-width:640px) and (orientation:portrait){
+  #panel{bottom:calc(var(--timebarClearance) + env(safe-area-inset-bottom,0px))}
 }
 @media (max-width:640px) and (orientation:landscape){
   #legend{max-height:34%;bottom:62px}
@@ -687,7 +720,7 @@ const REGION4={
 /* ── 全域狀態 ─────────────────────────────────────────────────────────── */
 const S = {
   key:'', map:null, base:null,
-  land:'T', sea:'wave', grid:'none', wxIcon:false,
+  land:'T', lastShortLand:'T', sea:'wave', grid:'none', wxIcon:false,
   warn:true, warnCap:false,             // 天氣特報：縣市層級（預設開）／CAP 鄉鎮範圍
   warnOn:new Set(['rain','cold','heat','wind']),   // 啟用之 CAP 特報類別
   blue:false, blueVar:'wave',
@@ -845,6 +878,13 @@ const SCALES = {
 const OUTLOOK_CAT_LABELS={below:'偏低',normal:'正常',above:'偏高'};
 const OUTLOOK_TEMP_LABELS={below:'偏冷',normal:'正常',above:'偏暖'};
 const OUTLOOK_RAIN_LABELS={below:'偏乾',normal:'正常',above:'偏溼'};
+
+/* NOAA 7 級距機率色彩條常數（氣溫藍/橙、降水乾斜線/溼點紋） */
+const LONG_OUTLOOK_BANDS=['33–40%','40–50%','50–60%','60–70%','70–80%','80–90%','90–100%'];
+const LONG_TEMP_BELOW_COLORS=['#d4e5eb','#b8d5e1','#94bed2','#6fa8c5','#4f91b4','#37799c','#245b80'];
+const LONG_TEMP_ABOVE_COLORS=['#f5dfc6','#f0c89c','#eaae70','#e18e4f','#d57236','#c45a28','#a9431e'];
+const LONG_NORMAL_COLOR='#d9dcda';
+
 const OUTLOOK_BIVAR={
   'above:below': {label:'冷溼', color:'#2b6c9c'},
   'above:normal':{label:'偏溼', color:'#007c89'},
@@ -1053,7 +1093,7 @@ function renderTimeCells(){
 }
 function curStepMeta(){ return S.stepMeta[S.t]||null; }
 function curTime(){ return S.steps[S.t]||S.steps[0]; }
-const DN_W=4096, DN_H=2048, DN_LATMAX=85.0511287798066, DN_MAXA=.42;
+const DN_W=512, DN_H=256, DN_LATMAX=85.0511287798066, DN_MAXA=.42;
 /* 日出／日沒判定高度角：-0.833°（含大氣折射 34' 與日面半徑 16'），與官方公布之日出日沒時刻一致。
    邊界仍以此高度角為中心，但用極窄羽化帶抗鋸齒，避免地圖放大後呈階梯狀。 */
 const DN_ALT0=Math.sin(-.833*Math.PI/180);
@@ -1139,10 +1179,24 @@ function updateTimeLabel(){
 function setT(i, skipHash){
   S.t=Math.max(0,Math.min(S.steps.length-1,i));
   const meta=curStepMeta();
-  if(isLongStepMeta(meta) && S.land!==meta.type){
-    S.land=meta.type;
-    const sel=$('selLand'); if(sel) sel.value=S.land;
-    updOpacRows();
+  const isMetaLong=isLongStepMeta(meta);
+  if(isMetaLong){
+    if(S.land!==meta.type){
+      S.land=meta.type;
+      const sel=$('selLand'); if(sel) sel.value=S.land;
+      updOpacRows();
+    }
+  }else{
+    // 切回前面 12 小時或逐 3 小時預報：恢復先前的短天期預報變數並重設分區
+    if(S.land==='longM'||S.land==='longS'){
+      S.land=S.lastShortLand||'T';
+      const sel=$('selLand'); if(sel) sel.value=S.land;
+      updOpacRows();
+    }
+    if(LAND.longRegionLayer){
+      S.map.removeLayer(LAND.longRegionLayer);
+      LAND.longRegionLayer=null;
+    }
   }
   updateTimeLabel();
   const needLong=isLongLand() && !(LAND.long&&LAND.long[S.land]);
@@ -1177,31 +1231,83 @@ function legendScale(key,title){
   return `<div class="lg-scale">${cols}</div><div class="lg-lab"><span>${labs}</span><span>${sc.unit}</span></div>`;
 }
 function legendLongOutlook(){
-  const rows=[
-    ['above','偏溼'],
-    ['normal','正常'],
-    ['below','偏乾'],
-  ];
-  const cols=[
-    ['below','偏冷'],
-    ['normal','正常'],
-    ['above','偏暖'],
-  ];
-  const patternFor=(rainCat)=>{
-    if(rainCat==='below') return "background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.22) 0,rgba(255,255,255,.22) 2px,transparent 2px,transparent 8px);background-size:12px 12px;";
-    if(rainCat==='above') return "background-image:radial-gradient(circle at 35% 35%,rgba(255,255,255,.30) 0 1.4px,transparent 1.8px);background-size:12px 12px;";
-    return "";
-  };
-  let html='<div class="lg-bivar"><div class="ax">降雨<br>×<br>溫度</div>';
-  html+=cols.map(c=>`<div class="ax">${c[1]}</div>`).join('');
-  for(const r of rows){
-    html+=`<div class="ax">${r[1]}</div>`;
-    for(const c of cols){
-      const cell=OUTLOOK_BIVAR[`${r[0]}:${c[0]}`];
-      html+=`<div class="sw" title="${cell.label}" style="background-color:${cell.color};${patternFor(r[0])}"></div>`;
+  const meta=curStepMeta();
+  const type=isLongStepMeta(meta)?meta.type:(S.land==='longS'?'longS':'longM');
+  const pack=LAND.long&&LAND.long[type];
+  const idx=longOutlookPeriodIndex(type);
+  const period=(pack&&pack.periods[idx]&&pack.periods[idx].period)||'';
+  const typeName=LONG_TYPES[type]?LONG_TYPES[type].label:'長期展望';
+
+  const conciseNums=['>90','80','70','60','50','40','33','正常','33','40','50','60','70','80','>90'];
+  const fullBands=['90–100%','80–90%','70–80%','60–70%','50–60%','40–50%','33–40%','33–40% (Near Normal)','33–40%','40–50%','50–60%','60–70%','70–80%','80–90%','90–100%'];
+
+  // 氣溫色帶：7 Below（深到淺） + 1 Normal + 7 Above（淺到深）
+  let tempSwatches='';
+  for(let i=6;i>=0;i--){
+    const c=LONG_TEMP_BELOW_COLORS[i];
+    const b=LONG_OUTLOOK_BANDS[i];
+    tempSwatches+=`<span class="noaa-swatch" style="background-color:${c}" title="氣溫：Below Normal／偏冷（機率 ${b}）" aria-label="氣溫偏冷 ${b}"></span>`;
+  }
+  tempSwatches+=`<span class="noaa-swatch normal" style="background-color:#d9dcda" title="氣溫：Near Normal／正常（機率 33–40%）" aria-label="氣溫正常"></span>`;
+  for(let i=0;i<=6;i++){
+    const c=LONG_TEMP_ABOVE_COLORS[i];
+    const b=LONG_OUTLOOK_BANDS[i];
+    tempSwatches+=`<span class="noaa-swatch" style="background-color:${c}" title="氣溫：Above Normal／偏暖（機率 ${b}）" aria-label="氣溫偏暖 ${b}"></span>`;
+  }
+
+  // 降水圖樣帶：偏乾（斜線 90%~33%） + 正常 + 偏濕（點狀 33%~90%）
+  let precipSwatches='';
+  for(let i=6;i>=0;i--){
+    const pSize=12+(6-i)*3;
+    const b=LONG_OUTLOOK_BANDS[i];
+    precipSwatches+=`<span class="noaa-swatch noaa-precip-dry" style="--pattern-size:${pSize}px" title="降水：Below Normal／偏乾（機率 ${b}）" aria-label="降水偏乾 ${b}"></span>`;
+  }
+  precipSwatches+=`<span class="noaa-swatch normal" style="background-color:#d9dcda" title="降水：Near Normal／正常（機率 33–40%）" aria-label="降水正常"></span>`;
+  for(let i=0;i<=6;i++){
+    const pSize=30-i*3;
+    const b=LONG_OUTLOOK_BANDS[i];
+    precipSwatches+=`<span class="noaa-swatch noaa-precip-wet" style="--pattern-size:${pSize}px" title="降水：Above Normal／偏濕（機率 ${b}）" aria-label="降水偏濕 ${b}"></span>`;
+  }
+
+  const rangeLabelsHtml=conciseNums.map((n,i)=>`<span class="${i===7?'n-norm':''}" title="${fullBands[i]}">${n}</span>`).join('');
+
+  let activeSummary='';
+  if(pack){
+    const regions=['北部','中部','南部','東部'];
+    const cards=[];
+    for(const r of regions){
+      const cell=longOutlookCell(type,r,idx);
+      if(cell&&cell.tempSig&&cell.rainSig){
+        const tStr=cell.tempSig.cat==='normal'?'正常':`${OUTLOOK_TEMP_LABELS[cell.tempSig.cat]} ${cell.tempSig.prob}%`;
+        const rStr=cell.rainSig.cat==='normal'?'正常':`${OUTLOOK_RAIN_LABELS[cell.rainSig.cat]} ${cell.rainSig.prob}%`;
+        cards.push(`<div><b style="color:var(--txt)">${r}</b>: 溫<sup>${tStr}</sup>／雨<sup>${rStr}</sup></div>`);
+      }
+    }
+    if(cards.length){
+      activeSummary=`<div style="margin-top:6px;font-size:10.5px;color:var(--muted);border-top:1px dashed var(--line);padding-top:5px;">`+
+        `<div style="color:var(--accent);font-weight:700;margin-bottom:2px;">📍 ${typeName} ${period?`(${escapeHtml(period)})`:''} 四區概況</div>`+
+        `<div style="display:grid;grid-template-columns:1fr 1fr;gap:3px 6px;">${cards.join('')}</div>`+
+        `</div>`;
     }
   }
-  html+='<div class="cap">各分區以溫度、降雨三分類機率中的最高者著色；列為降雨、欄為溫度。偏乾格用斜線、偏溼格用點紋。</div></div>';
+
+  let html='<div class="noaa-legend-wrap">';
+  html+=`<div class="noaa-bar-block">`+
+    `<div class="noaa-bar-title"><span>🌡️ 氣溫機率級距 (%)</span><span style="font-size:9.5px;font-weight:400;color:var(--muted)">偏離 >33% 顯現</span></div>`+
+    `<div class="noaa-bar-note">藍色＝偏冷 (Below) ｜ 橙色＝偏暖 (Above)</div>`+
+    `<div class="noaa-labels-row"><div class="noaa-lbl-below">◀ Below 偏冷</div><div class="noaa-lbl-normal">正常</div><div class="noaa-lbl-above">Above 偏暖 ▶</div></div>`+
+    `<div class="noaa-strip-wrap"><div class="noaa-strip">${tempSwatches}</div><div class="noaa-range-labels">${rangeLabelsHtml}</div></div>`+
+    `</div>`;
+
+  html+=`<div class="noaa-bar-block">`+
+    `<div class="noaa-bar-title"><span>🌧️ 降水機率級距 (%)</span><span style="font-size:9.5px;font-weight:400;color:var(--muted)">圖樣密度代表機率</span></div>`+
+    `<div class="noaa-bar-note">斜線＝偏乾 (Below) ｜ 點狀＝偏濕 (Above)</div>`+
+    `<div class="noaa-labels-row"><div class="noaa-lbl-dry">◀ Below 偏乾</div><div class="noaa-lbl-normal">正常</div><div class="noaa-lbl-wet">Above 偏濕 ▶</div></div>`+
+    `<div class="noaa-strip-wrap"><div class="noaa-strip">${precipSwatches}</div><div class="noaa-range-labels">${rangeLabelsHtml}</div></div>`+
+    `</div>`;
+
+  html+=activeSummary;
+  html+='</div>';
   return html;
 }
 function renderLegend(){
@@ -1264,6 +1370,7 @@ const isPhone=()=>window.matchMedia('(max-width:640px)').matches;
 function setPanel(open){
   $('panel').classList.toggle('collapsed',!open);
   $('panelTab').classList.toggle('collapsed',!open);
+  document.body.classList.toggle('panel-collapsed',!open);
   $('panelTab').textContent=open?'◀':'▶';
   setTimeout(()=>{try{S.map&&S.map.invalidateSize();}catch(e){}},280);
 }
@@ -1895,15 +2002,126 @@ function probTriplet(v){
   const m=/(-?\d+(?:\.\d+)?)\s*[:：,\/]\s*(-?\d+(?:\.\d+)?)\s*[:：,\/]\s*(-?\d+(?:\.\d+)?)/.exec(String(v??'').trim());
   return m?[+m[1],+m[2],+m[3]]:null;
 }
-function maxProbCat(v){
-  const arr=probTriplet(v);
-  if(!arr) return null;
-  const cats=['below','normal','above'];
-  const max=Math.max(...arr);
-  let idx=arr.findIndex(x=>x===max);
-  if(arr[1]===max) idx=1; // 平手時優先保持 normal，避免過度渲染異常
-  return {cat:cats[idx], prob:arr[idx], values:arr};
+function getOutlookBandIndex(prob){
+  const p=Number(prob);
+  if(isNaN(p)||p<33) return -1;
+  if(p>=90) return 6;
+  if(p>=80) return 5;
+  if(p>=70) return 4;
+  if(p>=60) return 3;
+  if(p>=50) return 2;
+  if(p>=40) return 1;
+  return 0;
 }
+function getOutlookTempColor(cat,prob){
+  const band=getOutlookBandIndex(prob);
+  if(cat==='below'&&band>=0) return LONG_TEMP_BELOW_COLORS[band];
+  if(cat==='above'&&band>=0) return LONG_TEMP_ABOVE_COLORS[band];
+  return LONG_NORMAL_COLOR;
+}
+/* 只要有 above 或是 below 超過 33% 的，就當作那個縣市的顯示機率 */
+function calcOutlookSignal(v){
+  const arr=probTriplet(v);
+  if(!arr) return {cat:'normal',prob:33,bandIdx:-1,triplet:[33,34,33]};
+  const [b,n,a]=arr;
+  const aValid=a>33;
+  const bValid=b>33;
+  let cat='normal', prob=n;
+  if(aValid&&bValid){
+    if(a>=b){ cat='above'; prob=a; }
+    else { cat='below'; prob=b; }
+  }else if(aValid){
+    cat='above'; prob=a;
+  }else if(bValid){
+    cat='below'; prob=b;
+  }else{
+    cat='normal'; prob=n;
+  }
+  let bandIdx=(cat==='normal')?-1:getOutlookBandIndex(prob);
+  if(bandIdx===-1) cat='normal';
+  return {cat,prob,bandIdx,triplet:arr};
+}
+function maxProbCat(v){
+  const s=calcOutlookSignal(v);
+  return {cat:s.cat, prob:s.prob, values:s.triplet, bandIdx:s.bandIdx};
+}
+
+/* ── SVG Pattern 產生器（地圖 Polygon 同步渲染氣溫底色與降水斜線/點狀紋路） ── */
+function getOrCreateSvgDefs(){
+  const landPane=S.map&&S.map.getPane('landPane');
+  if(!landPane) return null;
+  let svg=landPane.querySelector('svg');
+  if(!svg) return null;
+  let defs=svg.querySelector('defs#cwa-long-defs');
+  if(!defs){
+    defs=document.createElementNS('http://www.w3.org/2000/svg','defs');
+    defs.id='cwa-long-defs';
+    svg.insertBefore(defs,svg.firstChild);
+  }
+  return defs;
+}
+function getLongOutlookPatternId(tSig,rSig,opac=0.85){
+  const tCat=(tSig&&tSig.cat)||'normal', tBand=(tSig&&tSig.bandIdx)!==undefined?tSig.bandIdx:-1;
+  const rCat=(rSig&&rSig.cat)||'normal', rBand=(rSig&&rSig.bandIdx)!==undefined?rSig.bandIdx:-1;
+  const patId=`cwa_pat_t_${tCat}_${tBand}_r_${rCat}_${rBand}_op${Math.round(opac*100)}`;
+  const defs=getOrCreateSvgDefs();
+  if(defs && !defs.querySelector('#'+patId)){
+    const tempColor=getOutlookTempColor(tCat, tSig?tSig.prob:0);
+    const patSize=rBand>=0?Math.max(10, 30 - rBand*3):20;
+    const pat=document.createElementNS('http://www.w3.org/2000/svg','pattern');
+    pat.setAttribute('id',patId);
+    pat.setAttribute('width',patSize);
+    pat.setAttribute('height',patSize);
+    pat.setAttribute('patternUnits','userSpaceOnUse');
+
+    // 1. 底色：氣溫機率顏色
+    const rect=document.createElementNS('http://www.w3.org/2000/svg','rect');
+    rect.setAttribute('width',patSize);
+    rect.setAttribute('height',patSize);
+    rect.setAttribute('fill',tempColor);
+    rect.setAttribute('fill-opacity',opac);
+    pat.appendChild(rect);
+
+    // 2. 疊加紋路：降水機率（偏乾＝斜線，偏溼＝點狀）
+    if(rCat==='below'){
+      const line1=document.createElementNS('http://www.w3.org/2000/svg','line');
+      line1.setAttribute('x1',0); line1.setAttribute('y1',patSize);
+      line1.setAttribute('x2',patSize); line1.setAttribute('y2',0);
+      line1.setAttribute('stroke','#1f2937'); line1.setAttribute('stroke-width','2.2');
+      line1.setAttribute('stroke-opacity','0.75');
+      pat.appendChild(line1);
+
+      const line2=document.createElementNS('http://www.w3.org/2000/svg','line');
+      line2.setAttribute('x1',-patSize); line2.setAttribute('y1',patSize);
+      line2.setAttribute('x2',patSize); line2.setAttribute('y2',-patSize);
+      line2.setAttribute('stroke','#1f2937'); line2.setAttribute('stroke-width','2.2');
+      line2.setAttribute('stroke-opacity','0.75');
+      pat.appendChild(line2);
+    }else if(rCat==='above'){
+      const circle=document.createElementNS('http://www.w3.org/2000/svg','circle');
+      circle.setAttribute('cx',patSize/2);
+      circle.setAttribute('cy',patSize/2);
+      circle.setAttribute('r','2.3');
+      circle.setAttribute('fill','#111827');
+      circle.setAttribute('fill-opacity','0.85');
+      pat.appendChild(circle);
+    }
+    defs.appendChild(pat);
+  }
+  return patId;
+}
+function ensureAllLongOutlookPatterns(op=0.75){
+  if(!isLongLand()) return;
+  const type=S.land==='longS'?'longS':'longM';
+  const regions=['北部','中部','南部','東部'];
+  for(const r of regions){
+    const cell=longOutlookCell(type,r);
+    if(cell&&cell.tempSig&&cell.rainSig){
+      getLongOutlookPatternId(cell.tempSig,cell.rainSig,op);
+    }
+  }
+}
+
 function isClimateElementName(name){
   return /氣候|平年|區間|範圍|climat|normal/i.test(String(name||'')) && !/機率|prob/i.test(String(name||''));
 }
@@ -1960,58 +2178,75 @@ function longOutlookCell(type,region,idx=longOutlookPeriodIndex(type)){
   const rr=pickLongPeriod(pack.rain,region,idx,period);
   const tcRange=pickLongPeriod(pack.tempClimate,region,idx,period);
   const rcRange=pickLongPeriod(pack.rainClimate,region,idx,period);
-  const tc=maxProbCat(tr&&tr.value), rc=maxProbCat(rr&&rr.value);
-  if(!tc&&!rc) return null;
-  const tcat=(tc&&tc.cat)||'normal', rcat=(rc&&rc.cat)||'normal';
-  const b=OUTLOOK_BIVAR[`${rcat}:${tcat}`]||OUTLOOK_BIVAR['normal:normal'];
+  const tSig=calcOutlookSignal(tr&&tr.value), rSig=calcOutlookSignal(rr&&rr.value);
+  if(!tSig&&!rSig) return null;
+  const tempColor=getOutlookTempColor(tSig.cat,tSig.prob);
+  const b=OUTLOOK_BIVAR[`${rSig.cat}:${tSig.cat}`]||OUTLOOK_BIVAR['normal:normal'];
   return {type,region,period:period||(tr&&tr.period)||(rr&&rr.period)||'最新',
-    temp:tc, rain:rc, combo:b, color:b.color, label:b.label,
+    tempSig:tSig, rainSig:rSig, temp:tSig, rain:rSig,
+    tempColor, combo:b, color:tempColor, label:b.label,
     tempRaw:tr, rainRaw:rr, tempClimate:tcRange, rainClimate:rcRange};
 }
-function longOutlookFill(county,type){
+function longOutlookFill(county,type,op=0.75){
   const region=REGION4[normName(county||'')];
   const cell=longOutlookCell(type,region);
-  return cell?cell.color:'#5a647533';
+  if(!cell||!cell.tempSig||!cell.rainSig) return '#5a647533';
+  const patId=getLongOutlookPatternId(cell.tempSig,cell.rainSig,op);
+  return 'url(#'+patId+')';
 }
 function longOutlookText(cell){
   if(!cell) return '目前無資料';
-  const t=cell.temp, r=cell.rain;
+  const t=cell.tempSig, r=cell.rainSig;
+  const tCatLabel=OUTLOOK_TEMP_LABELS[t.cat]||'正常';
+  const rCatLabel=OUTLOOK_RAIN_LABELS[r.cat]||'正常';
+  const tBandLabel=t.bandIdx>=0?`（${LONG_OUTLOOK_BANDS[t.bandIdx]}）`:'';
+  const rBandLabel=r.bandIdx>=0?`（${LONG_OUTLOOK_BANDS[r.bandIdx]}）`:'';
+  const tTriplet=t.triplet?` [${t.triplet.join(':')}]`:'';
+  const rTriplet=r.triplet?` [${r.triplet.join(':')}]`:'';
   const tv=cell.tempClimate?`（氣候區間 ${fmtClimateValue(cell.tempClimate)}）`:'';
   const rv=cell.rainClimate?`（氣候區間 ${fmtClimateValue(cell.rainClimate)}）`:'';
-  return `${cell.label}｜溫度 ${t?OUTLOOK_TEMP_LABELS[t.cat]+' '+t.prob+'%':'–'}${tv}／降雨 ${r?OUTLOOK_RAIN_LABELS[r.cat]+' '+r.prob+'%':'–'}${rv}`;
+
+  const tDesc=t.cat==='normal'?`氣溫 正常${tTriplet}${tv}`:`氣溫 ${tCatLabel} ${t.prob}%${tBandLabel}${tTriplet}${tv}`;
+  const rDesc=r.cat==='normal'?`降雨 正常${rTriplet}${rv}`:`降雨 ${rCatLabel} ${r.prob}%${rBandLabel}${rTriplet}${rv}`;
+  return `${cell.region}｜${tDesc} ｜ ${rDesc}`;
 }
 function longOutlookValidText(type){
   const cell=longOutlookCell(type,'北部');
-  return `${LONG_TYPES[type].label}${cell?` ${cell.period}`:''}；縣市依北／中／南／東分區，以溫度×降雨最高機率分類著色。此模式不含海面預報，日夜陰影暫停顯示。`;
+  return `${LONG_TYPES[type].label}${cell?` ${cell.period}`:''}；縣市依北／中／南／東分區，以 NOAA 氣溫色彩條（底色）與降水圖樣密度疊加展示。此模式日夜陰影暫停顯示。`;
 }
-/* 渲染陸地面量（含縣市/鄉鎮 LOD 與 Wx 圖示層） */
+/* 渲染陸地面量（含縣市/鄉鎮 LOD 與 Wx 圖示層，支援高效原地更新） */
 function renderLand(){
   if(!S.map) return;
-  if(LAND.layerTown){ S.map.removeLayer(LAND.layerTown); LAND.layerTown=null; }
-  if(LAND.layerCounty){ S.map.removeLayer(LAND.layerCounty); LAND.layerCounty=null; }
-  if(LAND.wxMarkers){ S.map.removeLayer(LAND.wxMarkers); LAND.wxMarkers=null; }
-  if(LAND.longRegionLayer){ S.map.removeLayer(LAND.longRegionLayer); LAND.longRegionLayer=null; }
   S.valid.land='';
-  if(S.land==='none'||!LAND.topoTown){ renderLegend(); return; }
+  if(S.land==='none'||!LAND.topoTown){
+    if(LAND.layerTown){ S.map.removeLayer(LAND.layerTown); LAND.layerTown=null; }
+    if(LAND.layerCounty){ S.map.removeLayer(LAND.layerCounty); LAND.layerCounty=null; }
+    if(LAND.wxMarkers){ S.map.removeLayer(LAND.wxMarkers); LAND.wxMarkers=null; }
+    if(LAND.longRegionLayer){ S.map.removeLayer(LAND.longRegionLayer); LAND.longRegionLayer=null; }
+    renderLegend();
+    return;
+  }
   const t=curTime(); const zoom=S.map.getZoom();
   const isLong=isLongLand();
   const useCounty = isLong || (zoom<9 && !(S.land==='coldrisk'||S.land==='tempdiff'||S.land==='heatrisk'));
   const op=(+$('opLand').value)/100;
   const isHealth = S.land==='coldrisk'||S.land==='tempdiff'||S.land==='heatrisk';
   const healthData=LAND.health[S.land];
+  const srcLand = (t-Date.now()>70*3600e3 && LAND.town7)?LAND.town7:LAND.town3;
+
   const dataFor=(p)=>{
     const county=normName(p.COUNTYNAME||''), town=normName(p.TOWNNAME||'');
     const key=county+town, gk='G'+String(p.TOWNCODE||'');
     if(isHealth) return healthData?(healthData[key]||healthData[gk]||healthData[town]):null;
-    const src = (t-Date.now()>70*3600e3 && LAND.town7)?LAND.town7:LAND.town3;
-    if(!src) return null;
-    return src[gk]||src[key]||src[town]||null;
+    if(!srcLand) return null;
+    return srcLand[gk]||srcLand[key]||srcLand[town]||null;
   };
+
   const styleFor=(f)=>{
     const p=f.properties;
     let fill='#5a647533';
     if(useCounty){
-      if(isLong) fill=longOutlookFill(p.COUNTYNAME,S.land);
+      if(isLong) fill=longOutlookFill(p.COUNTYNAME,S.land,op);
       else{
         fill=countyAggFill(p,t);                                  // 鄉鎮值聚合（支援全部變數）
         if(fill==null){ const rec=LAND.county?LAND.county[normName(p.COUNTYNAME)]:null;
@@ -2022,26 +2257,65 @@ function renderLand(){
     }else{
       fill=townFill(dataFor(p),t,p);
     }
-    return {color:'#0b1220',weight:isLong ? .35 : (useCounty?1:.5),fillColor:fill,fillOpacity:op,opacity:isLong ? .35 : .6};
+    return {color:'#0b1220',weight:isLong ? 1 : (useCounty?1:.5),fillColor:fill,fillOpacity:isLong ? 1 : op,opacity:isLong ? .8 : .6};
   };
-  const src=useCounty?LAND.topoCounty:LAND.topoTown;
-  const layer=L.geoJSON(src,{pane:'landPane',style:styleFor,
-    onEachFeature:(f,ly)=>{
-      const p=f.properties;
-      ly.on('click',()=>openLandPopup(p,ly.getBounds().getCenter()));
-      let tip=(useCounty?normName(p.COUNTYNAME):normName(p.COUNTYNAME)+normName(p.TOWNNAME));
-      if(isLong){
-        const region=REGION4[normName(p.COUNTYNAME||'')], cell=longOutlookCell(S.land,region);
-        tip+=region?`｜${region}｜${longOutlookText(cell)}`:'｜長期展望無分區資料';
-      }else{
-        tip+=`｜${landTooltipValue(p,useCounty,t,isHealth,dataFor)}`;
-      }
-      ly.bindTooltip(escapeHtml(tip),{sticky:true,className:'pt-lab',direction:'top'});
-    }});
-  layer.addTo(S.map); layer.bringToBack();
-  if(useCounty){ LAND.layerCounty=layer; } else { LAND.layerTown=layer; }
-  if(isLong) renderLongRegionOverlay();
+
+  const getTipFor=(p)=>{
+    if(isLong){
+      const region=REGION4[normName(p.COUNTYNAME||'')], cell=longOutlookCell(S.land,region);
+      return region?`${normName(p.COUNTYNAME)}｜${region}｜${longOutlookText(cell)}`:'長期展望無分區資料';
+    }
+    return (useCounty?normName(p.COUNTYNAME):normName(p.COUNTYNAME)+normName(p.TOWNNAME))+`｜${landTooltipValue(p,useCounty,t,isHealth,dataFor)}`;
+  };
+
+  // 1. 若使用縣市圖層
+  if(useCounty){
+    if(LAND.layerTown && S.map.hasLayer(LAND.layerTown)){ S.map.removeLayer(LAND.layerTown); }
+    if(isLong) ensureAllLongOutlookPatterns(op);
+    if(LAND.layerCounty && S.map.hasLayer(LAND.layerCounty)){
+      // 原地快速更新樣式與浮動提示（< 2ms，不銷毀/重建 DOM）
+      LAND.layerCounty.eachLayer(ly=>{
+        ly.setStyle(styleFor(ly.feature));
+        const tip=getTipFor(ly.feature.properties);
+        if(ly.getTooltip()) ly.setTooltipContent(escapeHtml(tip));
+      });
+    }else{
+      if(LAND.layerCounty) S.map.removeLayer(LAND.layerCounty);
+      LAND.layerCounty=L.geoJSON(LAND.topoCounty,{pane:'landPane',style:styleFor,
+        onEachFeature:(f,ly)=>{
+          const p=f.properties;
+          ly.on('click',()=>openLandPopup(p,ly.getBounds().getCenter()));
+          ly.bindTooltip(escapeHtml(getTipFor(p)),{sticky:true,className:'pt-lab',direction:'top'});
+        }});
+      LAND.layerCounty.addTo(S.map); LAND.layerCounty.bringToBack();
+    }
+    if(isLong) renderLongRegionOverlay();
+    else if(LAND.longRegionLayer){ S.map.removeLayer(LAND.longRegionLayer); LAND.longRegionLayer=null; }
+  }else{
+    // 2. 使用鄉鎮圖層
+    if(LAND.layerCounty && S.map.hasLayer(LAND.layerCounty)){ S.map.removeLayer(LAND.layerCounty); }
+    if(LAND.longRegionLayer){ S.map.removeLayer(LAND.longRegionLayer); LAND.longRegionLayer=null; }
+    if(LAND.layerTown && S.map.hasLayer(LAND.layerTown)){
+      // 原地快速更新樣式與浮動提示
+      LAND.layerTown.eachLayer(ly=>{
+        ly.setStyle(styleFor(ly.feature));
+        const tip=getTipFor(ly.feature.properties);
+        if(ly.getTooltip()) ly.setTooltipContent(escapeHtml(tip));
+      });
+    }else{
+      if(LAND.layerTown) S.map.removeLayer(LAND.layerTown);
+      LAND.layerTown=L.geoJSON(LAND.topoTown,{pane:'landPane',style:styleFor,
+        onEachFeature:(f,ly)=>{
+          const p=f.properties;
+          ly.on('click',()=>openLandPopup(p,ly.getBounds().getCenter()));
+          ly.bindTooltip(escapeHtml(getTipFor(p)),{sticky:true,className:'pt-lab',direction:'top'});
+        }});
+      LAND.layerTown.addTo(S.map); LAND.layerTown.bringToBack();
+    }
+  }
+
   /* Wx 圖示疊標：縣市視角顯示 22 縣市圖示、鄉鎮視角顯示各鄉鎮圖示 */
+  if(LAND.wxMarkers){ S.map.removeLayer(LAND.wxMarkers); LAND.wxMarkers=null; }
   if(S.wxIcon && !isHealth && !isLong){
     LAND.wxMarkers=L.layerGroup();
     if(useCounty){
@@ -3996,7 +4270,12 @@ function parseLongOutlook(json){
 function fmtOutlookValue(v,measures){
   if(v==null||String(v).trim()==='') return '–';
   const m=/^(-?\d+(?:\.\d+)?):(-?\d+(?:\.\d+)?):(-?\d+(?:\.\d+)?)$/.exec(String(v).trim());
-  if(m) return `偏低 ${m[1]}%／正常 ${m[2]}%／偏高 ${m[3]}%`;
+  if(m){
+    const sig=calcOutlookSignal(v);
+    const bandTxt=sig.bandIdx>=0?`（${LONG_OUTLOOK_BANDS[sig.bandIdx]}）`:'';
+    const sigTxt=sig.cat==='normal'?'正常 (33–40%)':`${sig.cat==='above'?'偏高 (Above)':'偏低 (Below)'} ${sig.prob}% ${bandTxt}`;
+    return `<div><b>${sigTxt}</b></div><div style="font-size:10px;color:var(--muted)">偏低 ${m[1]}% / 正常 ${m[2]}% / 偏高 ${m[3]}%</div>`;
+  }
   return `${v}${measures?' '+measures:''}`;
 }
 function fmtClimateValue(p){
@@ -4660,28 +4939,54 @@ function renderAll(){
   /* 格點層不隨時間軸重繪（僅 0–1h） */
   renderLegend();
 }
-async function activate(){ // 依目前開關載入必要資料再渲染
-  const jobs=[];
+async function activate(){ // 依目前開關載入必要資料再渲染（快速首屏優先＋背景並行預載）
   const longMode=isLongOutlookMode();
-  jobs.push(loadLongOutlook()); // 供時間軸顯示月／季展望期間
-  if(S.land!=='none') jobs.push(loadLand());
-  if(!longMode && S.sea!=='none') jobs.push(loadSea());
-  if(!longMode && S.blue) jobs.push(loadBlue());
-  if(!longMode && S.pts.tide) jobs.push(loadTide());
-  if(!longMode && S.pts.surge) jobs.push(loadSurge());
-  if(S.pts.leisure) for(const k of S.leisureOn) jobs.push(loadLeisure(k));
-  if(!longMode && S.pts.freak) jobs.push(loadFreak());
-  if(!longMode && S.pts.freakGrid) jobs.push(loadFreakGrid());
-  if(!longMode && S.pts.penghu) jobs.push(loadPenghu());
-  if(!longMode && S.pts.wavecur) jobs.push(loadWaveCur());
-  if(S.grid!=='none') jobs.push(loadGrid());
-  if(S.warn||S.warnCap) jobs.push(loadWarn());
-  await Promise.allSettled(jobs);
-  renderAll(); if(S.grid!=='none') renderGrid();
+  
+  // 1. 最優先載入主要陸地圖層（若未載入）並立即呈現地圖，確保首屏秒開
+  if(S.land!=='none') await loadLand();
+  renderAll();
+  setStatus('就緒 '+fmtTs(new Date()));
+
+  // 2. 次要與重疊圖層於背景並行非同步載入，載入完成後局部重繪，絕不卡死主畫面
+  const bgJobs=[];
+  bgJobs.push(loadLongOutlook().then(()=>appendLongTimeline(true)).catch(()=>{}));
+  if(S.grid!=='none') bgJobs.push(loadGrid().then(()=>renderGrid()).catch(()=>{}));
+  if(!longMode && S.sea!=='none') bgJobs.push(loadSea().then(()=>{ renderSea(); renderLegend(); }).catch(()=>{}));
+  if(!longMode && S.blue) bgJobs.push(loadBlue().then(()=>{ renderBlue(); renderLegend(); }).catch(()=>{}));
+  if(!longMode && S.pts.tide) bgJobs.push(loadTide().then(()=>{ renderTide(); renderLegend(); }).catch(()=>{}));
+  if(!longMode && S.pts.surge) bgJobs.push(loadSurge().then(()=>{ renderSurge(); renderLegend(); }).catch(()=>{}));
+  if(S.pts.leisure) for(const k of S.leisureOn) bgJobs.push(loadLeisure(k).then(()=>{ renderLeisure(); renderLegend(); }).catch(()=>{}));
+  if(!longMode && S.pts.freak) bgJobs.push(loadFreak().then(()=>{ renderFreak(); renderLegend(); }).catch(()=>{}));
+  if(!longMode && S.pts.freakGrid) bgJobs.push(loadFreakGrid().then(()=>{ renderFreakGrid(); renderLegend(); }).catch(()=>{}));
+  if(!longMode && S.pts.penghu) bgJobs.push(loadPenghu().then(()=>{ renderPenghu(); renderLegend(); }).catch(()=>{}));
+  if(!longMode && S.pts.wavecur) bgJobs.push(loadWaveCur().then(()=>{ renderWaveCur(); renderLegend(); }).catch(()=>{}));
+  if(S.warn||S.warnCap) bgJobs.push(loadWarn().then(()=>{ renderWarn(); renderLegend(); }).catch(()=>{}));
+  Promise.allSettled(bgJobs).then(()=>{ setStatus('資料就緒 '+fmtTs(new Date())); });
 }
 /* 事件繫結 */
-$('selLand').addEventListener('change',async e=>{ S.land=e.target.value; saveHash(); updOpacRows();
-  if(S.land!=='none') await loadLand(); renderLand(); });
+$('selLand').addEventListener('change',async e=>{
+  const v=e.target.value;
+  if(v!=='longM'&&v!=='longS'){
+    if(v!=='none') S.lastShortLand=v;
+    if(isLongStepMeta(curStepMeta())){
+      S.t=0;
+      updateTimeLabel();
+    }
+    if(LAND.longRegionLayer){
+      S.map.removeLayer(LAND.longRegionLayer);
+      LAND.longRegionLayer=null;
+    }
+  }else{
+    const targetIdx=S.stepMeta.findIndex(m=>m&&m.type===v);
+    if(targetIdx>=0){
+      S.t=targetIdx;
+      updateTimeLabel();
+    }
+  }
+  S.land=v; saveHash(); updOpacRows();
+  if(S.land!=='none') await loadLand();
+  renderAll();
+});
 $('ckWxIcon').addEventListener('change',e=>{ S.wxIcon=e.target.checked; renderLand(); });
 $('opLand').addEventListener('input',debounce(()=>renderLand(),120));
 $('selSea').addEventListener('change',async e=>{ S.sea=e.target.value; saveHash(); updOpacRows();
