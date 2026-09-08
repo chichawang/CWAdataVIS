@@ -681,16 +681,16 @@ function gradientCSS(ramp){
   return"linear-gradient(90deg,"+ramp.map(s=>`${s[1]} ${((s[0]-lo)/(hi-lo)*100).toFixed(1)}%`).join(",")+")";
 }
 
-// 台灣本島預設範圍（不含離島）
-const TAIWAN=L.latLngBounds([21.85,119.95],[25.35,122.05]);
+// 全臺預設範圍（含金門、馬祖、澎湖及臺灣本島）
+const TAIWAN=L.latLngBounds([21.75,118.10],[26.45,122.20]);
 const map=L.map("map",{zoomControl:true}).fitBounds(TAIWAN);
 map.zoomControl.setPosition("topright");   // 側欄改為全高靠左，縮放鈕移至右上避免被遮擋
 const BASES={
   osm:L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}),
   sat:L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:19,attribution:"Esri World Imagery"}),
   topo:L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",{maxZoom:17,attribution:"© OpenTopoMap"}),
-  dark:L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",{maxZoom:20,attribution:"© CARTO"}),
-  light:L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",{maxZoom:20,attribution:"© CARTO"})
+  dark:L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=cb1_325q_1_8b5e6f905ab09a4799809661",{maxZoom:20,attribution:"© CARTO"}),
+  light:L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_325q_1_8b5e6f905ab09a4799809661",{maxZoom:20,attribution:"© CARTO"})
 };
 let curBase=BASES.osm.addTo(map);
 const layer=L.layerGroup().addTo(map);

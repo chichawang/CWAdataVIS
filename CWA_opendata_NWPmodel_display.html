@@ -481,6 +481,35 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2)}
   font-weight: 700;
   color: var(--accent);
 }
+
+/* ── 氣象平滑等值線與標籤 ─────────────────── */
+.contour-label-tag {
+  pointer-events: none;
+}
+.contour-label-inner {
+  display: inline-block;
+  background: rgba(14, 18, 23, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 3px;
+  color: #f8fafc;
+  font-family: "Roboto", -apple-system, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 1.5px 4.5px;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
+  transform: translate(-50%, -50%);
+  letter-spacing: 0.02em;
+}
+.contour-label-inner.major {
+  color: #fdd663;
+  border-color: rgba(253, 214, 99, 0.75);
+  font-weight: 800;
+  background: rgba(20, 24, 34, 0.94);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.8), 0 0 6px rgba(253, 214, 99, 0.3);
+}
+.dayNightLayer{image-rendering:auto;pointer-events:none}
 </style>
 </head>
 <body>
@@ -531,10 +560,10 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2)}
     <div>
       <div class="section-label">底圖樣式</div>
       <select id="baseSel">
-        <option value="light" selected>簡潔淡色（Positron）</option>
+        <option value="osm" selected>街道圖（OSM）</option>
+        <option value="light">簡潔淡色（Positron）</option>
         <option value="darkclean">簡潔深色（無標籤）</option>
         <option value="dark">深色（Dark）</option>
-        <option value="osm">街道圖（OSM）</option>
         <option value="sat">衛星影像（Esri）</option>
         <option value="topo">地形圖</option>
       </select>
@@ -556,10 +585,24 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2)}
         <input type="checkbox" id="coastChk" checked style="width:14px;height:14px;cursor:pointer">
         <span>🗺️ 強化海岸線 / 國界（海陸邊界）</span>
       </label>
-      <label id="contourCheckWrap" style="display:none;align-items:center;gap:8px;cursor:pointer;margin-top:6px;font-size:13px;user-select:none">
-        <input type="checkbox" id="contourCheck" style="width:14px;height:14px;cursor:pointer">
-        <span>顯示氣象等值線 (等高線/等溫線)</span>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:6px;font-size:13px;user-select:none">
+        <input type="checkbox" id="dayNightChk" checked style="width:14px;height:14px;cursor:pointer">
+        <span>🌗 日夜變化陰影區（晨昏線）</span>
       </label>
+      <!-- 氣象平滑等值線與標籤 -->
+      <div id="contourCheckWrap" style="display:none;flex-direction:column;gap:4px;margin-top:6px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius-sm)">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;user-select:none">
+          <input type="checkbox" id="contourCheck" checked style="width:14px;height:14px;cursor:pointer">
+          <span style="font-weight:600">📈 顯示氣象平滑等值線</span>
+        </label>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding-left:22px;font-size:11px;color:var(--txt3)">
+          <span id="contourStepInfo">間距: 4 hPa</span>
+          <label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;color:var(--txt2);user-select:none">
+            <input type="checkbox" id="contourLabelCheck" checked style="width:12px;height:12px;cursor:pointer">
+            <span>數值標籤 (Labels)</span>
+          </label>
+        </div>
+      </div>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:6px;font-size:13px;user-select:none">
         <input type="checkbox" id="tyChk" style="width:14px;height:14px;cursor:pointer">
         <span>🌀 顯示颱風路徑 (W-C0034-005)</span>
@@ -687,6 +730,9 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2)}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <!-- jsfive：純 JS HDF5 讀取器（海流模式 M-B0071 為 NetCDF-4/HDF5，需此函式庫解析）-->
 <script src="https://cdn.jsdelivr.net/npm/jsfive@0.4.0/dist/browser/hdf5.js"></script>
+<!-- D3 與 d3-contour：氣象平滑等值線與標籤 (Observable @d3/volcano-contours & @christophe-yamahata) -->
+<script src="https://cdn.jsdelivr.net/npm/d3-array@3/dist/d3-array.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3-contour@4/dist/d3-contour.min.js"></script>
 <script>
 /* ═══════════════════════════════════════════════
    CWA GFS GRIB2 Visualization
@@ -699,11 +745,11 @@ var KEY='';
 
 /* ── 地圖 & 底圖 ──────────────────────────── */
 var BASES={
-  light:     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',
+  light:     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png?key=cb1_325q_1_8b5e6f905ab09a4799809661',
         {maxZoom:19,attribution:'&copy; OSM &copy; CARTO'}),
-  darkclean: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png',
+  darkclean: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png?key=cb1_325q_1_8b5e6f905ab09a4799809661',
         {maxZoom:19,attribution:'&copy; OSM &copy; CARTO'}),
-  dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+  dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=cb1_325q_1_8b5e6f905ab09a4799809661',
         {maxZoom:19,attribution:'&copy; OSM &copy; CARTO'}),
   osm:  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
         {maxZoom:19,attribution:'&copy; OpenStreetMap'}),
@@ -720,7 +766,7 @@ var map=L.map('map',{
   minZoom: 2
 }).setView([23.5,180],3);
 L.control.zoom({position:'topleft'}).addTo(map);
-var curBase=BASES.light.addTo(map);
+var curBase=BASES.osm.addTo(map);
 
 /* 當地圖移動、縮放時更新流場圖層 */
 map.on('move', updateWindBarbs);
@@ -787,16 +833,128 @@ function setCoast(on){
 $('coastChk').onchange=function(e){ setCoast(e.target.checked); };
 setCoast($('coastChk').checked);  /* 預設開啟 */
 
+/* ── 氣象等值線向量疊層 (d3-contour + Leaflet Canvas) ── */
+map.createPane('contourpane');
+map.getPane('contourpane').style.zIndex = 370;
+map.getPane('contourpane').style.pointerEvents = 'none';
+var contourRenderer = L.canvas({ pane: 'contourpane', padding: 0.5 });
+var contourLayer = L.layerGroup([], { pane: 'contourpane' }).addTo(map);
+
 $('op').oninput=function(e){
   $('opV').textContent=e.target.value+'%';
   if(overlay)overlay.setOpacity(e.target.value/100);
 };
 
 $('contourCheck').onchange=function(e){
-  if(currentData && currentData.msg){
-    selectVar(currentData.msg.index);
-  };
+  if(currentData) renderD3Contours(currentData);
 };
+if($('contourLabelCheck')){
+  $('contourLabelCheck').onchange=function(e){
+    if(currentData) renderD3Contours(currentData);
+  };
+}
+
+/* ── 日夜變化陰影區（晨昏線）疊層 ── */
+map.createPane('daynight');
+map.getPane('daynight').style.zIndex = 380;
+map.getPane('daynight').style.pointerEvents = 'none';
+var dayNightLayer = L.layerGroup([], { pane: 'daynight' }).addTo(map);
+
+var DN_W=512, DN_H=256, DN_LATMAX=85.0511287798066, DN_MAXA=.42;
+/* 日出／日沒判定高度角：-0.833°（含大氣折射 34' 與日面半徑 16'），與官方公布之日出日沒時刻一致。
+   邊界仍以此高度角為中心，但用極窄羽化帶抗鋸齒，避免地圖放大後呈階梯狀。 */
+var DN_ALT0=Math.sin(-.833*Math.PI/180);
+var DN_FEATHER=Math.sin(.22*Math.PI/180);
+var dnCanvas=null, dnKey='', dnURL='';
+
+/* 太陽位置（NOAA Solar Calculator 演算法）：回傳赤緯（弧度）與均時差（分鐘）。
+   均時差不可省略，否則晨昏線最大會有 ±16 分鐘（約 4° 經度）的偏差。 */
+function solarPos(d){
+  var RAD=Math.PI/180;
+  var jc=(d.getTime()/864e5 + 2440587.5 - 2451545)/36525;      // 儒略世紀（J2000.0）
+  var L0=(280.46646+jc*(36000.76983+jc*.0003032))%360;         // 平黃經
+  var M=357.52911+jc*(35999.05029-.0001537*jc);                // 平近點角
+  var e=.016708634-jc*(.000042037+.0000001267*jc);             // 軌道離心率
+  var Mr=M*RAD;
+  var C=Math.sin(Mr)*(1.914602-jc*(.004817+.000014*jc))
+         +Math.sin(2*Mr)*(.019993-.000101*jc)+Math.sin(3*Mr)*.000289;
+  var om=(125.04-1934.136*jc)*RAD;
+  var lam=(L0+C-.00569-.00478*Math.sin(om))*RAD;               // 視黃經
+  var eps0=23+(26+(21.448-jc*(46.815+jc*(.00059-jc*.001813)))/60)/60;
+  var eps=(eps0+.00256*Math.cos(om))*RAD;                      // 黃赤交角
+  var dec=Math.asin(Math.sin(eps)*Math.sin(lam));              // 赤緯
+  var y=Math.pow(Math.tan(eps/2),2), L0r=L0*RAD;
+  var eqTime=4/RAD*(y*Math.sin(2*L0r)-2*e*Math.sin(Mr)+4*e*y*Math.sin(Mr)*Math.cos(2*L0r)
+              -.5*y*y*Math.sin(4*L0r)-1.25*e*e*Math.sin(2*Mr)); // 均時差（分鐘）
+  return {dec:dec, eqTime:eqTime};
+}
+function normLon180(lon){ return ((((lon+180)%360)+360)%360)-180; }
+function smoothstep(edge0,edge1,x){
+  var t=Math.max(0,Math.min(1,(x-edge0)/(edge1-edge0)));
+  return t*t*(3-2*t);
+}
+function dnRender(dec,subLonDeg){
+  if(!dnCanvas){ dnCanvas=document.createElement('canvas'); dnCanvas.width=DN_W; dnCanvas.height=DN_H; }
+  var ctx=dnCanvas.getContext('2d');
+  var img=ctx.createImageData(DN_W,DN_H), D=img.data;
+  var RAD=Math.PI/180, sd=Math.sin(dec), cd=Math.cos(dec);
+  var sinLat=new Float64Array(DN_H), cosLat=new Float64Array(DN_H);
+  for(var j=0;j<DN_H;j++){
+    var y=(1-2*(j+.5)/DN_H)*Math.PI;
+    var la=2*Math.atan(Math.exp(y))-Math.PI/2;
+    sinLat[j]=Math.sin(la); cosLat[j]=Math.cos(la);
+  }
+  var cosH=new Float64Array(DN_W);
+  for(var i=0;i<DN_W;i++) cosH[i]=Math.cos((-180+(i+.5)*360/DN_W-subLonDeg)*RAD);
+  var k=0;
+  for(var j=0;j<DN_H;j++){
+    var A=sinLat[j]*sd, B=cosLat[j]*cd;
+    for(var i=0;i<DN_W;i++){
+      var s=A+B*cosH[i];                      // sin(太陽高度角)
+      var a=DN_MAXA*(1-smoothstep(DN_ALT0-DN_FEATHER,DN_ALT0+DN_FEATHER,s));
+      D[k]=2; D[k+1]=6; D[k+2]=23; D[k+3]=(a*255+.5)|0;
+      k+=4;
+    }
+  }
+  ctx.putImageData(img,0,0);
+  return dnCanvas.toDataURL('image/png');
+}
+function getForecastValidDate(){
+  if(modelInitTime){
+    var d=parseModelInitUTC(modelInitTime);
+    if(d) return new Date(d.getTime() + (currentHour||0)*3600000);
+  }
+  return new Date();
+}
+function drawDayNight(){
+  dayNightLayer.clearLayers();
+  var chk=$('dayNightChk');
+  if(!chk || !chk.checked) return;
+  var t=getForecastValidDate();
+  var sp=solarPos(t);
+  var utcMin=t.getUTCHours()*60 + t.getUTCMinutes() + t.getUTCSeconds()/60;
+  /* 太陽直下點經度：真太陽時正午（720 分）之經度，含均時差修正 */
+  var subLon=normLon180((720-utcMin-sp.eqTime)/4);
+  var dec=sp.dec;
+  var key=Math.round(subLon*30)+'|'+Math.round(dec*4000);
+  if(key!==dnKey){ dnKey=key; dnURL=dnRender(dec,subLon); }
+  /* 全球預報視角與太平洋環繞：向左右各覆蓋延伸一圈 */
+  for(var w=-360; w<=720; w+=360){
+    L.imageOverlay(dnURL,[[-DN_LATMAX,w-180],[DN_LATMAX,w+180]],{
+      pane:'daynight', opacity:1, interactive:false, className:'dayNightLayer'
+    }).addTo(dayNightLayer);
+  }
+}
+try{
+  var savedDn=localStorage.getItem('cwa_nwp_daynight');
+  if(savedDn!==null && $('dayNightChk')) $('dayNightChk').checked=(savedDn==='1');
+}catch(_){}
+if($('dayNightChk')){
+  $('dayNightChk').onchange=function(e){
+    try{ localStorage.setItem('cwa_nwp_daynight', e.target.checked?'1':'0'); }catch(_){}
+    drawDayNight();
+  };
+}
 
 $('particleCountSlider').oninput=function(e){
   maxParticles = parseInt(e.target.value);
@@ -911,6 +1069,7 @@ $('fcstSlider').oninput=function(e){
   var h=String(currentHour).padStart(3,'0');
   $('fcstVal').textContent=h+'h';
   $('fcstLabel').textContent=fcstHourLabel(currentHour);
+  drawDayNight();
 };
 
 /* 直接點選 / 放開時間軸後，自動載入 / 更新該預報時步（不重設地圖視野）*/
@@ -958,6 +1117,7 @@ function applyModel(key){
   $('fcstLabel').textContent=fcstHourLabel(0);
   buildTimeTicks(m.maxHour,m.tickStep);
   map.setView([m.view[0],m.view[1]],m.view[2]);
+  drawDayNight();
   /* 粒子圖層標籤依模式類型切換（風 vs 海流）*/
   var pl=$('particleLabel');
   if(pl) pl.textContent = (m.type==='ocean') ? '🌊 顯示海流粒子（表層流）' : '🌬️ 顯示風場粒子（離地 10m 風）';
@@ -972,6 +1132,7 @@ $('modelSel').onchange=function(e){
 
 /* 初始化為預設模式（讓刻度/視野與設定一致）*/
 applyModel(curModel);
+drawDayNight();
 
 /* ── 時間軸懸停：預點選指示點＋預報時間提示 ── */
 (function(){
@@ -1657,127 +1818,299 @@ function smoothGrid(values, nx, ny, passes){
   return current;
 }
 
-/* ── 等值線繪製 (Marching Squares) ── */
-function drawContourLines(ctx2, values, grid, key, vMin, vMax, isKelvin, isPa, nx, ny){
-  var step = 0;
-  var color = 'rgba(255,255,255,0.45)';
-  var lineWidth = 1.0;
-  var smoothPasses = 5; // 平滑次數 (GFS 原生網格會有高頻雜訊，必須平滑後等值線才圓滑)
+/* ═══════════════════════════════════════════════
+   氣象平滑等值線與數值標籤 (D3-Contour + Leaflet Canvas)
+   參考 Observable @d3/volcano-contours 與
+   @christophe-yamahata/map-with-contours-and-contour-labels
+   ═══════════════════════════════════════════════ */
+function isContourSupported(key){
+  if(!key) return false;
+  return (key === '0-3-1' || key === '0-3-0' || key === '0-3-5' ||
+          key === '0-0-0' || key === '0-0-4' || key === '0-0-5' || key === '0-0-6');
+}
+
+function updateContourUI(msg){
+  var wrap = $('contourCheckWrap');
+  if(!wrap) return;
+  if(!msg || !isContourSupported(msg.key)){
+    wrap.style.display = 'none';
+    if(contourLayer) contourLayer.clearLayers();
+    return;
+  }
+  wrap.style.display = 'flex';
+  var stepInfo = $('contourStepInfo');
+  if(stepInfo){
+    if(msg.key === '0-3-1' || msg.key === '0-3-0'){
+      stepInfo.textContent = '間距: 4 hPa · 1000/1020hPa 主線';
+    } else if(msg.key === '0-3-5'){
+      stepInfo.textContent = '間距: 60 gpm · ★5880 gpm (588線) 高亮';
+    } else if(msg.key.indexOf('0-0-') === 0){
+      stepInfo.textContent = '間距: 4 °C · 0°C 冰點線標示';
+    }
+  }
+}
+
+function smoothFloat64Grid(data, nx, ny, passes){
+  var temp = new Float64Array(data.length);
+  var cur = data;
+  for(var p = 0; p < passes; p++){
+    var next = (p % 2 === 0) ? temp : data;
+    var src = (p % 2 === 0) ? data : temp;
+    for(var j = 0; j < ny; j++){
+      var jm = (j === 0 ? 0 : j - 1) * nx;
+      var j0 = j * nx;
+      var jp = (j === ny - 1 ? ny - 1 : j + 1) * nx;
+      for(var i = 0; i < nx; i++){
+        var im = (i === 0 ? 0 : i - 1);
+        var ip = (i === nx - 1 ? nx - 1 : i + 1);
+        var v = src[j0 + i];
+        if(!isFinite(v)){ next[j0 + i] = NaN; continue; }
+        var sum = 4 * v, w = 4;
+        var vN = src[jm + i], vS = src[jp + i], vW = src[j0 + im], vE = src[j0 + ip];
+        if(isFinite(vN)){ sum += 2 * vN; w += 2; }
+        if(isFinite(vS)){ sum += 2 * vS; w += 2; }
+        if(isFinite(vW)){ sum += 2 * vW; w += 2; }
+        if(isFinite(vE)){ sum += 2 * vE; w += 2; }
+        next[j0 + i] = sum / w;
+      }
+    }
+    cur = next;
+  }
+  return cur;
+}
+
+function renderD3Contours(data){
+  if(!contourLayer) return;
+  contourLayer.clearLayers();
   
-  if(key === '0-3-5'){ // 重力位高度
-    step = 60; // 60 gpm
-    color = 'rgba(255,255,255,0.55)';
-    lineWidth = 1.0;
-    smoothPasses = 6;
-  } else if(key === '0-0-0'){ // 氣溫
-    step = 4; // 4 °C
-    color = 'rgba(255,255,255,0.35)';
-    lineWidth = 0.8;
-    smoothPasses = 5;
-  } else {
+  var chk = $('contourCheck');
+  if(!chk || !chk.checked || !data || !data.msg) return;
+  
+  var key = data.msg.key;
+  if(!isContourSupported(key)) return;
+  if(typeof d3 === 'undefined' || !d3.contours){
+    console.warn('d3-contour 函式庫尚未就緒');
     return;
   }
   
-  var levels = [];
+  var values = data.values;
+  var grid = data.grid;
+  var nx = grid.nx, ny = grid.ny;
+  var isPa = data.isPa;
+  var isKelvin = data.isKelvin;
+  var vMin = data.vMin;
+  var vMax = data.vMax;
+  var showLabels = $('contourLabelCheck') ? $('contourLabelCheck').checked : true;
+
+  var step = 4, majorStep = 20, isGph = false, isPres = false, isTemp = false;
+  if(key === '0-3-1' || key === '0-3-0'){
+    isPres = true; step = 4; majorStep = 20;
+  } else if(key === '0-3-5'){
+    isGph = true; step = 60; majorStep = 300;
+  } else if(key.indexOf('0-0-') === 0){
+    isTemp = true; step = 4; majorStep = 10;
+  }
+
+  // 1. 計算等值線級距 (Thresholds)
+  var thresholds = [];
   var start = Math.ceil(vMin / step) * step;
   for(var val = start; val <= vMax; val += step){
-    levels.push(val);
+    thresholds.push(val);
   }
-  
-  ctx2.strokeStyle = color;
-  ctx2.lineWidth = lineWidth;
-  ctx2.lineJoin = 'round';
-  ctx2.lineCap = 'round';
-  
-  /* 複製數值並進行平滑 */
-  var smoothed = new Float32Array(values.length);
-  for(var i=0; i<values.length; i++) smoothed[i] = values[i];
-  smoothed = smoothGrid(smoothed, nx, ny, smoothPasses);
-  
-  function getGridValue(col, row){
-    var wrappedCol = col;
-    while(wrappedCol < 0) wrappedCol += nx;
-    while(wrappedCol >= nx) wrappedCol -= nx;
-    
-    var idx = row * nx + wrappedCol;
-    var v = smoothed[idx];
-    if(!isFinite(v)) return NaN;
-    if(isKelvin) v -= 273.15;
-    if(isPa) v /= 100;
-    return v;
+  if(thresholds.length === 0) return;
+  if(thresholds.length > 50){
+    step *= 2;
+    thresholds = [];
+    start = Math.ceil(vMin / step) * step;
+    for(var val = start; val <= vMax; val += step){
+      thresholds.push(val);
+    }
   }
+
+  // 2. 建立平滑網格陣列（若為全球等經緯格點，右側多複製一欄實現 0°~360° 經度無縫閉合）
+  var isGlobal = (grid.lon1 >= 0 && grid.lon2 > 180) || (grid.nx * grid.dx >= 359);
+  var W = isGlobal ? (nx + 1) : nx;
+  var H = ny;
+  var gridData = new Float64Array(W * H);
   
-  function gridToCanvas(col, row){
-    var x = col + nx / 2;
-    var lat = grid.lat1 - row * grid.dy;
-    var sinLat = Math.sin(lat * Math.PI / 180.0);
-    sinLat = Math.max(-0.9999, Math.min(0.9999, sinLat));
-    var y_merc = 0.5 * Math.log((1.0 + sinLat) / (1.0 - sinLat)) / Math.PI;
-    var y = ny * (1.0 - y_merc) / 2.0;
-    return [x, y];
-  }
-  
-  var caseTable = [
-    [], [3, 0], [0, 1], [3, 1],
-    [1, 2], [3, 0, 1, 2], [0, 2], [3, 2],
-    [2, 3], [2, 0], [0, 3, 1, 2], [2, 1],
-    [1, 3], [1, 0], [3, 0], []
-  ];
-  
-  var startCol = -nx / 2;
-  var endCol = nx + nx / 2;
-  
-  for(var lIdx=0; lIdx<levels.length; lIdx++){
-    var L = levels[lIdx];
-    ctx2.beginPath();
-    for(var j=0; j<ny-1; j++){
-      for(var i=startCol; i<endCol-1; i++){
-        var v0 = getGridValue(i, j);
-        var v1 = getGridValue(i+1, j);
-        var v2 = getGridValue(i+1, j+1);
-        var v3 = getGridValue(i, j+1);
-        
-        if(isNaN(v0) || isNaN(v1) || isNaN(v2) || isNaN(v3)) continue;
-        
-        var b0 = v0 >= L ? 1 : 0;
-        var b1 = v1 >= L ? 1 : 0;
-        var b2 = v2 >= L ? 1 : 0;
-        var b3 = v3 >= L ? 1 : 0;
-        
-        var caseIdx = (b3 << 3) | (b2 << 2) | (b1 << 1) | b0;
-        if(caseIdx === 0 || caseIdx === 15) continue;
-        
-        var edges = caseTable[caseIdx];
-        
-        function getEdgePt(edgeIdx){
-          var t = 0;
-          if(edgeIdx === 0){
-            t = (L - v0) / (v1 - v0);
-            return gridToCanvas(i + t, j);
-          } else if(edgeIdx === 1){
-            t = (L - v1) / (v2 - v1);
-            return gridToCanvas(i + 1, j + t);
-          } else if(edgeIdx === 2){
-            t = (L - v2) / (v3 - v2);
-            return gridToCanvas(i + 1 - t, j + 1);
-          } else {
-            t = (L - v3) / (v0 - v3);
-            return gridToCanvas(i, j + 1 - t);
-          }
-        }
-        
-        for(var k=0; k<edges.length; k+=2){
-          var pA = getEdgePt(edges[k]);
-          var pB = getEdgePt(edges[k+1]);
-          if(Math.abs(pA[0] - pB[0]) < nx / 2){
-            ctx2.moveTo(pA[0], pA[1]);
-            ctx2.lineTo(pB[0], pB[1]);
-          }
-        }
+  for(var j = 0; j < H; j++){
+    var rSrc = j * nx;
+    var rDst = j * W;
+    for(var i = 0; i < nx; i++){
+      var v = values[rSrc + i];
+      if(!isFinite(v)){
+        gridData[rDst + i] = NaN;
+      } else {
+        if(isPa) v /= 100;
+        if(isKelvin) v -= 273.15;
+        gridData[rDst + i] = v;
       }
     }
-    ctx2.stroke();
+    if(isGlobal){
+      gridData[rDst + nx] = gridData[rDst + 0];
+    }
   }
+
+  // 3. 高頻微噪雙向平滑濾波
+  gridData = smoothFloat64Grid(gridData, W, H, 2);
+
+  // 4. d3.contours() 平滑多邊形輪廓生成 (Marching Squares with bilinear smoothing)
+  var contourGen = d3.contours()
+    .size([W, H])
+    .smooth(true)
+    .thresholds(thresholds);
+  
+  var contours = contourGen(gridData);
+
+  // 5. 掃描方向與座標轉換
+  var scanNtoS = true;
+  if(grid.scan !== undefined) scanNtoS = !(grid.scan & 0x40);
+
+  function gridToLatLng(gx, gy){
+    if(grid.lambert){
+      var ll = lambertIJToLatLon(grid, gx, gy);
+      return [ll[0], ll[1]];
+    }
+    var lat = scanNtoS ? (grid.lat1 - gy * grid.dy) : (grid.lat1 + gy * grid.dy);
+    var lon = grid.lon1 + gx * grid.dx;
+    return [lat, lon];
+  }
+
+  // 濾除沿網格邊界走行的閉合邊緣假線段
+  function extractLinesFromRing(ring){
+    var lines = [];
+    var cur = [];
+    var eps = 0.05;
+    for(var k = 0; k < ring.length - 1; k++){
+      var p1 = ring[k], p2 = ring[k+1];
+      var isBorder = (Math.abs(p1[0]) < eps && Math.abs(p2[0]) < eps) ||
+                     (Math.abs(p1[0] - W) < eps && Math.abs(p2[0] - W) < eps) ||
+                     (Math.abs(p1[1]) < eps && Math.abs(p2[1]) < eps) ||
+                     (Math.abs(p1[1] - H) < eps && Math.abs(p2[1] - H) < eps);
+      if(isBorder){
+        if(cur.length > 1) lines.push(cur);
+        cur = [];
+      } else {
+        if(cur.length === 0) cur.push(p1);
+        cur.push(p2);
+      }
+    }
+    if(cur.length > 1) lines.push(cur);
+    return lines;
+  }
+
+  // 6. 輪廓渲染與防遮擋文字標籤放置
+  var labelCount = 0;
+  var maxLabels = 75;
+
+  contours.forEach(function(feature){
+    var level = feature.value;
+    
+    // 主線判斷：5880 gpm、1000/1020 hPa、0°C 冰點線
+    var is588 = (isGph && Math.round(level) === 5880);
+    var isMajor = is588 ||
+                  (isPres && Math.round(level) % majorStep === 0) ||
+                  (isGph && Math.round(level) % majorStep === 0) ||
+                  (isTemp && Math.round(level) === 0);
+
+    var color = 'rgba(255,255,255,0.40)';
+    var weight = 1.0;
+    var opacity = 0.85;
+
+    if(is588){
+      color = '#fdd663'; // 588 太平洋副高指標線：亮金黃
+      weight = 2.4;
+      opacity = 1.0;
+    } else if(isMajor){
+      if(isTemp && Math.round(level) === 0){
+        color = '#7dd3fc'; // 0°C 冰點線：亮青藍
+      } else {
+        color = 'rgba(255,255,255,0.85)';
+      }
+      weight = 1.8;
+      opacity = 0.95;
+    }
+
+    feature.coordinates.forEach(function(multiPoly){
+      multiPoly.forEach(function(ring){
+        if(ring.length < 6) return;
+
+        var segs = extractLinesFromRing(ring);
+        segs.forEach(function(seg){
+          if(seg.length < 4) return;
+
+          var latlngs = new Array(seg.length);
+          for(var s = 0; s < seg.length; s++){
+            latlngs[s] = gridToLatLng(seg[s][0], seg[s][1]);
+          }
+
+          // 繪製主線段
+          L.polyline(latlngs, {
+            color: color,
+            weight: weight,
+            opacity: opacity,
+            renderer: contourRenderer,
+            interactive: false
+          }).addTo(contourLayer);
+
+          // 全球格點水平延伸複本（左 -360°、右 +360°），使無縫跨太平洋或跨大西洋縮放漫遊
+          if(isGlobal){
+            var leftCopy = latlngs.map(function(ll){ return [ll[0], ll[1] - 360]; });
+            L.polyline(leftCopy, {
+              color: color,
+              weight: weight,
+              opacity: opacity,
+              renderer: contourRenderer,
+              interactive: false
+            }).addTo(contourLayer);
+
+            var rightCopy = latlngs.map(function(ll){ return [ll[0], ll[1] + 360]; });
+            L.polyline(rightCopy, {
+              color: color,
+              weight: weight,
+              opacity: opacity,
+              renderer: contourRenderer,
+              interactive: false
+            }).addTo(contourLayer);
+          }
+
+          // 7. 放置防遮擋數值標籤 (Halo Mask Label)
+          if(showLabels && (seg.length >= 18 || is588) && labelCount < maxLabels){
+            var labelText = '';
+            if(isGph){
+              labelText = Math.round(level);
+              if(is588) labelText = '★5880';
+            } else if(isPres){
+              labelText = Math.round(level);
+            } else if(isTemp){
+              var tVal = Math.round(level);
+              labelText = (tVal > 0 ? '+' : '') + tVal + '°';
+            }
+
+            var mid = Math.floor(latlngs.length / 2);
+            var anchor = latlngs[mid];
+
+            if(anchor[0] >= -80 && anchor[0] <= 80){
+              var iconHtml = '<span class="contour-label-inner ' + (isMajor ? 'major' : '') + '">' + labelText + '</span>';
+              var icon = L.divIcon({
+                className: 'contour-label-tag',
+                html: iconHtml,
+                iconSize: [0, 0],
+                iconAnchor: [0, 0]
+              });
+              L.marker(anchor, { icon: icon, interactive: false, pane: 'contourpane' }).addTo(contourLayer);
+              labelCount++;
+
+              if(isGlobal && anchor[1] >= 0 && anchor[1] <= 180){
+                var anchorLeft = [anchor[0], anchor[1] - 360];
+                L.marker(anchorLeft, { icon: icon, interactive: false, pane: 'contourpane' }).addTo(contourLayer);
+              }
+            }
+          }
+        });
+      });
+    });
+  });
 }
 
 /* ── 氣象風標 (Wind Barb) 繪製與更新 ── */
@@ -2066,6 +2399,7 @@ function renderGrid(values,grid,scaleName,msg){
       valsU:values.valsU||null,valsV:values.valsV||null};
     updateWindBarbs();
     updateLegend(scale,scaleName,msg);
+    renderD3Contours(currentData);
     return {vMin:vMin,vMax:vMax,validCount:validCount,adaptive:!!scale.adaptive};
   }
 
@@ -2166,9 +2500,6 @@ function renderGrid(values,grid,scaleName,msg){
       }
     }
     ctx2.putImageData(imgData2,0,0);
-    if($('contourCheck').checked){
-      drawContourLines(ctx2, values, grid, msg.key, vMin, vMax, isKelvin, isPa, nx, ny);
-    }
     bounds = [[latS_limit, -180], [latN_limit, 540]];
     overlay=L.imageOverlay(canvas2.toDataURL('image/png'),bounds,
       {opacity:+$('op').value/100,pane:'datapane',interactive:false}).addTo(map);
@@ -2199,9 +2530,6 @@ function renderGrid(values,grid,scaleName,msg){
       }
     }
     ctxM.putImageData(imgM,0,0);
-    if($('contourCheck').checked){
-      drawContourLines(ctxM, values, grid, msg.key, vMin, vMax, isKelvin, isPa, nx, ny);
-    }
     bounds=[[latS,lonW],[latN,lonE]];
     overlay=L.imageOverlay(cM.toDataURL('image/png'),bounds,
       {opacity:+$('op').value/100,pane:'datapane',interactive:false}).addTo(map);
@@ -2217,6 +2545,9 @@ function renderGrid(values,grid,scaleName,msg){
 
   /* 更新色標 */
   updateLegend(scale,scaleName,msg);
+
+  /* 渲染氣象平滑等值線與標籤 */
+  renderD3Contours(currentData);
 
   return {vMin:vMin,vMax:vMax,validCount:validCount,adaptive:!!scale.adaptive};
 }
@@ -2970,6 +3301,7 @@ function selectVar(idx){
   if(!msg) return;
   lastSel={key:msg.key,levelType:msg.levelType,levelVal:msg.levelVal};
   $('varSel').value=idx;
+  updateContourUI(msg);
 
   /* Highlight in list */
   var items=$('var-list').querySelectorAll('.var-item');
@@ -3048,6 +3380,7 @@ function showJsonMeta(j){
   /* 記錄模式起始時間（UTC），供時間軸顯示預報有效時間（換算台灣本地） */
   modelInitTime=info.InitialTime||null;
   $('fcstLabel').textContent=fcstHourLabel(currentHour);
+  drawDayNight();
 
   /* 模式時間為 UTC，元資料一律換算為台灣本地時間（LST，UTC+8）顯示 */
   var initD=parseModelInitUTC(info.InitialTime);

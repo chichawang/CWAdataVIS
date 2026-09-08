@@ -629,10 +629,10 @@ function initMap() {
 
   // 底圖圖層 (以 CartoDB Light 白色地圖為預設)
   window.tileLayers = {
-    light: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    light: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_325q_1_8b5e6f905ab09a4799809661', {
       maxZoom: 19, attribution: '&copy; OpenStreetMap & CartoDB'
     }),
-    dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=cb1_325q_1_8b5e6f905ab09a4799809661', {
       maxZoom: 19, attribution: '&copy; OpenStreetMap & CartoDB'
     }),
     street: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {

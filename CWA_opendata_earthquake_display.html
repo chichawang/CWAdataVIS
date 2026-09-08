@@ -524,9 +524,9 @@ const rasterStyle=(tiles,attr,maxzoom)=>({version:8,
   sources:{r:{type:"raster",tiles:[tiles],tileSize:256,attribution:attr,maxzoom:maxzoom||19}},
   layers:[{id:"r",type:"raster",source:"r"}]});
 const BASEMAPS={
-  dark:   {label:"🌑 暗色（預設）",style:"https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"},
-  light:  {label:"⬜ 亮色 Positron",style:"https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"},
-  voyager:{label:"🗺️ 街道 Voyager",style:"https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json"},
+  dark:   {label:"🌑 暗色（預設）",style:"https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json?key=cb1_325q_1_8b5e6f905ab09a4799809661"},
+  light:  {label:"⬜ 亮色 Positron",style:"https://basemaps.cartocdn.com/gl/positron-gl-style/style.json?key=cb1_325q_1_8b5e6f905ab09a4799809661"},
+  voyager:{label:"🗺️ 街道 Voyager",style:"https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json?key=cb1_325q_1_8b5e6f905ab09a4799809661"},
   sat:    {label:"🛰️ 衛星影像",style:rasterStyle(
     "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}","Esri",18)},
   osm:    {label:"🌍 OSM 標準",style:rasterStyle(
