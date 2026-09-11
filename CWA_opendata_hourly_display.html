@@ -722,7 +722,6 @@ function buildPopup(s,v,val,color){
 
 function render(fit, skipKriging){
   drawDayNight();
-  if(typeof clearKrigingLayers === "function") clearKrigingLayers();
   // 「無」：隱藏所有測站點位（格點 / 海象圖層不受影響）
   if($("varSel").value==="__none__"){
     layer.clearLayers();
@@ -732,6 +731,7 @@ function render(fit, skipKriging){
     $("legBar").innerHTML="";$("legBar").style.background="none";$("legBar").style.height="auto";
     $("legTicks").innerHTML="";$("legTicks").style.display="none";
     $("legNote").style.display="none";
+    if(typeof clearKrigingLayers === "function") clearKrigingLayers();
     if($("krigingStepInfo")) $("krigingStepInfo").textContent = "未選取觀測變數";
     return;
   }
@@ -2908,7 +2908,10 @@ function typClearCache(){
 $("typChk").onchange=e=>loadTyProb(e.target.checked);
 
 map.on("zoomend",()=>{if(RAW.length)render(false, true);});  // 縮放時僅調整標示大小
-$("varSel").onchange=()=>render(false);
+$("varSel").onchange=()=>{
+  if(typeof clearKrigingLayers === "function") clearKrigingLayers();
+  render(false);
+};
 $("countySel").onchange=()=>render(true);
 $("search").oninput=()=>render(false);
 $("dayNightChk").checked=localStorage.getItem(DAYNIGHT_LS)!=="0";
