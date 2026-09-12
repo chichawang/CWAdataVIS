@@ -282,9 +282,9 @@
       </label>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
         <label style="margin:0;font-size:11.5px;color:var(--muted)">等值面透明度</label>
-        <span id="krigingOpV" style="font-size:11px;color:var(--muted)">60%</span>
+        <span id="krigingOpV" style="font-size:11px;color:var(--muted)">30%</span>
       </div>
-      <input type="range" id="krigingOp" min="0" max="100" value="60" style="margin-top:4px;accent-color:var(--accent)">
+      <input type="range" id="krigingOp" min="0" max="100" value="30" style="margin-top:4px;accent-color:var(--accent)">
 
       <div class="sec-sub" style="margin-top:8px">
         <label class="ckrow">
@@ -296,7 +296,7 @@
           <input type="checkbox" id="krigingLabelChk" >
           🏷️ 數值標籤（Contour Labels）
         </label>
-        <label class="kriging-chk-label" style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:6px;"><input type="checkbox" id="krigingDemChk"  style="accent-color:#0284c7;width:15px;height:15px;"><span>🏔️ 考量高程地形修正 (DEM)</span></label>
+        <label class="kriging-chk-label" style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:6px;"><input type="checkbox" id="krigingDemChk" checked style="accent-color:#0284c7;width:15px;height:15px;"><span>🏔️ 考量高程地形修正 (DEM)</span></label>
         <div id="krigingDemStatus" style="font-size:11px;color:#0369a1;margin-top:4px;padding:3px 6px;background:#f0f9ff;border-radius:4px;display:block;">DEM 網格載入中...</div>
       </div>
 

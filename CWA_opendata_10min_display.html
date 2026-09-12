@@ -116,6 +116,12 @@
   .ckrow{display:flex;align-items:center;gap:8px;margin:6px 0 0;font-size:12.5px;color:var(--txt);font-weight:400;cursor:pointer;padding:3px 0}
   .ckrow input{width:auto;accent-color:var(--accent)}
 
+  /* 全臺極值統計面板樣式 */
+  .stats{margin-top:14px;border-top:1px solid var(--line);padding-top:10px;font-size:12px;background:rgba(255,255,255,0.03);border-radius:12px;padding:10px 12px}
+  .stats .t{font-weight:700;color:var(--accent);margin-bottom:6px;font-size:12.5px;display:flex;align-items:center;gap:4px}
+  .stats .row{display:flex;justify-content:space-between;color:var(--muted);margin:4px 0}
+  .stats .v{color:#ffffff;font-weight:600}
+
   /* 面板：區塊化卡片（每個資料圖層 / 功能群組各自一張卡，可收合） */
   details.sec{background:rgba(255,255,255,0.035);border:1px solid var(--line);border-radius:14px;
     padding:11px 13px;margin-top:10px}
@@ -308,6 +314,24 @@
       <select id="countySel"><option value="">全部（縮放至全臺）</option></select>
       <label>測站搜尋（名稱 / 站號）</label>
       <input id="search" placeholder="例如：臺北、466920…">
+      <label class="ckrow" style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:8px">
+        <input type="checkbox" id="mergeHourlyChk" checked style="accent-color:#0284c7;width:15px;height:15px">
+        <span>➕ 合併整點/近時逐時測站 (O-A0001-001)</span>
+      </label>
+      <div id="mergeHourlyStatus" style="font-size:11px;color:#0369a1;margin-top:4px;padding:3px 6px;background:#f0f9ff;border-radius:4px;display:none"></div>
+    </div>
+  </details>
+
+  <details class="sec" id="statsSec" open>
+    <summary>📊 全臺極值統計<span class="car">▾</span></summary>
+    <div class="sec-body">
+      <div class="stats" id="stats" style="margin-top:0;display:none">
+        <div class="t">📈 全臺自動站極值</div>
+        <div class="row"><span>最高溫</span><span class="v" id="stHi">—</span></div>
+        <div class="row"><span>最低溫</span><span class="v" id="stLo">—</span></div>
+        <div class="row"><span>日累積雨量</span><span class="v" id="stRain">—</span></div>
+        <div class="row"><span>最大陣風</span><span class="v" id="stGust">—</span></div>
+      </div>
     </div>
   </details>
 
@@ -673,17 +697,31 @@
 
 <script>
 // ===== API 金鑰：進入頁面時輸入，之後才建立 API 網址 =====
-let KEY="", API="", API_RAIN="", API_SUN="";
+let KEY="", API="", API_RAIN="", API_SUN="", API_HOURLY="";
 const STORE="cwa_api_key";
 function setKey(k){
   KEY=k.trim();
-  API     ="https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-A0003-001?Authorization="+encodeURIComponent(KEY)+"&format=JSON"; // 綜觀氣象
-  API_RAIN="https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-A0002-001?Authorization="+encodeURIComponent(KEY)+"&format=JSON"; // 雨量站
-  API_SUN ="https://opendata.cwa.gov.tw/fileapi/v1/opendataapi/O-A0091-001?Authorization="+encodeURIComponent(KEY)+"&downloadType=WEB&format=JSON"; // 署屬氣象站日射量
+  API       ="https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-A0003-001?Authorization="+encodeURIComponent(KEY)+"&format=JSON"; // 綜觀氣象
+  API_HOURLY="https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-A0001-001?Authorization="+encodeURIComponent(KEY)+"&format=JSON"; // 逐時氣象觀測
+  API_RAIN  ="https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-A0002-001?Authorization="+encodeURIComponent(KEY)+"&format=JSON"; // 雨量站
+  API_SUN   ="https://opendata.cwa.gov.tw/fileapi/v1/opendataapi/O-A0091-001?Authorization="+encodeURIComponent(KEY)+"&downloadType=WEB&format=JSON"; // 署屬氣象站日射量
 }
 
-const NA=v=>v===null||v===undefined||v===""||v==="X"||v==="-99"||v==="-990"||v==="-99.0"||v==="-990.0"||(typeof v==="number"&&v<=-90);
+// 穩健型 CWA 缺漏/無效值哨兵判定 (Robust Sentinel & Numeric Parser)
+const NA=v=>{
+  if(v===null||v===undefined||v===""||v==="X"||v==="None"||v==="--"||v==="N/A"||v==="NA"||v==="NaN")return true;
+  if(typeof v==="number")return isNaN(v)||!isFinite(v)||v<=-90;
+  if(typeof v==="string"){
+    const s=v.trim();
+    if(s===""||s==="X"||s==="None"||s==="--"||s==="N/A"||s==="NA"||s==="NaN"||s==="-99"||s==="-990"||s==="-99.0"||s==="-990.0"||s==="-999"||s==="-999.0"||s==="-9999")return true;
+    const n=parseFloat(s);
+    return isNaN(n)||!isFinite(n)||n<=-90;
+  }
+  return false;
+};
 const num=v=>NA(v)?null:(isNaN(parseFloat(v))?null:parseFloat(v));
+const isValidText=v=>typeof v==="string"&&v.trim().length>0&&!["","X","None","--","N/A","NA","NaN","-99","-990","-99.0","-990.0","-999","-999.0","-9999"].includes(v.trim());
+window.NA=NA; window.num=num; window.isValidText=isValidText;
 const rget=(s,k)=>num(s.RainfallElement?.[k]?.Precipitation);  // 雨量站累積雨量
 // 日射量：容錯多種欄位路徑（O-A0091-001 檔案型資料）
 const sunVal=s=>num(s.WeatherElement?.SolarRadiation ?? s.weatherElement?.SolarRadiation ?? s.SolarRadiation);
@@ -775,8 +813,10 @@ const BASES={
 let curBase=BASES.osm.addTo(map);
 const layer=L.layerGroup().addTo(map);
 const dayNightLayer=L.layerGroup().addTo(map);
-
+let RAW_10MIN=[],RAW_HOURLY=[];
 let RAW=[],RAIN=[],SUN=[],rainById={},weatherById={},sunById={},bounds=null,refZoom=null;
+window.RAW_10MIN=RAW_10MIN; window.RAW_HOURLY=RAW_HOURLY;
+window.RAW=RAW; window.RAIN=RAIN; window.SUN=SUN;
 // 以「台灣本島全圖」的縮放層級為基準，放大時標示緩慢放大（指數 0.45、上限 2.6 倍）
 // → 放大檢視時標示相對地圖變小，避免互相遮擋
 function sizeScale(){
@@ -919,50 +959,295 @@ function sunStations(j){
   return st||[];
 }
 
+// ===== 時間對齊判定 (Temporal Alignment Gate) =====
+function checkTemporalAlignment(t10Str, tHourlyStr){
+  if(!t10Str || !tHourlyStr) return { isAligned: false, diffMinutes: Infinity, d10: null, dHourly: null };
+  const d10 = new Date(t10Str);
+  const dHourly = new Date(tHourlyStr);
+  if(isNaN(d10.getTime()) || isNaN(dHourly.getTime())){
+    return { isAligned: false, diffMinutes: Infinity, d10: null, dHourly: null };
+  }
+  const diffMs = Math.abs(d10.getTime() - dHourly.getTime());
+  const diffMinutes = Math.round(diffMs / 60000);
+  return {
+    isAligned: diffMs <= 10 * 60 * 1000,
+    diffMinutes,
+    d10,
+    dHourly
+  };
+}
+window.checkTemporalAlignment = checkTemporalAlignment;
+
+// ===== 智慧測站去重與欄位互補 (Station Deduplication & Smart Backfill) =====
+function mergeStations(stations10, stationsHourly){
+  if(!Array.isArray(stations10)) return [];
+  if(!Array.isArray(stationsHourly) || stationsHourly.length === 0){
+    return stations10.map(s => ({ ...s, _source: '10min', _backfilledFields: [] }));
+  }
+
+  const hourlyMap = new Map();
+  for(const s of stationsHourly){
+    if(s && s.StationId) hourlyMap.set(s.StationId, s);
+  }
+
+  const merged = [];
+  const processedIds = new Set();
+
+  // 1. 以 10 分鐘自動氣象站為基準基底 (Primary Baseline)
+  for(const s10 of stations10){
+    if(!s10 || !s10.StationId) continue;
+    const id = s10.StationId;
+    if(processedIds.has(id)) continue;
+    processedIds.add(id);
+    const s1 = hourlyMap.get(id);
+
+    if(!s1){
+      merged.push({ ...s10, _source: '10min', _backfilledFields: [] });
+      continue;
+    }
+
+    const we10 = s10.WeatherElement || {};
+    const we1 = s1.WeatherElement || {};
+    const backfilledFields = [];
+    const newWE = { ...we10 };
+
+    // A. 純量氣象觀測要素（氣壓、氣溫、溼度、風速、風向、紫外線、日照、能見度）
+    const scalarFields = [
+      'AirPressure', 'AirTemperature', 'RelativeHumidity',
+      'WindSpeed', 'WindDirection', 'UVIndex', 'SunshineDuration', 'VisibilityDescription'
+    ];
+    for(const field of scalarFields){
+      if(NA(newWE[field]) && !NA(we1[field])){
+        newWE[field] = we1[field];
+        backfilledFields.push(field);
+      }
+    }
+
+    // B. 天氣現象描述字串
+    if(!isValidText(newWE.Weather) && isValidText(we1.Weather)){
+      newWE.Weather = we1.Weather;
+      backfilledFields.push('Weather');
+    }
+
+    // C. 日累積降雨量 (Now)
+    if(NA(newWE.Now?.Precipitation) && !NA(we1.Now?.Precipitation)){
+      newWE.Now = { ...(newWE.Now || {}), Precipitation: we1.Now.Precipitation };
+      backfilledFields.push('Now.Precipitation');
+    }
+
+    // D. 最大陣風資訊
+    if(NA(newWE.GustInfo?.PeakGustSpeed) && !NA(we1.GustInfo?.PeakGustSpeed)){
+      newWE.GustInfo = { ...(newWE.GustInfo || {}), ...we1.GustInfo };
+      backfilledFields.push('GustInfo.PeakGustSpeed');
+    }
+
+    // E. 當日極值 (最高溫 / 最低溫)
+    const de10 = newWE.DailyExtreme || {};
+    const de1 = we1.DailyExtreme || {};
+    let deModified = false;
+    const newDE = { ...de10 };
+
+    if(NA(de10.DailyHigh?.TemperatureInfo?.AirTemperature) && !NA(de1.DailyHigh?.TemperatureInfo?.AirTemperature)){
+      newDE.DailyHigh = de1.DailyHigh;
+      deModified = true;
+      backfilledFields.push('DailyHigh');
+    }
+    if(NA(de10.DailyLow?.TemperatureInfo?.AirTemperature) && !NA(de1.DailyLow?.TemperatureInfo?.AirTemperature)){
+      newDE.DailyLow = de1.DailyLow;
+      deModified = true;
+      backfilledFields.push('DailyLow');
+    }
+    if(deModified) newWE.DailyExtreme = newDE;
+
+    // F. 地理資訊互補 (測站海拔、縣市、鄉鎮)
+    const geo10 = { ...(s10.GeoInfo || {}) };
+    const geo1 = s1.GeoInfo || {};
+    if(NA(geo10.StationAltitude) && !NA(geo1.StationAltitude)){
+      geo10.StationAltitude = geo1.StationAltitude;
+      backfilledFields.push('StationAltitude');
+    }
+    if(!geo10.CountyName && geo1.CountyName){
+      geo10.CountyName = geo1.CountyName;
+      geo10.TownName = geo10.TownName || geo1.TownName;
+      backfilledFields.push('CountyName');
+    }
+
+    merged.push({
+      ...s10,
+      GeoInfo: geo10,
+      WeatherElement: newWE,
+      _source: backfilledFields.length > 0 ? 'merged' : '10min',
+      _backfilledFields: backfilledFields,
+      _hourlyObsTime: s1.ObsTime?.DateTime
+    });
+  }
+
+  // 2. 併入逐時專屬獨立測站 (Non-duplicate Hourly Stations)
+  for(const s1 of stationsHourly){
+    if(s1 && s1.StationId && !processedIds.has(s1.StationId)){
+      merged.push({
+        ...s1,
+        _source: 'hourly',
+        _backfilledFields: []
+      });
+      processedIds.add(s1.StationId);
+    }
+  }
+
+  return merged;
+}
+window.mergeStations = mergeStations;
+
+// ===== 執行測站資料合併與 UI 狀態同步 =====
+function applyMerge(){
+  const mergeWanted = $("mergeHourlyChk") ? $("mergeHourlyChk").checked : true;
+  const t10 = RAW_10MIN[0]?.ObsTime?.DateTime;
+  const tHourly = RAW_HOURLY[0]?.ObsTime?.DateTime;
+  const align = checkTemporalAlignment(t10, tHourly);
+
+  let hourlyAddedCount = 0;
+
+  if(mergeWanted && RAW_HOURLY.length > 0 && align.isAligned){
+    RAW = mergeStations(RAW_10MIN, RAW_HOURLY);
+    hourlyAddedCount = RAW.filter(s => s._source === 'hourly').length;
+    if($("mergeHourlyStatus")){
+      $("mergeHourlyStatus").style.display = "block";
+      $("mergeHourlyStatus").style.color = "#0369a1";
+      $("mergeHourlyStatus").style.background = "#f0f9ff";
+      $("mergeHourlyStatus").textContent = `✅ 已成功合併逐時測站（時差 ${align.diffMinutes} 分鐘，補齊與新增共 ${RAW.length} 站）`;
+    }
+  } else {
+    RAW = RAW_10MIN.map(s => ({ ...s, _source: '10min', _backfilledFields: [] }));
+    if($("mergeHourlyStatus")){
+      if(!mergeWanted){
+        $("mergeHourlyStatus").style.display = "none";
+      } else if(!RAW_HOURLY.length){
+        $("mergeHourlyStatus").style.display = "block";
+        $("mergeHourlyStatus").style.color = "#b45309";
+        $("mergeHourlyStatus").style.background = "#fffbeb";
+        $("mergeHourlyStatus").textContent = "⚠️ 逐時資料未就緒或載入失敗，維持僅顯示10分鐘站";
+      } else if(!align.isAligned){
+        $("mergeHourlyStatus").style.display = "block";
+        $("mergeHourlyStatus").style.color = "#b45309";
+        $("mergeHourlyStatus").style.background = "#fffbeb";
+        $("mergeHourlyStatus").textContent = `⚠️ 時間未對齊（時差 ${align.diffMinutes} 分鐘 > 10 分鐘），維持僅顯示10分鐘站`;
+      }
+    }
+  }
+
+  window.RAW = RAW;
+  weatherById = {};
+  RAW.forEach(s => weatherById[s.StationId] = s);
+
+  // 日射量資料無縣市欄位 → 由同站號之綜觀氣象站補上，讓縣市篩選可用
+  SUN.forEach(s=>{
+    s.GeoInfo=s.GeoInfo||{};
+    const w=weatherById[s.StationId];
+    if(!s.GeoInfo.CountyName&&w?.GeoInfo?.CountyName){
+      s.GeoInfo.CountyName=w.GeoInfo.CountyName;
+      s.GeoInfo.TownName=s.GeoInfo.TownName||w.GeoInfo.TownName;
+    }
+    if(!s.GeoInfo.StationAltitude&&w?.GeoInfo?.StationAltitude)s.GeoInfo.StationAltitude=w.GeoInfo.StationAltitude;
+  });
+
+  const counties=[...new Set([...RAW,...RAIN,...SUN].map(s=>s.GeoInfo?.CountyName).filter(Boolean))].sort();
+  const prevCounty=$("countySel") ? $("countySel").value : "";
+  if($("countySel")){
+    $("countySel").innerHTML='<option value="">全部（縮放至全臺）</option>'+counties.map(c=>`<option>${c}</option>`).join("");
+    if(prevCounty&&counties.includes(prevCounty))$("countySel").value=prevCounty;
+  }
+
+  // 頂部資料時間與測站統計標註
+  const timeStr = t10 ? new Date(t10).toLocaleString("zh-TW") : "—";
+  const n10 = RAW_10MIN.length;
+  const nRain = RAIN.length;
+  const nSun = SUN.length;
+  const nTotal = RAW.length;
+
+  if($("obsTime")){
+    if(mergeWanted && RAW_HOURLY.length > 0 && align.isAligned){
+      $("obsTime").textContent = `🕒 資料時間：${timeStr}（10分站 ${n10} ‧ 併入逐時 ${hourlyAddedCount} ‧ 去重共 ${nTotal} 站 ‧ 時差 ${align.diffMinutes}分 ‧ 雨量 ${nRain} ‧ 日射 ${nSun}）`;
+    } else if(mergeWanted && RAW_HOURLY.length > 0 && !align.isAligned){
+      $("obsTime").textContent = `🕒 資料時間：${timeStr}（逐時時差 ${align.diffMinutes}分未對齊，僅呈現10分站 ${n10} ‧ 雨量 ${nRain} ‧ 日射 ${nSun}）`;
+    } else if(mergeWanted && !RAW_HOURLY.length){
+      $("obsTime").textContent = `🕒 資料時間：${timeStr}（逐時資料未就緒，僅呈現10分站 ${n10} ‧ 雨量 ${nRain} ‧ 日射 ${nSun}）`;
+    } else {
+      $("obsTime").textContent = `🕒 資料時間：${timeStr}（未開啟合併 ‧ 10分站 ${n10} ‧ 雨量 ${nRain} ‧ 日射 ${nSun}）`;
+    }
+  }
+}
+window.applyMerge = applyMerge;
+
 async function load(fit=true){
   if(!KEY){openGate();return;}
   $("loader").style.display="flex";
   try{
-    const jw=await fetch(API).then(r=>r.json());
+    const [jw, jr, js, jh] = await Promise.all([
+      fetch(API).then(r=>r.json()),
+      fetch(API_RAIN).then(r=>r.json()).catch(()=>null),
+      fetch(API_SUN).then(r=>r.json()).catch(()=>null),
+      fetch(API_HOURLY).then(r=>r.json()).catch(()=>null)
+    ]);
     // 授權失敗偵測：CWA 會回傳非 success 或 401
     if(jw&&jw.success==="false"){
       throw new Error("金鑰無效或未授權，請確認 API 授權碼");
     }
-    const jr=await fetch(API_RAIN).then(r=>r.json()).catch(()=>null);   // 雨量站（失敗不影響主圖）
-    const js=await fetch(API_SUN).then(r=>r.json()).catch(()=>null);    // 日射量（失敗不影響主圖）
-    RAW=jw?.records?.Station||[];
+    RAW_10MIN=jw?.records?.Station||[];
+    RAW_HOURLY=jh?.records?.Station||[];
     RAIN=jr?.records?.Station||[];
     SUN=sunStations(js);
-    if(!RAW.length&&!RAIN.length){throw new Error("查無資料，請確認金鑰是否正確");}
-    weatherById={};RAW.forEach(s=>weatherById[s.StationId]=s);
+    window.RAW_10MIN = RAW_10MIN;
+    window.RAW_HOURLY = RAW_HOURLY;
+    window.RAIN = RAIN;
+    window.SUN = SUN;
+    if(!RAW_10MIN.length&&!RAIN.length){throw new Error("查無資料，請確認金鑰是否正確");}
     rainById={};RAIN.forEach(s=>rainById[s.StationId]=s);
     sunById={};SUN.forEach(s=>sunById[s.StationId]=s);
-    // 日射量資料無縣市欄位 → 由同站號之綜觀氣象站補上，讓縣市篩選可用
-    SUN.forEach(s=>{
-      s.GeoInfo=s.GeoInfo||{};
-      const w=weatherById[s.StationId];
-      if(!s.GeoInfo.CountyName&&w?.GeoInfo?.CountyName){
-        s.GeoInfo.CountyName=w.GeoInfo.CountyName;
-        s.GeoInfo.TownName=s.GeoInfo.TownName||w.GeoInfo.TownName;
-      }
-      if(!s.GeoInfo.StationAltitude&&w?.GeoInfo?.StationAltitude)s.GeoInfo.StationAltitude=w.GeoInfo.StationAltitude;
-    });
-    const counties=[...new Set([...RAW,...RAIN,...SUN].map(s=>s.GeoInfo?.CountyName).filter(Boolean))].sort();
-    const prevCounty=$("countySel").value;   // 重建選單時保留使用者已選縣市
-    $("countySel").innerHTML='<option value="">全部（縮放至全臺）</option>'+counties.map(c=>`<option>${c}</option>`).join("");
-    if(prevCounty&&counties.includes(prevCounty))$("countySel").value=prevCounty;
-    // 資料時間：以 O-A0003-001（綜觀氣象站）為主
-    const t=RAW[0]?.ObsTime?.DateTime;
-    $("obsTime").textContent="🕒 資料時間："+(t?new Date(t).toLocaleString("zh-TW"):"—")
-      +`（O-A0003-001 ‧ 氣象站 ${RAW.length} ‧ 雨量站 ${RAIN.length} ‧ 日射 ${SUN.length}）`;
+
+    applyMerge();
     render(fit);
+    stats();
   }catch(e){
     $("info").textContent="載入失敗："+e.message;
     // 若尚未成功載入任何資料，退回金鑰輸入畫面
-    if(!RAW.length&&!RAIN.length){openGate("載入失敗："+e.message);}
+    if(!RAW_10MIN.length&&!RAIN.length){openGate("載入失敗："+e.message);}
   }
   $("loader").style.display="none";
 }
+
+// ===== 全臺極值統計 (All-Taiwan Extreme Statistics) =====
+function stats(){
+  if(!Array.isArray(RAW) || !RAW.length) return;
+  const pick=(list, get, cmp)=>{
+    let best=null, bv=null;
+    list.forEach(s=>{
+      const v=get(s);
+      if(v===null || !isFinite(v)) return;
+      if(bv===null || cmp(v, bv)){ bv=v; best=s; }
+    });
+    return best ? { s: best, v: bv } : null;
+  };
+  const fmt=(r,unit)=>r ? `${r.v.toLocaleString("zh-TW",{maximumFractionDigits:1})} ${unit} ‧ ${r.s.StationName}` : "—";
+  const hi = pick(RAW, s=>num(s.WeatherElement?.AirTemperature), (a,b)=>a>b);
+  const lo = pick(RAW, s=>num(s.WeatherElement?.AirTemperature), (a,b)=>a<b);
+  
+  const getRain = s => {
+    const r = rainById[s.StationId] || (s.RainfallElement ? s : null);
+    let val = r ? (rget(r, "Past24hr") ?? rget(r, "Now")) : null;
+    if(val === null) val = num(s.WeatherElement?.Now?.Precipitation);
+    return val;
+  };
+  const allRainStations = Array.isArray(RAIN) && RAIN.length ? [...RAW, ...RAIN] : RAW;
+  const rn = pick(allRainStations, getRain, (a,b)=>a>b);
+  const gu = pick(RAW, s=>num(s.WeatherElement?.GustInfo?.PeakGustSpeed), (a,b)=>a>b);
+
+  if($("stHi")) $("stHi").textContent = fmt(hi, "°C");
+  if($("stLo")) $("stLo").textContent = fmt(lo, "°C");
+  if($("stRain")) $("stRain").textContent = fmt(rn, "mm");
+  if($("stGust")) $("stGust").textContent = fmt(gu, "m/s");
+  if($("stats")) $("stats").style.display = "block";
+}
+window.stats = stats;
 
 function buildPopup(s,v,val,color){
   const id=s.StationId, geo=s.GeoInfo||{};
@@ -972,16 +1257,29 @@ function buildPopup(s,v,val,color){
   const we=w?.WeatherElement||{};
   const disp=val===null?"無資料":val.toLocaleString("zh-TW",{maximumFractionDigits:1})+" "+v.unit;
   const row=(k,val)=>`<div class="row"><span class="k">${k}</span><span>${val}</span></div>`;
+  const srcTag = s._source === "merged" ? "兩者合併互補 (10分鐘+逐時)" :
+                 s._source === "hourly" ? "逐時觀測站 (O-A0001-001)" :
+                 "10分鐘自動站 (O-A0003-001)";
   let html=`<div class="pop"><h3>${s.StationName||""} <small style="color:#9fb0c8">${id||""}</small></h3>
     <div class="row"><span class="k">${v.label}</span><span class="big" style="color:${val===null?'#9fb0c8':color}">${disp}</span></div>
+    ${row("資料來源",`<span style="color:#8ab4f8;font-weight:600">${srcTag}</span>`)}
     ${row("縣市鄉鎮",(geo.CountyName||"")+" "+(geo.TownName||""))}
     ${row("海拔",(geo.StationAltitude||"—")+" m")}`;
   if(w){
     html+=`<div style="border-top:1px solid var(--line);margin:6px 0 4px;padding-top:5px;color:#9fb0c8;font-size:11px">氣象觀測</div>`
-      +row("天氣",NA(we.Weather)?"—":we.Weather)
+      +row("天氣",!isValidText(we.Weather)?"—":we.Weather)
       +row("氣溫 / 溼度",(num(we.AirTemperature)??"—")+"°C / "+(num(we.RelativeHumidity)??"—")+"%")
       +row("風速 / 風向",(num(we.WindSpeed)??"—")+" m/s / "+(num(we.WindDirection)??"—")+"°")
       +row("氣壓",(num(we.AirPressure)??"—")+" hPa");
+    if(!NA(we.Now?.Precipitation)){
+      html+=row("日累積雨量",(num(we.Now.Precipitation)??"—")+" mm");
+    }
+    if(!NA(we.GustInfo?.PeakGustSpeed)){
+      html+=row("最大陣風",(num(we.GustInfo.PeakGustSpeed)??"—")+" m/s");
+    }
+    if(!NA(we.UVIndex)){
+      html+=row("紫外線指數",(num(we.UVIndex)??"—"));
+    }
   }
   if(r){
     const p=k=>{const x=rget(r,k);return x===null?"—":x+" mm";};
@@ -3780,6 +4078,13 @@ map.on("zoomend",()=>{if(RAW.length)render(false, true);});  // 縮放時等比�
 $("varSel").onchange=()=>render(false);
 $("countySel").onchange=()=>render(true);
 $("search").oninput=()=>render(false);
+if($("mergeHourlyChk")){
+  $("mergeHourlyChk").onchange=()=>{
+    applyMerge();
+    render(false);
+    stats();
+  };
+}
 $("dayNightChk").checked=localStorage.getItem(DAYNIGHT_LS)!=="0";
 $("dayNightChk").onchange=()=>{
   localStorage.setItem(DAYNIGHT_LS,$("dayNightChk").checked?"1":"0");
