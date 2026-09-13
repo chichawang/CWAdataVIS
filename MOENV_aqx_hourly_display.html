@@ -16,6 +16,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   :root{
     --bg:#0e1217;
@@ -143,6 +144,26 @@
   #gate .err{color:#fca5a5;font-size:12px;margin-top:10px;display:none}
   #gate .hint{color:var(--muted);font-size:11px;margin-top:14px;line-height:1.5}
   #gate a{color:var(--accent)}
+
+  /* 浮動提示 Toast */
+  .cwa-toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-20px);opacity:0;
+    background:rgba(23,28,40,0.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+    border:1px solid var(--accent);color:#fff;font-size:13px;font-weight:600;padding:10px 18px;
+    border-radius:24px;box-shadow:0 8px 32px rgba(0,0,0,0.5);z-index:9999;pointer-events:none;
+    display:flex;align-items:center;gap:8px;transition:all .3s cubic-bezier(0.16, 1, 0.3, 1)}
+  .cwa-toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+
+  /* 地圖懸浮快捷操作條 */
+  .map-quick-bar{position:absolute;top:12px;right:56px;z-index:1000;display:flex;gap:6px}
+  .map-quick-btn{background:rgba(23,28,40,0.78);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+    color:var(--txt);border:1px solid var(--line);border-radius:12px;padding:6px 11px;font-size:12px;
+    cursor:pointer;font-weight:600;display:inline-flex;align-items:center;gap:4px;box-shadow:0 4px 16px rgba(0,0,0,0.3);
+    transition:all .2s ease}
+  .map-quick-btn:hover{background:rgba(255,255,255,0.12);border-color:var(--accent);color:var(--accent)}
+  @media(max-width:520px){
+    .map-quick-bar{top:10px;right:46px;gap:4px}
+    .map-quick-btn{padding:5px 8px;font-size:11px}
+  }
 </style>
 </head>
 <body>
@@ -161,15 +182,35 @@
     <button class="go" id="enterBtn">進入地圖 →</button>
     <button type="button" class="go" id="demoBtn" style="margin-top:8px;background:transparent;border:1px solid var(--line);color:var(--muted);font-weight:400">🧪 使用內建金鑰</button>
     <div class="hint">內建金鑰為此頁面預設之金鑰，可能隨時失效或被限流；正式使用請申請個人金鑰。</div>
-    <div class="err" id="keyErr"></div>
     <div class="hint">尚無金鑰？可至
       <a href="https://data.moenv.gov.tw/" target="_blank" rel="noopener">環境部環境資料開放平臺</a>
       免費申請會員並取得 API KEY。金鑰僅在您的瀏覽器中使用，不會上傳。</div>
+    <!-- 金鑰問題排查與診斷指引 -->
+    <details style="margin-top:14px;border-top:1px solid var(--line);padding-top:10px;font-size:12px;color:var(--muted);text-align:left">
+      <summary style="cursor:pointer;color:var(--accent);font-weight:600;outline:none">🔍 常見問題與除錯指南（401 / 429 / CORS）</summary>
+      <div style="margin-top:8px;line-height:1.6;display:flex;flex-direction:column;gap:6px">
+        <div><b>Q: 出現「401 未授權 / 金鑰無效」？</b><br>A: 請確認環境部 API KEY 是否完整複製，或至環境部開放平臺確認金鑰有效期限。</div>
+        <div><b>Q: 出現「429 請求過多 / 限流」？</b><br>A: 環境部 API 設有呼叫頻率限制。若多個圖層同時載入請稍候重試，或確認是否達到每日配額上限。</div>
+        <div><b>Q: 出現「CORS 限制 / Failed to fetch」？</b><br>A: 本平臺直接由瀏覽器呼叫官方開放 API。若位於受管制的企業或校園內網，請確認防火牆是否放行 <code>data.moenv.gov.tw</code>。</div>
+        <div style="margin-top:4px">
+          <button type="button" id="clearSavedKeyBtn" style="background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:4px 8px;font-size:11px;cursor:pointer">🧹 清除已記住的金鑰重設</button>
+        </div>
+      </div>
+    </details>
   </div>
 </div>
 
 <div id="map"></div>
 <div id="loader" class="loader">⏳ 載入環境部空品監測資料中…</div>
+
+<!-- 懸浮快捷按鈕列 -->
+<div class="map-quick-bar">
+  <button type="button" class="map-quick-btn" id="quickShare" title="複製目前空品地圖視野與圖層設定連結">🔗 分享檢視</button>
+  <button type="button" class="map-quick-btn" id="quickShot" title="匯出空品地圖畫面為 PNG 圖片">📷 截圖匯出</button>
+</div>
+
+<!-- 浮動 Toast 提示通知 -->
+<div id="cwaToast" class="cwa-toast"></div>
 
 <button type="button" id="panelTab" title="收合 / 展開面板">◀</button>
 <div class="panel" id="panel">
@@ -212,6 +253,19 @@
   <span class="chip" id="autoStat" style="display:none;margin-top:5px"></span>
   <div class="btns">
     <button class="ghost" id="changeKey">🔑 更換金鑰</button>
+  </div>
+  <!-- 分享與匯出檢視 -->
+  <div class="stats" id="shareSec" style="margin-top:10px">
+    <div class="t">📤 分享與匯出檢視</div>
+    <div class="btns" style="margin-top:4px">
+      <button id="btnShareUrl" title="複製目前地圖視野與圖層設定的專屬連結">🔗 複製分享連結</button>
+      <button class="ghost" id="btnExportImg" title="將目前畫面匯出為 PNG 圖片">📷 匯出畫面 (PNG)</button>
+    </div>
+    <div class="btns" style="margin-top:6px">
+      <button class="ghost" id="btnExportCsv" title="匯出當前篩選之空品測站資料為 CSV 檔">📊 匯出資料 (CSV)</button>
+      <button class="ghost" id="btnExportJson" title="匯出當前篩選之結構化空品資料為 JSON 檔">{ } 匯出 JSON</button>
+    </div>
+    <span class="chip" id="shareStat" style="display:none;margin-top:5px"></span>
   </div>
   <div class="stats" id="fcBox" style="display:none">
     <div class="t">📢 空氣品質預報 (aqf_p_01)</div>
@@ -347,7 +401,7 @@ const VARS=[
   {key:"WIND_SPEED",label:"即時風向＋風速（箭號）",unit:"m/s",ramp:RAMP.wind,wind:true,dirKey:"WIND_DIREC"},
   {key:"WIND_DIREC",label:"即時風向",unit:"°",ramp:RAMP.dir,wind:true,byDir:true,dirKey:"WIND_DIREC"}
 ];
-const AQI_LEVEL_NAMES=["良好","普通","對敏感族群不健康","對所有族群不健康","非常不健康","危害"];
+const AQI_LEVEL_NAMES=["[✓ 良好]","[● 普通]","[▲ 對敏感族群不健康]","[⚠️ 對所有族群不健康]","[⛔ 非常不健康]","[☠️ 危害]"];
 
 // 單站小時值時序資料集對照表（aqx_p_189～264、461；站名→資料集 id）
 const STATION_TS={
@@ -405,11 +459,11 @@ const TAIWAN=L.latLngBounds([21.85,119.95],[25.35,122.05]);
 const map=L.map("map",{zoomControl:true}).fitBounds(TAIWAN);
 map.zoomControl.setPosition("topright");
 const BASES={
-  osm:L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}),
-  sat:L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:19,attribution:"Esri World Imagery"}),
-  topo:L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",{maxZoom:17,attribution:"© OpenTopoMap"}),
-  dark:L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=cb1_325q_1_8b5e6f905ab09a4799809661",{maxZoom:20,attribution:"© CARTO"}),
-  light:L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_325q_1_8b5e6f905ab09a4799809661",{maxZoom:20,attribution:"© CARTO"})
+  osm:L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap",crossOrigin:true}),
+  sat:L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:19,attribution:"Esri World Imagery",crossOrigin:true}),
+  topo:L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",{maxZoom:17,attribution:"© OpenTopoMap",crossOrigin:true}),
+  dark:L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=cb1_325q_1_8b5e6f905ab09a4799809661",{maxZoom:20,attribution:"© CARTO",crossOrigin:true}),
+  light:L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_325q_1_8b5e6f905ab09a4799809661",{maxZoom:20,attribution:"© CARTO",crossOrigin:true})
 };
 let curBase=BASES.light.addTo(map);
 const layer=L.layerGroup().addTo(map);
@@ -1321,15 +1375,522 @@ $("demoBtn").onclick=()=>{
 };
 $("keyInput").addEventListener("keydown",e=>{if(e.key==="Enter")submitKey();});
 
+// ===== 浮動提示 Toast 通知 =====
+function showToast(msg, duration = 3000){
+  let t = $("cwaToast");
+  if(!t){
+    t = document.createElement("div");
+    t.id = "cwaToast";
+    t.className = "cwa-toast";
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.classList.add("show");
+  if(t._timer) clearTimeout(t._timer);
+  t._timer = setTimeout(()=>{
+    t.classList.remove("show");
+  }, duration);
+}
+
+// ===== 分享目前檢視：URL 狀態序列化與還原 =====
+function getSharedParams(){
+  const p = new URLSearchParams();
+  const put = (k, val) => { if(val !== undefined && val !== null && val !== "") p.set(k, String(val)); };
+
+  // 1. 地圖視角與底圖
+  const c = map.getCenter();
+  put("lat", c.lat.toFixed(4));
+  put("lng", c.lng.toFixed(4));
+  put("z", map.getZoom());
+  if($("baseSel") && $("baseSel").value !== "light") put("base", $("baseSel").value);
+
+  // 2. 監測測項與篩選
+  if($("varSel") && $("varSel").value) put("var", $("varSel").value);
+  if($("countySel") && $("countySel").value) put("county", $("countySel").value);
+  if($("typeSel") && $("typeSel").value) put("type", $("typeSel").value);
+  if($("search") && $("search").value.trim()) put("q", $("search").value.trim());
+
+  // 3. 加值監測圖層
+  if($("dustChk") && $("dustChk").checked) put("dust", "1");
+  if($("indChk") && $("indChk").checked) put("ind", "1");
+  if($("vocChk") && $("vocChk").checked) put("voc", "1");
+  if($("lulinChk") && $("lulinChk").checked) put("lulin", "1");
+
+  return p;
+}
+
+let updateUrlTimer = null;
+function updateUrlState(){
+  if(updateUrlTimer) clearTimeout(updateUrlTimer);
+  updateUrlTimer = setTimeout(() => {
+    try{
+      const p = getSharedParams();
+      const s = p.toString();
+      history.replaceState(null, "", s ? ("?" + s) : location.pathname);
+    }catch(e){}
+  }, 400);
+}
+
+async function copyShareUrl(){
+  const p = getSharedParams();
+  const url = location.origin + location.pathname + (p.toString() ? "?" + p.toString() : "");
+  let copied = false;
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(url);
+      copied = true;
+    }
+  }catch(e){}
+  if(!copied){
+    try{
+      const ta = document.createElement("textarea");
+      ta.value = url;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      copied = true;
+    }catch(e2){}
+  }
+  showToast("🔗 已複製分享連結！包含空品地圖視角、測項與篩選條件。");
+}
+
+function restoreSharedState(){
+  const raw = location.search ? location.search.substring(1) : location.hash.replace(/^#/, "");
+  if(!raw) return false;
+  const p = new URLSearchParams(raw);
+
+  // 1. 地圖中心與視角
+  let hasCoords = false;
+  if(p.has("lat") && p.has("lng") && p.has("z")){
+    const lat = parseFloat(p.get("lat"));
+    const lng = parseFloat(p.get("lng"));
+    const z = parseInt(p.get("z"), 10);
+    if(!isNaN(lat) && !isNaN(lng) && !isNaN(z)){
+      map.setView([lat, lng], z);
+      hasCoords = true;
+    }
+  }
+
+  // 2. 底圖樣式
+  if(p.has("base") && BASES[p.get("base")]){
+    if($("baseSel")) $("baseSel").value = p.get("base");
+    map.removeLayer(curBase);
+    curBase = BASES[p.get("base")].addTo(map);
+    curBase.bringToBack();
+  }
+
+  // 3. 監測測項與篩選
+  if(p.has("var") && $("varSel")){
+    $("varSel").value = p.get("var");
+  }
+  if(p.has("county") && $("countySel")){
+    $("countySel").value = p.get("county");
+  }
+  if(p.has("type") && $("typeSel")){
+    $("typeSel").value = p.get("type");
+  }
+  if(p.has("q") && $("search")){
+    $("search").value = p.get("q");
+  }
+
+  // 4. 加值圖層
+  if(p.get("dust") === "1" && $("dustChk")){
+    $("dustChk").checked = true;
+    if(KEY) loadDust(true);
+  }
+  if(p.get("ind") === "1" && $("indChk")){
+    $("indChk").checked = true;
+    if(KEY) loadInd(true);
+  }
+  if(p.get("voc") === "1" && $("vocChk")){
+    $("vocChk").checked = true;
+    if(KEY) loadVOC();
+  }
+  if(p.get("lulin") === "1" && $("lulinChk")){
+    $("lulinChk").checked = true;
+    if(KEY) loadLulin(true);
+  }
+
+  return hasCoords;
+}
+
+// ===== 匯出地圖畫面為 PNG 圖片 =====
+async function exportMapImage(){
+  const shareStat = $("shareStat");
+  if(shareStat){
+    shareStat.style.display = "block";
+    shareStat.textContent = "⏳ 正在擷取空品地圖畫面…";
+  }
+  showToast("📷 正在產生空品地圖畫面截圖...", 3500);
+
+  try{
+    if(typeof html2canvas === "undefined"){
+      throw new Error("截圖工具尚未就緒，請檢查網路連線或稍後再試");
+    }
+
+    const zoomCtrl = document.querySelector(".leaflet-control-zoom");
+    const panelTab = $("panelTab");
+    const quickBar = document.querySelector(".map-quick-bar");
+    const toastEl = $("cwaToast");
+    const tsBox = $("tsBox");
+
+    const prevZoomDisp = zoomCtrl ? zoomCtrl.style.display : "";
+    const prevTabDisp = panelTab ? panelTab.style.display : "";
+    const prevQuickDisp = quickBar ? quickBar.style.display : "";
+    const prevToastDisp = toastEl ? toastEl.style.display : "";
+    const prevTsDisp = tsBox ? tsBox.style.display : "";
+
+    if(zoomCtrl) zoomCtrl.style.display = "none";
+    if(panelTab) panelTab.style.display = "none";
+    if(quickBar) quickBar.style.display = "none";
+    if(toastEl) toastEl.style.display = "none";
+    if(tsBox) tsBox.style.display = "none";
+
+    const mapEl = document.getElementById("map");
+    const mapCanvas = await html2canvas(mapEl, {
+      useCORS: true,
+      allowTaint: false,
+      backgroundColor: "#0e1217",
+      logging: false,
+      scale: Math.min(window.devicePixelRatio || 1, 2)
+    });
+
+    if(zoomCtrl) zoomCtrl.style.display = prevZoomDisp;
+    if(panelTab) panelTab.style.display = prevTabDisp;
+    if(quickBar) quickBar.style.display = prevQuickDisp;
+    if(toastEl) toastEl.style.display = prevToastDisp;
+    if(tsBox) tsBox.style.display = prevTsDisp;
+
+    // 檢查圖例是否可見
+    const legEl = document.getElementById("legend");
+    let legCanvas = null;
+    if(legEl && !legEl.classList.contains("collapsed") && legEl.offsetHeight > 30){
+      try{
+        legCanvas = await html2canvas(legEl, {
+          useCORS: true,
+          allowTaint: false,
+          backgroundColor: "rgba(23,28,40,0.92)",
+          logging: false,
+          scale: mapCanvas.width / mapEl.clientWidth
+        });
+      }catch(e){
+        console.warn("Capture legend optional step skipped:", e);
+      }
+    }
+
+    // 建立最終合成畫布
+    const finalCanvas = document.createElement("canvas");
+    const scale = mapCanvas.width / mapEl.clientWidth;
+    const bannerH = Math.round(52 * scale);
+    finalCanvas.width = mapCanvas.width;
+    finalCanvas.height = mapCanvas.height + bannerH;
+    const ctx = finalCanvas.getContext("2d");
+
+    // 1. 繪製地圖底圖
+    ctx.drawImage(mapCanvas, 0, 0);
+
+    // 2. 若有圖例，繪製於地圖右下方
+    if(legCanvas){
+      const margin = Math.round(16 * scale);
+      const lx = mapCanvas.width - legCanvas.width - margin;
+      const ly = mapCanvas.height - legCanvas.height - margin;
+      if(lx > 0 && ly > 0){
+        ctx.shadowColor = "rgba(0,0,0,0.5)";
+        ctx.shadowBlur = 16;
+        ctx.drawImage(legCanvas, lx, ly);
+        ctx.shadowColor = "transparent";
+        ctx.shadowBlur = 0;
+      }
+    }
+
+    // 3. 繪製底部資訊列 Banner
+    ctx.fillStyle = "rgba(14, 18, 23, 0.96)";
+    ctx.fillRect(0, mapCanvas.height, finalCanvas.width, bannerH);
+
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, mapCanvas.height);
+    ctx.lineTo(finalCanvas.width, mapCanvas.height);
+    ctx.stroke();
+
+    const pad = Math.round(16 * scale);
+
+    // 左側文字：標題與空品測項資訊
+    ctx.fillStyle = "#ffffff";
+    ctx.font = `bold ${Math.round(13.5 * scale)}px "Roboto", "Noto Sans TC", sans-serif`;
+    ctx.fillText("🌫️ 環境部 OPEN DATA 空品測項小時值地圖", pad, mapCanvas.height + Math.round(21 * scale));
+
+    const curV = curVar();
+    const obsT = $("obsTime") ? $("obsTime").textContent.replace("🕒 資料時間：", "").trim() : "";
+    const cty = $("countySel") && $("countySel").value ? $("countySel").value : "全臺";
+    ctx.fillStyle = "#9aa0a6";
+    ctx.font = `${Math.round(11 * scale)}px "Roboto", "Noto Sans TC", sans-serif`;
+    ctx.fillText(`監測測項：${curV ? curV.label : "無"} ‧ 縣市：${cty} ‧ 資料時間：${obsT || "即時"}`, pad, mapCanvas.height + Math.round(41 * scale));
+
+    // 右側文字：啟用圖層與產製時間
+    const activeLayers = [];
+    if($("dustChk") && $("dustChk").checked) activeLayers.push("河川揚塵");
+    if($("indChk") && $("indChk").checked) activeLayers.push("工業區監測");
+    if($("vocChk") && $("vocChk").checked) activeLayers.push("光化VOC");
+    if($("lulinChk") && $("lulinChk").checked) activeLayers.push("鹿林山背景站");
+    const layerStr = activeLayers.length ? "已啟用：" + activeLayers.join(" / ") : "";
+
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#8ab4f8";
+    ctx.font = `${Math.round(11 * scale)}px "Roboto", "Noto Sans TC", sans-serif`;
+    ctx.fillText(layerStr, finalCanvas.width - pad, mapCanvas.height + Math.round(21 * scale));
+
+    ctx.fillStyle = "#9aa0a6";
+    ctx.font = `${Math.round(10 * scale)}px "Roboto", "Noto Sans TC", sans-serif`;
+    ctx.fillText(`產製時間：${new Date().toLocaleString("zh-TW")}`, finalCanvas.width - pad, mapCanvas.height + Math.round(41 * scale));
+
+    // 觸發下載
+    const dataUrl = finalCanvas.toDataURL("image/png");
+    const a = document.createElement("a");
+    const pad2 = n => String(n).padStart(2, "0");
+    const now = new Date();
+    const curTime = `${now.getFullYear()}${pad2(now.getMonth()+1)}${pad2(now.getDate())}_${pad2(now.getHours())}${pad2(now.getMinutes())}`;
+    const varName = curV ? curV.key : "aqi_view";
+    a.download = `MOENV_${varName}_${curTime}.png`;
+    a.href = dataUrl;
+    a.click();
+
+    if(shareStat){
+      shareStat.textContent = "✅ 圖片已成功匯出！";
+      setTimeout(()=>{ shareStat.style.display = "none"; }, 3000);
+    }
+    showToast("✅ 空品地圖畫面已成功匯出為 PNG 圖片！");
+  }catch(err){
+    console.error("Export MOENV image error:", err);
+    if(shareStat){
+      shareStat.textContent = "⚠️ 匯出失敗：" + err.message;
+    }
+    showToast("⚠️ 匯出圖片失敗：" + err.message, 3500);
+  }
+}
+
+// ===== 匯出目前篩選之測站空品資料 (CSV / JSON) =====
+function exportStationData(format = 'csv'){
+  const shareStat = $("shareStat");
+  try{
+    const v = curVar();
+    if(!v){
+      showToast("⚠️ 目前未選取監測測項，無法匯出資料。");
+      return;
+    }
+    const sitesList = Object.values(SITES);
+    if(!sitesList || !sitesList.length){
+      showToast("⚠️ 目前查無空品測站觀測資料。");
+      return;
+    }
+
+    const county = $("countySel") ? $("countySel").value : "";
+    const stype = $("typeSel") ? $("typeSel").value : "";
+    const q = $("search") ? $("search").value.trim().toLowerCase() : "";
+    const matched = [];
+
+    sitesList.forEach(s => {
+      if(county && s.county !== county) return;
+      if(stype && (META[s.siteid]?.sitetype || "") !== stype) return;
+      if(q && !((s.sitename||"").toLowerCase().includes(q) || (s.siteid||"").toLowerCase().includes(q))) return;
+      const ll = META[s.siteid]?.ll;
+      if(!ll) return;
+
+      const a = AQI[s.siteid] || {};
+      let val;
+      if(v.key === "__AQI__"){
+        val = num(a.aqi);
+      } else {
+        val = s.items[v.key]?.val;
+        if(val === undefined) val = null;
+        if(val !== null && val < 0 && !v.allowNeg) val = null;
+      }
+
+      const it = s.items || {};
+      matched.push({
+        siteId: s.siteid || "",
+        siteName: s.sitename || "",
+        county: s.county || "",
+        township: META[s.siteid]?.township || "",
+        siteType: META[s.siteid]?.sitetype || "",
+        lat: Number(ll[0].toFixed(5)),
+        lng: Number(ll[1].toFixed(5)),
+        obsTime: s.latest || a.publishtime || "",
+        currentVar: v.label,
+        currentVal: val !== null ? val : "無觀測值",
+        unit: v.unit || "",
+        aqi: num(a.aqi),
+        status: a.status || "",
+        pm25: it["PM2.5"]?.val ?? null,
+        pm10: it["PM10"]?.val ?? null,
+        o3: it["O3"]?.val ?? null,
+        so2: it["SO2"]?.val ?? null,
+        no2: it["NO2"]?.val ?? null,
+        co: it["CO"]?.val ?? null,
+        temp: it["AMB_TEMP"]?.val ?? null,
+        windSpeed: it["WS_HR"]?.val ?? it["WIND_SPEED"]?.val ?? null,
+        windDir: it["WD_HR"]?.val ?? it["WIND_DIREC"]?.val ?? null
+      });
+    });
+
+    if(!matched.length){
+      showToast("⚠️ 篩選條件下無符合之空品測站資料。");
+      return;
+    }
+
+    const pad2 = n => String(n).padStart(2, "0");
+    const now = new Date();
+    const curTime = `${now.getFullYear()}${pad2(now.getMonth()+1)}${pad2(now.getDate())}_${pad2(now.getHours())}${pad2(now.getMinutes())}`;
+
+    if(format === "csv"){
+      const headers = [
+        "測站代碼", "測站名稱", "縣市", "鄉鎮市區", "測站類型", "緯度", "經度",
+        "監測時間", "選取測項", "測項數值", "單位",
+        "AQI", "狀態", "PM2.5(μg/m3)", "PM10(μg/m3)", "O3(ppb)", "SO2(ppb)", "NO2(ppb)", "CO(ppm)", "溫度(℃)", "風速(m/s)", "風向(°)"
+      ];
+      const escapeCsv = val => {
+        if(val === null || val === undefined) return "";
+        const str = String(val);
+        if(str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")){
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      };
+      const rows = [headers.map(escapeCsv).join(",")];
+      matched.forEach(item => {
+        rows.push([
+          item.siteId, item.siteName, item.county, item.township, item.siteType, item.lat, item.lng,
+          item.obsTime, item.currentVar, item.currentVal, item.unit,
+          item.aqi ?? "", item.status ?? "", item.pm25 ?? "", item.pm10 ?? "", item.o3 ?? "",
+          item.so2 ?? "", item.no2 ?? "", item.co ?? "", item.temp ?? "", item.windSpeed ?? "", item.windDir ?? ""
+        ].map(escapeCsv).join(","));
+      });
+      const bom = "\uFEFF";
+      const blob = new Blob([bom + rows.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.download = `MOENV_aqx_${v.key}_${curTime}.csv`;
+      a.href = url;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast(`✅ 已匯出 ${matched.length} 筆空品測站資料 (CSV)`);
+    } else {
+      const exportObj = {
+        title: "環境部空品測項小時值資料匯出",
+        exportTime: now.toISOString(),
+        obsTime: $("obsTime") ? $("obsTime").textContent.replace("🕒 資料時間：", "").trim() : "",
+        variable: { key: v.key, label: v.label, unit: v.unit },
+        countyFilter: county || "全部",
+        siteTypeFilter: stype || "全部",
+        searchQuery: q || "",
+        totalStations: matched.length,
+        stations: matched
+      };
+      const blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: "application/json;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.download = `MOENV_aqx_${v.key}_${curTime}.json`;
+      a.href = url;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast(`✅ 已匯出 ${matched.length} 筆空品結構化資料 (JSON)`);
+    }
+  }catch(err){
+    console.error("Export MOENV station data error:", err);
+    showToast("⚠️ 匯出資料失敗：" + err.message);
+  }
+}
+
+// 綁定分享與匯出按鈕事件
+if($("btnShareUrl")) $("btnShareUrl").onclick = copyShareUrl;
+if($("quickShare")) $("quickShare").onclick = copyShareUrl;
+if($("btnExportImg")) $("btnExportImg").onclick = exportMapImage;
+if($("quickShot")) $("quickShot").onclick = exportMapImage;
+if($("btnExportCsv")) $("btnExportCsv").onclick = () => exportStationData("csv");
+if($("btnExportJson")) $("btnExportJson").onclick = () => exportStationData("json");
+
+// 地圖移動與操作變更時自動同步更新 URL 狀態
+map.on("moveend", updateUrlState);
+map.on("zoomend", updateUrlState);
+["varSel", "countySel", "typeSel", "baseSel"].forEach(id => {
+  if($(id)) $(id).addEventListener("change", updateUrlState);
+});
+["search"].forEach(id => {
+  if($(id)) $(id).addEventListener("input", updateUrlState);
+});
+["dustChk", "indChk", "vocChk", "lulinChk"].forEach(id => {
+  if($(id)) $(id).addEventListener("change", updateUrlState);
+});
+
+window.getSharedParams = getSharedParams;
+window.restoreSharedState = restoreSharedState;
+window.copyShareUrl = copyShareUrl;
+window.exportMapImage = exportMapImage;
+window.exportStationData = exportStationData;
+
+// ===== localStorage 自動垃圾回收清理 (GC) =====
+function cleanupStorageCache(){
+  try{
+    const now = Date.now();
+    const MAX_AGE = 24 * 3600 * 1000; // 24 小時
+    const targetPrefixes = ["cwa_", "wra_", "iow_", "moenv_"];
+    const keysToRemove = [];
+
+    for(let i = 0; i < localStorage.length; i++){
+      const k = localStorage.key(i);
+      if(!k) continue;
+      if(k === STORE) continue;
+      
+      const isTarget = targetPrefixes.some(pre => k.startsWith(pre)) || k.includes("_cache") || k.includes("_ts_");
+      if(isTarget){
+        try{
+          const itemStr = localStorage.getItem(k);
+          if(!itemStr) continue;
+          const parsed = JSON.parse(itemStr);
+          if(parsed && typeof parsed === "object" && parsed.t){
+            if(now - parsed.t > MAX_AGE){
+              keysToRemove.push(k);
+            }
+          }
+        }catch(e){}
+      }
+    }
+    keysToRemove.forEach(k => {
+      try{ localStorage.removeItem(k); }catch(_){}
+    });
+    if(keysToRemove.length > 0){
+      console.log(`[Storage GC] 已清除 ${keysToRemove.length} 項過期快取。`);
+    }
+  }catch(err){
+    console.warn("[Storage GC] 清理失敗:", err);
+  }
+}
+
+// 綁定閘門「清除已記住的金鑰」按鈕
+if($("clearSavedKeyBtn")){
+  $("clearSavedKeyBtn").onclick = () => {
+    try{ localStorage.removeItem(STORE); }catch(_){}
+    if($("keyInput")) $("keyInput").value = "";
+    if($("rememberKey")) $("rememberKey").checked = false;
+    showToast("🧹 已清除記住的金鑰設定");
+  };
+}
+
 // 啟動：若瀏覽器已記住金鑰則直接載入，否則顯示金鑰輸入畫面（預填內建金鑰）
 (function init(){
+  cleanupStorageCache();
+  const hasCoords = restoreSharedState();
   let saved="";
   try{saved=localStorage.getItem(STORE)||"";}catch(e){}
   if(saved){
     $("rememberKey").checked=true;
     setKey(saved);
     closeGate();
-    load();
+    load(!hasCoords);
   }else{
     $("keyInput").value=DEFAULT_KEY;
     openGate();

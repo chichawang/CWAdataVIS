@@ -23,6 +23,7 @@
 <script src="https://cdn.jsdelivr.net/npm/kriging-contour@1.0.3/dist/kriging-contour.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/d3-contour@4/dist/d3-contour.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   :root{
     --bg:#0e1217;
@@ -219,7 +220,26 @@
   .dot{width:11px;height:11px;border-radius:50%;background:#7a8aa3;border:1px solid #fff;display:inline-block}
   .loader{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
     background:rgba(14,18,23,0.75);backdrop-filter:blur(12px);z-index:2000;color:var(--accent);font-size:15px;font-weight:500}
-  @media(max-width:520px){:root{--panelW:min(270px,85vw)}.legend{width:160px}}
+  @media(max-width:520px){
+    :root{--panelW:min(290px,85vw)}
+    .legend{width:160px;bottom:72px;right:10px}
+    #mobileBar{display:flex!important}
+  }
+
+  /* 行動裝置底部快捷抽屜 (Mobile Bottom Sheet UI) */
+  #mobileBar{position:fixed;bottom:0;left:0;right:0;z-index:2000;display:none;background:rgba(23,28,40,0.92);
+    backdrop-filter:blur(24px) saturate(1.8);-webkit-backdrop-filter:blur(24px) saturate(1.8);
+    border-top:1px solid var(--line);box-shadow:0 -6px 24px rgba(0,0,0,0.5);
+    padding:8px 12px;display:none;flex-direction:column;gap:6px;transition:all .3s ease}
+  .mbar-row{display:flex;align-items:center;gap:8px}
+  .mbar-btn{flex:1;padding:8px 6px;border-radius:12px;background:rgba(255,255,255,0.06);border:1px solid var(--line);
+    color:var(--txt);font-size:12px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:4px;cursor:pointer}
+  .mbar-btn.active{background:rgba(138,180,248,0.2);border-color:var(--accent);color:var(--accent)}
+  #mobileSheet{max-height:0;overflow:hidden;transition:max-height .3s cubic-bezier(0,1,0,1);background:rgba(15,20,30,0.6);border-radius:12px}
+  #mobileSheet.open{max-height:220px;overflow-y:auto;padding:8px;border:1px solid var(--line);margin-bottom:4px}
+  .msheet-item{padding:8px 10px;border-radius:8px;font-size:12.5px;color:var(--txt);display:flex;justify-content:space-between;cursor:pointer}
+  .msheet-item:hover,.msheet-item.active{background:rgba(138,180,248,0.15);color:var(--accent)}
+
 
 
   /* ===== 即時影像：檢視器與分類清單 ===== */
@@ -268,6 +288,26 @@
   #gate .err{color:#f28b82;font-size:12.5px;margin-top:10px;display:none}
   #gate .hint{color:var(--muted);font-size:12px;margin-top:16px;line-height:1.5}
   #gate a{color:var(--accent)}
+
+  /* 浮動提示 Toast */
+  .cwa-toast{position:fixed;top:20px;left:50%;transform:translateX(-50%) translateY(-20px);opacity:0;
+    background:rgba(23,28,40,0.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+    border:1px solid var(--accent);color:#fff;font-size:13px;font-weight:600;padding:10px 18px;
+    border-radius:24px;box-shadow:0 8px 32px rgba(0,0,0,0.5);z-index:9999;pointer-events:none;
+    display:flex;align-items:center;gap:8px;transition:all .3s cubic-bezier(0.16, 1, 0.3, 1)}
+  .cwa-toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+
+  /* 地圖懸浮快捷操作條 */
+  .map-quick-bar{position:absolute;top:12px;right:56px;z-index:1000;display:flex;gap:6px}
+  .map-quick-btn{background:rgba(23,28,40,0.78);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+    color:var(--txt);border:1px solid var(--line);border-radius:12px;padding:6px 11px;font-size:12px;
+    cursor:pointer;font-weight:600;display:inline-flex;align-items:center;gap:4px;box-shadow:0 4px 16px rgba(0,0,0,0.3);
+    transition:all .2s ease}
+  .map-quick-btn:hover{background:rgba(255,255,255,0.12);border-color:var(--accent);color:var(--accent)}
+  @media(max-width:520px){
+    .map-quick-bar{top:10px;right:46px;gap:4px}
+    .map-quick-btn{padding:5px 8px;font-size:11px}
+  }
 </style>
 </head>
 <body>
@@ -290,11 +330,32 @@
     <div class="hint">尚無金鑰？可至
       <a href="https://opendata.cwa.gov.tw/user/authkey" target="_blank" rel="noopener">氣象署開放資料平臺</a>
       免費申請會員並取得授權碼。金鑰僅在您的瀏覽器中使用，不會上傳。</div>
+    <!-- 金鑰問題排查與診斷指引 -->
+    <details style="margin-top:14px;border-top:1px solid var(--line);padding-top:10px;font-size:12px;color:var(--muted)">
+      <summary style="cursor:pointer;color:var(--accent);font-weight:600;outline:none">🔍 常見問題與除錯指南（401 / 429 / CORS）</summary>
+      <div style="margin-top:8px;line-height:1.6;display:flex;flex-direction:column;gap:6px">
+        <div><b>Q: 出現「401 未授權 / 金鑰無效」？</b><br>A: 請確認授權碼是否複製完整（包含 <code>CWA-</code> 前綴），或至氣象署平臺確認會員權限與金鑰是否過期。</div>
+        <div><b>Q: 出現「429 請求過多 / 限流」？</b><br>A: 測試金鑰為共用金鑰，尖峰時段容易受限。請稍候數秒重試，或建議註冊個人金鑰享有獨立配額。</div>
+        <div><b>Q: 出現「CORS 限制 / Failed to fetch」？</b><br>A: 本平臺直接由瀏覽器呼叫官方開放 API。若位於受管制的企業或校園內網，請確認防火牆是否放行 <code>opendata.cwa.gov.tw</code>。</div>
+        <div style="margin-top:4px">
+          <button type="button" id="clearSavedKeyBtn" style="background:transparent;border:1px solid var(--line);color:var(--muted);border-radius:8px;padding:4px 8px;font-size:11px;cursor:pointer">🧹 清除已記住的金鑰重設</button>
+        </div>
+      </div>
+    </details>
   </div>
 </div>
 
 <div id="map"></div>
 <div id="loader" class="loader">⏳ 載入氣象署即時資料中…</div>
+
+<!-- 懸浮快捷按鈕列 -->
+<div class="map-quick-bar">
+  <button type="button" class="map-quick-btn" id="quickShare" title="複製目前地圖與圖層分享連結">🔗 分享檢視</button>
+  <button type="button" class="map-quick-btn" id="quickShot" title="匯出地圖畫面為 PNG 圖片">📷 截圖匯出</button>
+</div>
+
+<!-- 浮動 Toast 提示通知 -->
+<div id="cwaToast" class="cwa-toast"></div>
 
 <button type="button" id="panelTab" title="收合 / 展開面板">◀</button>
 <div class="panel" id="panel">
@@ -603,6 +664,21 @@
     </div>
   </details>
 
+  <details class="sec" id="shareSec" open>
+    <summary>📤 分享與匯出檢視<span class="car">▾</span></summary>
+    <div class="sec-body">
+      <div class="btns" style="margin-top:0">
+        <button id="btnShareUrl" title="複製目前地圖視野與圖層狀態連結">🔗 複製分享連結</button>
+        <button class="ghost" id="btnExportImg" title="將目前地圖畫面與圖例匯出為 PNG 圖片">📷 匯出畫面 (PNG)</button>
+      </div>
+      <div class="btns" style="margin-top:6px">
+        <button class="ghost" id="btnExportCsv" title="匯出目前篩選之測站觀測資料為 CSV">📊 匯出資料 (CSV)</button>
+        <button class="ghost" id="btnExportJson" title="匯出目前篩選之測站觀測資料為 JSON">{ } 匯出 JSON</button>
+      </div>
+      <span class="chip" id="shareStat" style="display:none;margin-top:6px"></span>
+    </div>
+  </details>
+
   <details class="sec">
     <summary>⚙️ 操作與更新<span class="car">▾</span></summary>
     <div class="sec-body">
@@ -692,6 +768,17 @@
   <div class="cbtns">
     <button id="camRefresh">↻ 更新畫面</button>
     <a id="camOpen" href="#" target="_blank" rel="noopener" class="ghost" style="background:transparent;border:1px solid var(--line);color:var(--txt)">↗ 開新分頁</a>
+  </div>
+</div>
+
+<!-- 行動裝置底部快捷抽屜 (Mobile Bottom Sheet UI) -->
+<div id="mobileBar">
+  <div id="mobileSheet"></div>
+  <div class="mbar-row">
+    <button type="button" class="mbar-btn" id="mBtnPanel">⚙️ 選單</button>
+    <button type="button" class="mbar-btn" id="mBtnVar">🌡️ 變數</button>
+    <button type="button" class="mbar-btn" id="mBtnCounty">🗺️ 縣市</button>
+    <button type="button" class="mbar-btn" id="mBtnStats">📊 極值</button>
   </div>
 </div>
 
@@ -804,11 +891,11 @@ const TAIWAN=L.latLngBounds([21.75,118.10],[26.45,122.20]);
 const map=L.map("map",{zoomControl:true}).fitBounds(TAIWAN);
 map.zoomControl.setPosition("topright");   // 側欄改為全高靠左，縮放鈕移至右上避免被遮擋
 const BASES={
-  osm:L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}),
-  sat:L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:19,attribution:"Esri World Imagery"}),
-  topo:L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",{maxZoom:17,attribution:"© OpenTopoMap"}),
-  dark:L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=cb1_325q_1_8b5e6f905ab09a4799809661",{maxZoom:20,attribution:"© CARTO"}),
-  light:L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_325q_1_8b5e6f905ab09a4799809661",{maxZoom:20,attribution:"© CARTO"})
+  osm:L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap",crossOrigin:true}),
+  sat:L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:19,attribution:"Esri World Imagery",crossOrigin:true}),
+  topo:L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",{maxZoom:17,attribution:"© OpenTopoMap",crossOrigin:true}),
+  dark:L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=cb1_325q_1_8b5e6f905ab09a4799809661",{maxZoom:20,attribution:"© CARTO",crossOrigin:true}),
+  light:L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_325q_1_8b5e6f905ab09a4799809661",{maxZoom:20,attribution:"© CARTO",crossOrigin:true})
 };
 let curBase=BASES.osm.addTo(map);
 const layer=L.layerGroup().addTo(map);
@@ -2024,6 +2111,563 @@ function renderSurfaceFromGrid(gridInfo, config, v){
   });
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   克利金網格運算：主執行緒／Web Worker 雙軌實作
+   ---------------------------------------------------------------------
+   背景：變異圖配適 (kriging.train)、基底格網預測、DEM 升採樣融合、
+   雙向平滑濾波等步驟屬於重運算，若在主執行緒同步執行，使用者拖曳
+   地圖、切換圖層時容易卡頓。
+
+   做法：將上述重運算搬到 Web Worker 背景執行緒；主執行緒只負責
+   收集/清洗測站資料（需讀取 DOM 與全域陣列）、把結果畫成 Leaflet
+   圖層（等值面 GeoJSON、等值線 + 標籤）。運算輸出入格式與原本完全
+   相同，若瀏覽器不支援 Worker，或 Worker 初始化/執行失敗，會自動
+   退回原本的主執行緒同步運算，行為與計算結果不變。
+   ═══════════════════════════════════════════════════════════════════ */
+
+const KRIGING_WORKER_SRC = [
+  'self.importScripts("https://cdn.jsdelivr.net/npm/@sakitam-gis/kriging/dist/kriging.min.js");',
+  'var WORKER_DEM = null;',
+  '',
+  'function computeLinearRegressionW(points){',
+  '  var valid = points.filter(function(p){ return isFinite(p.alt) && isFinite(p.val); });',
+  '  var n = valid.length;',
+  '  if(n < 3) return { n:n, beta0:0, beta1:0, r2:0, t:0, gatePassed:false };',
+  '  var sumAlt=0, sumVal=0, i;',
+  '  for(i=0;i<n;i++){ sumAlt+=valid[i].alt; sumVal+=valid[i].val; }',
+  '  var meanAlt=sumAlt/n, meanVal=sumVal/n;',
+  '  var Shh=0, Shy=0, Syy=0;',
+  '  for(i=0;i<n;i++){',
+  '    var dAlt=valid[i].alt-meanAlt, dVal=valid[i].val-meanVal;',
+  '    Shh+=dAlt*dAlt; Shy+=dAlt*dVal; Syy+=dVal*dVal;',
+  '  }',
+  '  if(Shh<=1e-9 || Syy<=1e-9) return { n:n, beta0:meanVal, beta1:0, r2:0, t:0, gatePassed:false };',
+  '  var beta1=Shy/Shh, beta0=meanVal-beta1*meanAlt;',
+  '  var r2=Math.min(1.0, Math.max(0.0, (Shy*Shy)/(Shh*Syy)));',
+  '  var r = Shy>=0 ? Math.sqrt(r2) : -Math.sqrt(r2);',
+  '  var denom = Math.sqrt(Math.max(1e-12, 1.0-r2));',
+  '  var t = (r*Math.sqrt(n-2))/denom;',
+  '  var gatePassed = Math.abs(t)>=2.0 && r2>=0.10;',
+  '  return { n:n, beta0:beta0, beta1:beta1, r2:r2, t:t, gatePassed:gatePassed };',
+  '}',
+  '',
+  'function thinPointsW(pts, maxPts){',
+  '  if(pts.length <= maxPts) return pts;',
+  '  var cellSize = 0.12, bins = {}, attempt, k, kk;',
+  '  for(attempt=0; attempt<5; attempt++){',
+  '    bins = {};',
+  '    for(k=0;k<pts.length;k++){',
+  '      var p = pts[k];',
+  '      var key = Math.floor(p.lon/cellSize) + "_" + Math.floor(p.lat/cellSize);',
+  '      if(!bins[key]) bins[key] = { sumLon:0, sumLat:0, sumTrainVal:0, count:0 };',
+  '      bins[key].sumLon += p.lon; bins[key].sumLat += p.lat;',
+  '      bins[key].sumTrainVal += p.trainVal; bins[key].count++;',
+  '    }',
+  '    if(Object.keys(bins).length <= maxPts) break;',
+  '    cellSize *= 1.35;',
+  '  }',
+  '  var out = [];',
+  '  for(kk in bins){ var b=bins[kk]; out.push({ lon:b.sumLon/b.count, lat:b.sumLat/b.count, trainVal:b.sumTrainVal/b.count }); }',
+  '  return out;',
+  '}',
+  '',
+  'function smoothFloat64GridW(data, nx, ny, passes){',
+  '  var temp = new Float64Array(data.length);',
+  '  var cur = data, p;',
+  '  for(p=0;p<passes;p++){',
+  '    var next = (p%2===0) ? temp : data;',
+  '    var src = (p%2===0) ? data : temp;',
+  '    var j;',
+  '    for(j=0;j<ny;j++){',
+  '      var jm=(j===0?0:j-1)*nx, j0=j*nx, jp=(j===ny-1?ny-1:j+1)*nx, i;',
+  '      for(i=0;i<nx;i++){',
+  '        var im=(i===0?0:i-1), ip=(i===nx-1?nx-1:i+1);',
+  '        var v = src[j0+i];',
+  '        if(!isFinite(v)){ next[j0+i]=NaN; continue; }',
+  '        var sum=4*v, w=4;',
+  '        var vN=src[jm+i], vS=src[jp+i], vW=src[j0+im], vE=src[j0+ip];',
+  '        if(isFinite(vN)){ sum+=2*vN; w+=2; }',
+  '        if(isFinite(vS)){ sum+=2*vS; w+=2; }',
+  '        if(isFinite(vW)){ sum+=2*vW; w+=2; }',
+  '        if(isFinite(vE)){ sum+=2*vE; w+=2; }',
+  '        next[j0+i]=sum/w;',
+  '      }',
+  '    }',
+  '    cur = next;',
+  '  }',
+  '  return cur;',
+  '}',
+  '',
+  'self.onmessage = function(e){',
+  '  var msg = e.data;',
+  '  if(msg.type === "initDem"){',
+  '    WORKER_DEM = { header: msg.header, raw: msg.raw };',
+  '    return;',
+  '  }',
+  '  if(msg.type !== "compute") return;',
+  '  try{',
+  '    var seq = msg.seq;',
+  '    var dedupedStations = msg.dedupedStations;',
+  '    var demEnabled = msg.demEnabled, demRequested = msg.demRequested;',
+  '    var vKey = msg.vKey, vSrc = msg.vSrc;',
+  '    var minLon=msg.minLon, maxLon=msg.maxLon, minLat=msg.minLat, maxLat=msg.maxLat;',
+  '    var baseNx=msg.baseNx, baseNy=msg.baseNy, targetNx=msg.targetNx, targetNy=msg.targetNy;',
+  '    var baseDx=(maxLon-minLon)/baseNx, baseDy=(maxLat-minLat)/baseNy;',
+  '    var targetDx=(maxLon-minLon)/targetNx, targetDy=(maxLat-minLat)/targetNy;',
+  '    var i, j;',
+  '',
+  '    var isTemp = (vKey==="AirTemperature"||vKey==="DailyHigh"||vKey==="DailyLow"||vKey.indexOf("Temperature")>=0);',
+  '    var isPres = (vKey==="AirPressure"||vKey.indexOf("Pressure")>=0);',
+  '    var regressionMode=false, regBeta0=0, regBeta1=0, demStatusText="";',
+  '',
+  '    if(!demEnabled){',
+  '      demStatusText = demRequested ? "DEM 網格載入中 (平面普通克利金)" : "平面普通克利金 (無高程修正)";',
+  '      for(i=0;i<dedupedStations.length;i++) dedupedStations[i].trainVal = dedupedStations[i].val;',
+  '    } else if(isTemp){',
+  '      demStatusText = "直減率 -0.65°C/100m 修正中";',
+  '      for(i=0;i<dedupedStations.length;i++) dedupedStations[i].trainVal = dedupedStations[i].val + 0.0065*dedupedStations[i].alt;',
+  '    } else if(isPres){',
+  '      demStatusText = "氣壓高度公式修正中";',
+  '      for(i=0;i<dedupedStations.length;i++){',
+  '        var pp=dedupedStations[i], safeAlt=Math.max(0,pp.alt), base=Math.max(0.01,1-2.25577e-5*safeAlt);',
+  '        pp.trainVal = pp.val/Math.pow(base,5.25588);',
+  '      }',
+  '    } else {',
+  '      var reg = computeLinearRegressionW(dedupedStations);',
+  '      if(reg.gatePassed){',
+  '        regressionMode=true; regBeta0=reg.beta0; regBeta1=reg.beta1;',
+  '        demStatusText = "顯著地形相關修正中 (R²=" + reg.r2.toFixed(2) + ")";',
+  '        for(i=0;i<dedupedStations.length;i++) dedupedStations[i].trainVal = dedupedStations[i].val - (regBeta0+regBeta1*dedupedStations[i].alt);',
+  '      } else {',
+  '        demStatusText = "無顯著地形相關 (普通克利金)";',
+  '        for(i=0;i<dedupedStations.length;i++) dedupedStations[i].trainVal = dedupedStations[i].val;',
+  '      }',
+  '    }',
+  '',
+  '    var samplePts = thinPointsW(dedupedStations, 110);',
+  '    var vals = samplePts.map(function(p){return p.trainVal;});',
+  '    var lons = samplePts.map(function(p){return p.lon;});',
+  '    var lats = samplePts.map(function(p){return p.lat;});',
+  '',
+  '    var baseGrid = new Float64Array(baseNx*baseNy);',
+  '    var trainMin=Infinity, trainMax=-Infinity;',
+  '    for(i=0;i<vals.length;i++){ if(vals[i]<trainMin) trainMin=vals[i]; if(vals[i]>trainMax) trainMax=vals[i]; }',
+  '',
+  '    var isNonNeg = (vSrc==="rain" || vKey.indexOf("Rain")===0 || vKey.indexOf("WindSpeed")>=0 || vKey==="PeakGustSpeed" || vKey==="WindVector" || vKey==="SolarRadiation" || vKey==="SunshineDuration" || vKey==="WindDirection");',
+  '',
+  '    if(trainMax - trainMin < 1e-4){',
+  '      baseGrid.fill(trainMin);',
+  '    } else {',
+  '      if(typeof kriging === "undefined" || !kriging.train){',
+  '        self.postMessage({ type:"result", seq:seq, ok:false, message:"kriging.js 函式庫尚未就緒" });',
+  '        return;',
+  '      }',
+  '      var variogram = kriging.train(vals, lons, lats, "exponential", 0, 100);',
+  '      if(!variogram || !variogram.M || !isFinite(variogram.M[0])){',
+  '        self.postMessage({ type:"result", seq:seq, ok:false, message:"變異圖求解無效" });',
+  '        return;',
+  '      }',
+  '      var M=variogram.M, vx=variogram.x, vy=variogram.y, vn=variogram.n;',
+  '      var model=variogram.model, nugget=variogram.nugget, range=variogram.range, sill=variogram.sill, A=variogram.A;',
+  '      for(j=0;j<baseNy;j++){',
+  '        var py = minLat + (j+0.5)*baseDy, rowOff=j*baseNx;',
+  '        for(var ii=0;ii<baseNx;ii++){',
+  '          var px = minLon + (ii+0.5)*baseDx, sum=0;',
+  '          for(var k=0;k<vn;k++){',
+  '            var d = Math.hypot(px-vx[k], py-vy[k]);',
+  '            sum += model(d,nugget,range,sill,A) * M[k];',
+  '          }',
+  '          baseGrid[rowOff+ii] = sum;',
+  '        }',
+  '      }',
+  '    }',
+  '',
+  '    var targetGrid = new Float64Array(targetNx*targetNy);',
+  '    var upScaleX = baseNx/targetNx;',
+  '    var upX0Arr=new Int32Array(targetNx), upX1Arr=new Int32Array(targetNx), upFxArr=new Float32Array(targetNx);',
+  '    var hasFastDem = !!(demEnabled && WORKER_DEM && WORKER_DEM.header);',
+  '    var demHeader = hasFastDem ? WORKER_DEM.header : null;',
+  '    var demRaw = hasFastDem ? WORKER_DEM.raw : null;',
+  '    var demX0Arr=hasFastDem?new Int32Array(targetNx):null, demX1Arr=hasFastDem?new Int32Array(targetNx):null;',
+  '    var demFxArr=hasFastDem?new Float32Array(targetNx):null, demInLon=hasFastDem?new Uint8Array(targetNx):null;',
+  '',
+  '    for(i=0;i<targetNx;i++){',
+  '      var gxUp=(i+0.5)*upScaleX-0.5;',
+  '      var ux0=Math.max(0,Math.min(baseNx-1,Math.floor(gxUp))), ux1=Math.max(0,Math.min(baseNx-1,ux0+1));',
+  '      upX0Arr[i]=ux0; upX1Arr[i]=ux1; upFxArr[i]=Math.max(0,Math.min(1,gxUp-ux0));',
+  '      if(hasFastDem){',
+  '        var pxi = minLon + (i+0.5)*targetDx;',
+  '        if(pxi>=demHeader.minLon && pxi<=demHeader.maxLon){',
+  '          demInLon[i]=1;',
+  '          var gxDem=(pxi-demHeader.minLon)/demHeader.cellLon;',
+  '          var dx0=Math.max(0,Math.min(demHeader.nCols-1,Math.floor(gxDem))), dx1=Math.max(0,Math.min(demHeader.nCols-1,dx0+1));',
+  '          demX0Arr[i]=dx0; demX1Arr[i]=dx1; demFxArr[i]=Math.max(0,Math.min(1,gxDem-dx0));',
+  '        }',
+  '      }',
+  '    }',
+  '',
+  '    var upScaleY = baseNy/targetNy;',
+  '    var upY0Arr=new Int32Array(targetNy), upY1Arr=new Int32Array(targetNy), upFyArr=new Float32Array(targetNy);',
+  '    var demY0Arr=hasFastDem?new Int32Array(targetNy):null, demY1Arr=hasFastDem?new Int32Array(targetNy):null;',
+  '    var demFyArr=hasFastDem?new Float32Array(targetNy):null, demInLat=hasFastDem?new Uint8Array(targetNy):null;',
+  '',
+  '    for(j=0;j<targetNy;j++){',
+  '      var gyUp=(j+0.5)*upScaleY-0.5;',
+  '      var uy0=Math.max(0,Math.min(baseNy-1,Math.floor(gyUp))), uy1=Math.max(0,Math.min(baseNy-1,uy0+1));',
+  '      upY0Arr[j]=uy0; upY1Arr[j]=uy1; upFyArr[j]=Math.max(0,Math.min(1,gyUp-uy0));',
+  '      if(hasFastDem){',
+  '        var pyj=minLat+(j+0.5)*targetDy;',
+  '        if(pyj>=demHeader.minLat && pyj<=demHeader.maxLat){',
+  '          demInLat[j]=1;',
+  '          var gyDem=(pyj-demHeader.minLat)/demHeader.cellLat;',
+  '          var dy0=Math.max(0,Math.min(demHeader.nRows-1,Math.floor(gyDem))), dy1=Math.max(0,Math.min(demHeader.nRows-1,dy0+1));',
+  '          demY0Arr[j]=dy0; demY1Arr[j]=dy1; demFyArr[j]=Math.max(0,Math.min(1,gyDem-dy0));',
+  '        }',
+  '      }',
+  '    }',
+  '',
+  '    var demCols = hasFastDem ? demHeader.nCols : 0;',
+  '    for(j=0;j<targetNy;j++){',
+  '      var dstRow=j*targetNx;',
+  '      var uy0=upY0Arr[j], uy1=upY1Arr[j], ufy=upFyArr[j], uinvFy=1.0-ufy;',
+  '      var uRow0=uy0*baseNx, uRow1=uy1*baseNx;',
+  '      var pyRow=minLat+(j+0.5)*targetDy;',
+  '      var inLat = hasFastDem ? demInLat[j] : false;',
+  '      var dy0=hasFastDem?demY0Arr[j]:0, dy1=hasFastDem?demY1Arr[j]:0, dfy=hasFastDem?demFyArr[j]:0, dinvFy=1.0-dfy;',
+  '      var dRow0=dy0*demCols, dRow1=dy1*demCols;',
+  '      for(i=0;i<targetNx;i++){',
+  '        var ux0=upX0Arr[i], ux1=upX1Arr[i], ufx=upFxArr[i], uinvFx=1.0-ufx;',
+  '        var valSea = uinvFy*(uinvFx*baseGrid[uRow0+ux0]+ufx*baseGrid[uRow0+ux1]) + ufy*(uinvFx*baseGrid[uRow1+ux0]+ufx*baseGrid[uRow1+ux1]);',
+  '        var valGrid = valSea;',
+  '        if(demEnabled){',
+  '          var demH = 0;',
+  '          if(hasFastDem){',
+  '            if(inLat && demInLon[i]){',
+  '              var dx0=demX0Arr[i], dx1=demX1Arr[i], dfx=demFxArr[i], dinvFx=1.0-dfx;',
+  '              var h00=Math.max(0,demRaw[dRow0+dx0]), h10=Math.max(0,demRaw[dRow0+dx1]);',
+  '              var h01=Math.max(0,demRaw[dRow1+dx0]), h11=Math.max(0,demRaw[dRow1+dx1]);',
+  '              var rawH = dinvFy*(dinvFx*h00+dfx*h10) + dfy*(dinvFx*h01+dfx*h11);',
+  '              demH = Math.max(0, Math.round(rawH*10)/10);',
+  '            }',
+  '          }',
+  '          if(isTemp){ valGrid = valSea - 0.0065*demH; }',
+  '          else if(isPres){ var safeH=Math.max(0,demH); valGrid = valSea*Math.pow(Math.max(0.01,1-2.25577e-5*safeH),5.25588); }',
+  '          else if(regressionMode){ valGrid = valSea + (regBeta0 + regBeta1*demH); }',
+  '        }',
+  '        if(isNonNeg) valGrid = Math.max(0, valGrid);',
+  '        if(vKey === "RelativeHumidity") valGrid = Math.min(100, Math.max(0, valGrid));',
+  '        else if(vKey === "WindDirection") valGrid = Math.min(360, Math.max(0, valGrid));',
+  '        else if(vKey === "SunshineDuration") valGrid = Math.min(24, Math.max(0, valGrid));',
+  '        targetGrid[dstRow+i] = valGrid;',
+  '      }',
+  '    }',
+  '',
+  '    var smoothedGrid = smoothFloat64GridW(targetGrid, targetNx, targetNy, demEnabled?1:2);',
+  '    if(isNonNeg){ for(i=0;i<smoothedGrid.length;i++){ if(smoothedGrid[i]<0) smoothedGrid[i]=0; } }',
+  '',
+  '    var vMin=Infinity, vMax=-Infinity;',
+  '    for(i=0;i<smoothedGrid.length;i++){ if(smoothedGrid[i]<vMin) vMin=smoothedGrid[i]; if(smoothedGrid[i]>vMax) vMax=smoothedGrid[i]; }',
+  '',
+  '    self.postMessage({',
+  '      type:"result", seq:seq, ok:true,',
+  '      grid:smoothedGrid, targetNx:targetNx, targetNy:targetNy,',
+  '      minLon:minLon, maxLon:maxLon, minLat:minLat, maxLat:maxLat,',
+  '      vMin:vMin, vMax:vMax, demStatusText:demStatusText',
+  '    }, [smoothedGrid.buffer]);',
+  '  }catch(err){',
+  '    self.postMessage({ type:"result", seq:(msg&&msg.seq), ok:false, message: (err && err.message) || String(err) });',
+  '  }',
+  '};'
+].join('\n');
+
+let krigingWorker = null;
+let krigingWorkerReady = false;
+let krigingWorkerUnavailable = false;
+let krigingWorkerDemLoaded = false;
+const krigingWorkerCallbacks = new Map(); // seq -> { ctx }
+
+function onKrigingWorkerMessage(e){
+  const msg = e.data;
+  if(!msg || msg.type !== "result") return;
+  const pending = krigingWorkerCallbacks.get(msg.seq);
+  krigingWorkerCallbacks.delete(msg.seq);
+  if(!pending) return;              // 過期結果（使用者已切換條件），直接捨棄
+  if(msg.seq !== krigingCalcSeq) return; // 保險：非最新一次運算結果
+  const { ctx } = pending;
+  if(!msg.ok){
+    console.error("[Kriging] Worker 運算失敗:", msg.message);
+    if(ctx.statusEl) ctx.statusEl.style.display = "none";
+    if(krigingSurfaceLayer) krigingSurfaceLayer.clearLayers();
+    if(contourLayer) contourLayer.clearLayers();
+    lastKrigingGridInfo = null;
+    if($("krigingStepInfo")) $("krigingStepInfo").textContent = "內插計算失敗或資料異常";
+    return;
+  }
+  finalizeKrigingResult(ctx, {
+    smoothedGrid: msg.grid, targetNx: msg.targetNx, targetNy: msg.targetNy,
+    minLon: msg.minLon, maxLon: msg.maxLon, minLat: msg.minLat, maxLat: msg.maxLat,
+    vMin: msg.vMin, vMax: msg.vMax, demStatusText: msg.demStatusText
+  });
+}
+
+function setupKrigingWorker(){
+  if(typeof Worker === "undefined"){ krigingWorkerUnavailable = true; return; }
+  try{
+    const blob = new Blob([KRIGING_WORKER_SRC], { type: "application/javascript" });
+    krigingWorker = new Worker(URL.createObjectURL(blob));
+    krigingWorker.onmessage = onKrigingWorkerMessage;
+    krigingWorker.onerror = function(e){
+      console.warn("[Kriging] Worker 執行錯誤，改用主執行緒運算:", e.message || e);
+      krigingWorkerUnavailable = true;
+      krigingWorkerReady = false;
+    };
+    krigingWorkerReady = true;
+  }catch(err){
+    console.warn("[Kriging] 無法建立 Web Worker，改用主執行緒運算:", err);
+    krigingWorkerUnavailable = true;
+  }
+}
+setupKrigingWorker();
+
+function sendDemToKrigingWorker(){
+  if(!krigingWorker || krigingWorkerDemLoaded) return;
+  if(!window.demData || !window.demData.ready) return;
+  try{
+    const h = window.demData.header || window.demData;
+    const rawCopy = window.demData.data.slice(); // 獨立副本，避免與主執行緒共用緩衝區
+    krigingWorker.postMessage({
+      type: "initDem",
+      header: { nCols: h.nCols, nRows: h.nRows, minLon: h.minLon, maxLon: h.maxLon, minLat: h.minLat, maxLat: h.maxLat, cellLon: h.cellLon, cellLat: h.cellLat },
+      raw: rawCopy
+    }, [rawCopy.buffer]);
+    krigingWorkerDemLoaded = true;
+  }catch(err){
+    console.warn("[Kriging] DEM 傳輸至 Worker 失敗:", err);
+  }
+}
+
+// 共用收尾：無論結果來自 Worker 或主執行緒備援運算，繪圖與狀態更新邏輯完全相同
+function finalizeKrigingResult(ctx, r){
+  const { v, county, q, dataSignature, validStationsCount, demEnabled, surfaceOn, lineOn, statusEl, demStatusEl, obsMin, obsMax } = ctx;
+  if(demStatusEl && r.demStatusText) demStatusEl.textContent = r.demStatusText;
+
+  const config = getContourConfig(v, r.vMin, r.vMax);
+  const gridInfo = { grid: r.smoothedGrid, nx: r.targetNx, ny: r.targetNy, minLon: r.minLon, maxLon: r.maxLon, minLat: r.minLat, maxLat: r.maxLat, vMin: r.vMin, vMax: r.vMax };
+  lastKrigingGridInfo = { gridInfo, config, v, county, q, dataSignature, stationsCount: validStationsCount, demEnabled };
+  window.lastKrigingGridInfo = lastKrigingGridInfo;
+
+  if($("krigingStepInfo")){
+    if(v.src === "rain" && obsMax < 0.1){
+      $("krigingStepInfo").textContent = "全區目前無降雨（觀測值均為 0 mm）";
+    } else if(obsMax - obsMin < 1e-4){
+      $("krigingStepInfo").textContent = `全區觀測值均為 ${Math.round(obsMin * 10) / 10} ${v.unit}`;
+    } else if(v.key === "AirTemperature" || v.key === "DailyHigh" || v.key === "DailyLow"){
+      $("krigingStepInfo").textContent = `間距: ${config.step} °C · 主線 10/20/30 °C`;
+    } else if(v.key === "AirPressure"){
+      $("krigingStepInfo").textContent = `間距: ${config.step} hPa · 主線 1000/1010/1020 hPa`;
+    } else if(v.src === "rain"){
+      $("krigingStepInfo").textContent = `間距: 階梯式雨量級距 · 主線 10/20/50/100 mm`;
+    } else if(v.key === "WindDirection"){
+      $("krigingStepInfo").textContent = `間距: 45° · 主線 90/180/270°（角度僅供趨勢參考）`;
+    } else if(v.key.includes("WindSpeed") || v.key === "PeakGustSpeed" || v.key === "WindVector"){
+      $("krigingStepInfo").textContent = `間距: ${config.step} m/s · 主線每 ${config.majorStep} m/s`;
+    } else {
+      $("krigingStepInfo").textContent = `間距: ${config.step} ${v.unit} · 主線每 ${config.majorStep} ${v.unit}`;
+    }
+  }
+
+  if(surfaceOn){
+    renderSurfaceFromGrid(gridInfo, config, v);
+  } else if(krigingSurfaceLayer){
+    krigingSurfaceLayer.clearLayers();
+  }
+
+  if(lineOn){
+    renderContoursFromGrid(gridInfo, config, v);
+  } else if(contourLayer){
+    contourLayer.clearLayers();
+  }
+
+  if(statusEl) statusEl.style.display = "none";
+}
+
+// 主執行緒備援運算：Worker 不可用時使用，邏輯與 Worker 內版本一致（沿用既有的
+// computeLinearRegression / smoothFloat64Grid / getElevationAt 等主執行緒函式）
+function computeKrigingGridSync(ctx){
+  const { dedupedStations, demEnabled, demRequested, v, minLon, maxLon, minLat, maxLat, baseNx, baseNy, targetNx, targetNy } = ctx;
+  const baseDx = (maxLon - minLon) / baseNx, baseDy = (maxLat - minLat) / baseNy;
+  const targetDx = (maxLon - minLon) / targetNx, targetDy = (maxLat - minLat) / targetNy;
+
+  const isTemp = (v.key === "AirTemperature" || v.key === "DailyHigh" || v.key === "DailyLow" || v.key.includes("Temperature"));
+  const isPres = (v.key === "AirPressure" || v.key.includes("Pressure"));
+  let regressionMode = false, regBeta0 = 0, regBeta1 = 0, demStatusText = "";
+
+  if(!demEnabled){
+    demStatusText = demRequested ? "DEM 網格載入中 (平面普通克利金)" : "平面普通克利金 (無高程修正)";
+    for(const p of dedupedStations) p.trainVal = p.val;
+  } else if(isTemp){
+    demStatusText = "直減率 -0.65°C/100m 修正中";
+    for(const p of dedupedStations) p.trainVal = p.val + 0.0065 * p.alt;
+  } else if(isPres){
+    demStatusText = "氣壓高度公式修正中";
+    for(const p of dedupedStations){
+      const safeAlt = Math.max(0, p.alt), base = Math.max(0.01, 1 - 2.25577e-5 * safeAlt);
+      p.trainVal = p.val / Math.pow(base, 5.25588);
+    }
+  } else {
+    const reg = computeLinearRegression(dedupedStations);
+    if(reg.gatePassed){
+      regressionMode = true; regBeta0 = reg.beta0; regBeta1 = reg.beta1;
+      demStatusText = "顯著地形相關修正中 (R²=" + reg.r2.toFixed(2) + ")";
+      for(const p of dedupedStations) p.trainVal = p.val - (regBeta0 + regBeta1 * p.alt);
+    } else {
+      demStatusText = "無顯著地形相關 (普通克利金)";
+      for(const p of dedupedStations) p.trainVal = p.val;
+    }
+  }
+
+  function thinPoints(pts, maxPts = 110){
+    if(pts.length <= maxPts) return pts;
+    let cellSize = 0.12, bins = {};
+    for(let attempt = 0; attempt < 5; attempt++){
+      bins = {};
+      for(const p of pts){
+        const key = Math.floor(p.lon / cellSize) + '_' + Math.floor(p.lat / cellSize);
+        if(!bins[key]) bins[key] = { sumLon: 0, sumLat: 0, sumTrainVal: 0, count: 0 };
+        bins[key].sumLon += p.lon; bins[key].sumLat += p.lat;
+        bins[key].sumTrainVal += p.trainVal; bins[key].count++;
+      }
+      if(Object.keys(bins).length <= maxPts) break;
+      cellSize *= 1.35;
+    }
+    return Object.values(bins).map(b => ({ lon: b.sumLon / b.count, lat: b.sumLat / b.count, trainVal: b.sumTrainVal / b.count }));
+  }
+
+  const samplePts = thinPoints(dedupedStations, 110);
+  const vals = samplePts.map(p => p.trainVal);
+  const lons = samplePts.map(p => p.lon);
+  const lats = samplePts.map(p => p.lat);
+
+  const baseGrid = new Float64Array(baseNx * baseNy);
+  let trainMin = Infinity, trainMax = -Infinity;
+  for(let i = 0; i < vals.length; i++){ if(vals[i] < trainMin) trainMin = vals[i]; if(vals[i] > trainMax) trainMax = vals[i]; }
+
+  const isNonNeg = (v.src === "rain" || v.key.startsWith("Rain") || v.key.includes("WindSpeed") || v.key === "PeakGustSpeed" || v.key === "WindVector" || v.key === "SolarRadiation" || v.key === "SunshineDuration" || v.key === "WindDirection");
+
+  if(trainMax - trainMin < 1e-4){
+    baseGrid.fill(trainMin);
+  } else {
+    if(typeof kriging === 'undefined' || !kriging.train) throw new Error("kriging.js 函式庫尚未就緒");
+    const variogram = kriging.train(vals, lons, lats, 'exponential', 0, 100);
+    if(!variogram || !variogram.M || !isFinite(variogram.M[0])) throw new Error("變異圖求解無效");
+    const M = variogram.M, vx = variogram.x, vy = variogram.y, vn = variogram.n;
+    const model = variogram.model, nugget = variogram.nugget, range = variogram.range, sill = variogram.sill, A = variogram.A;
+    for(let j = 0; j < baseNy; j++){
+      const py = minLat + (j + 0.5) * baseDy, rowOff = j * baseNx;
+      for(let i = 0; i < baseNx; i++){
+        const px = minLon + (i + 0.5) * baseDx;
+        let sum = 0;
+        for(let k = 0; k < vn; k++){
+          const d = Math.hypot(px - vx[k], py - vy[k]);
+          sum += model(d, nugget, range, sill, A) * M[k];
+        }
+        baseGrid[rowOff + i] = sum;
+      }
+    }
+  }
+
+  const targetGrid = new Float64Array(targetNx * targetNy);
+  const upScaleX = baseNx / targetNx;
+  const upX0Arr = new Int32Array(targetNx), upX1Arr = new Int32Array(targetNx), upFxArr = new Float32Array(targetNx);
+  const demHeader = demEnabled && window.demData ? (window.demData.header || window.demData) : null;
+  const demRaw = demEnabled && window.demData ? window.demData.data : null;
+  const hasFastDem = !!(demHeader && demRaw && demHeader.nCols && demHeader.nRows && demHeader.cellLon && demHeader.cellLat);
+  const demX0Arr = hasFastDem ? new Int32Array(targetNx) : null, demX1Arr = hasFastDem ? new Int32Array(targetNx) : null;
+  const demFxArr = hasFastDem ? new Float32Array(targetNx) : null, demInLon = hasFastDem ? new Uint8Array(targetNx) : null;
+
+  for(let i = 0; i < targetNx; i++){
+    const gxUp = (i + 0.5) * upScaleX - 0.5;
+    const ux0 = Math.max(0, Math.min(baseNx - 1, Math.floor(gxUp))), ux1 = Math.max(0, Math.min(baseNx - 1, ux0 + 1));
+    upX0Arr[i] = ux0; upX1Arr[i] = ux1; upFxArr[i] = Math.max(0, Math.min(1, gxUp - ux0));
+    if(hasFastDem){
+      const px = minLon + (i + 0.5) * targetDx;
+      if(px >= demHeader.minLon && px <= demHeader.maxLon){
+        demInLon[i] = 1;
+        const gxDem = (px - demHeader.minLon) / demHeader.cellLon;
+        const dx0 = Math.max(0, Math.min(demHeader.nCols - 1, Math.floor(gxDem))), dx1 = Math.max(0, Math.min(demHeader.nCols - 1, dx0 + 1));
+        demX0Arr[i] = dx0; demX1Arr[i] = dx1; demFxArr[i] = Math.max(0, Math.min(1, gxDem - dx0));
+      }
+    }
+  }
+
+  const upScaleY = baseNy / targetNy;
+  const upY0Arr = new Int32Array(targetNy), upY1Arr = new Int32Array(targetNy), upFyArr = new Float32Array(targetNy);
+  const demY0Arr = hasFastDem ? new Int32Array(targetNy) : null, demY1Arr = hasFastDem ? new Int32Array(targetNy) : null;
+  const demFyArr = hasFastDem ? new Float32Array(targetNy) : null, demInLat = hasFastDem ? new Uint8Array(targetNy) : null;
+
+  for(let j = 0; j < targetNy; j++){
+    const gyUp = (j + 0.5) * upScaleY - 0.5;
+    const uy0 = Math.max(0, Math.min(baseNy - 1, Math.floor(gyUp))), uy1 = Math.max(0, Math.min(baseNy - 1, uy0 + 1));
+    upY0Arr[j] = uy0; upY1Arr[j] = uy1; upFyArr[j] = Math.max(0, Math.min(1, gyUp - uy0));
+    if(hasFastDem){
+      const py = minLat + (j + 0.5) * targetDy;
+      if(py >= demHeader.minLat && py <= demHeader.maxLat){
+        demInLat[j] = 1;
+        const gyDem = (py - demHeader.minLat) / demHeader.cellLat;
+        const dy0 = Math.max(0, Math.min(demHeader.nRows - 1, Math.floor(gyDem))), dy1 = Math.max(0, Math.min(demHeader.nRows - 1, dy0 + 1));
+        demY0Arr[j] = dy0; demY1Arr[j] = dy1; demFyArr[j] = Math.max(0, Math.min(1, gyDem - dy0));
+      }
+    }
+  }
+
+  const demCols = hasFastDem ? demHeader.nCols : 0;
+  for(let j = 0; j < targetNy; j++){
+    const dstRow = j * targetNx;
+    const uy0 = upY0Arr[j], uy1 = upY1Arr[j], ufy = upFyArr[j], uinvFy = 1.0 - ufy;
+    const uRow0 = uy0 * baseNx, uRow1 = uy1 * baseNx;
+    const py = minLat + (j + 0.5) * targetDy;
+    const inLat = hasFastDem ? demInLat[j] : false;
+    const dy0 = hasFastDem ? demY0Arr[j] : 0, dy1 = hasFastDem ? demY1Arr[j] : 0, dfy = hasFastDem ? demFyArr[j] : 0, dinvFy = 1.0 - dfy;
+    const dRow0 = dy0 * demCols, dRow1 = dy1 * demCols;
+    for(let i = 0; i < targetNx; i++){
+      const ux0 = upX0Arr[i], ux1 = upX1Arr[i], ufx = upFxArr[i], uinvFx = 1.0 - ufx;
+      const valSea = uinvFy * (uinvFx * baseGrid[uRow0 + ux0] + ufx * baseGrid[uRow0 + ux1]) + ufy * (uinvFx * baseGrid[uRow1 + ux0] + ufx * baseGrid[uRow1 + ux1]);
+      let valGrid = valSea;
+      if(demEnabled){
+        let demH = 0;
+        if(hasFastDem){
+          if(inLat && demInLon[i]){
+            const dx0 = demX0Arr[i], dx1 = demX1Arr[i], dfx = demFxArr[i], dinvFx = 1.0 - dfx;
+            const h00 = Math.max(0, demRaw[dRow0 + dx0]), h10 = Math.max(0, demRaw[dRow0 + dx1]);
+            const h01 = Math.max(0, demRaw[dRow1 + dx0]), h11 = Math.max(0, demRaw[dRow1 + dx1]);
+            const rawH = dinvFy * (dinvFx * h00 + dfx * h10) + dfy * (dinvFx * h01 + dfx * h11);
+            demH = Math.max(0, Math.round(rawH * 10) / 10);
+          }
+        } else {
+          const px = minLon + (i + 0.5) * targetDx;
+          demH = getElevationAt(px, py);
+        }
+        if(isTemp){ valGrid = valSea - 0.0065 * demH; }
+        else if(isPres){ const safeH = Math.max(0, demH); valGrid = valSea * Math.pow(Math.max(0.01, 1 - 2.25577e-5 * safeH), 5.25588); }
+        else if(regressionMode){ valGrid = valSea + (regBeta0 + regBeta1 * demH); }
+      }
+      if(isNonNeg) valGrid = Math.max(0, valGrid);
+      if(v.key === "RelativeHumidity") valGrid = Math.min(100, Math.max(0, valGrid));
+      else if(v.key === "WindDirection") valGrid = Math.min(360, Math.max(0, valGrid));
+      else if(v.key === "SunshineDuration") valGrid = Math.min(24, Math.max(0, valGrid));
+      targetGrid[dstRow + i] = valGrid;
+    }
+  }
+
+  const smoothedGrid = smoothFloat64Grid(targetGrid, targetNx, targetNy, demEnabled ? 1 : 2);
+  if(isNonNeg){ for(let i = 0; i < smoothedGrid.length; i++){ if(smoothedGrid[i] < 0) smoothedGrid[i] = 0; } }
+
+  let vMin = Infinity, vMax = -Infinity;
+  for(let i = 0; i < smoothedGrid.length; i++){ if(smoothedGrid[i] < vMin) vMin = smoothedGrid[i]; if(smoothedGrid[i] > vMax) vMax = smoothedGrid[i]; }
+
+  return { smoothedGrid, targetNx, targetNy, minLon, maxLon, minLat, maxLat, vMin, vMax, demStatusText };
+}
+
 function runKrigingInterpolation(){
   if(!$("varSel") || !$("varSel").value){
     clearKrigingLayers();
@@ -2052,7 +2696,7 @@ function runKrigingInterpolation(){
     if(mySeq !== krigingCalcSeq) return;
 
     try{
-      // 1. 收集並清洗有效測站數據 (同步縣市與搜尋文字過濾)
+      // 1. 收集並清洗有效測站數據（維持在主執行緒：需讀取 DOM 與全域陣列）
       const list = (v.src === "rain" ? (window.RAIN || RAIN) : v.src === "sun" ? (window.SUN || SUN) : (window.RAW || RAW));
       const county = $("countySel") ? $("countySel").value : "";
       const q = $("search") ? $("search").value.trim().toLowerCase() : "";
@@ -2066,13 +2710,11 @@ function runKrigingInterpolation(){
         if(!ll) return;
         const lat = ll[0], lon = ll[1];
         if(!isFinite(lat) || !isFinite(lon)) return;
-        // 臺灣及周邊合理範圍 (含金門、馬祖、澎湖)
         if(lat < 21.0 || lat > 26.6 || lon < 117.8 || lon > 123.6) return;
 
         const val = v.get(s);
         if(val === null || !isFinite(val)) return;
 
-        // 物理合理性過濾
         if((v.key.includes("Temperature") || v.key === "DailyHigh" || v.key === "DailyLow") && (val < -30 || val > 55)) return;
         if(v.key === "AirPressure" && (val < 500 || val > 1100)) return;
         if(v.src === "rain" && (val < 0 || val > 1500)) return;
@@ -2082,7 +2724,6 @@ function runKrigingInterpolation(){
         if(v.key === "SolarRadiation" && (val < 0 || val > 100)) return;
         if(v.key === "SunshineDuration" && (val < 0 || val > 24)) return;
 
-        // 提取測站標高，若無效或 <= -999 則 fallback 至 DEM 高程查表
         let alt = parseFloat(s.GeoInfo?.StationAltitude);
         if(!isFinite(alt) || alt <= -999){
           alt = typeof getElevationAt === 'function' ? getElevationAt(lon, lat) : 0;
@@ -2106,17 +2747,11 @@ function runKrigingInterpolation(){
       for(const p of validStations){
         const k = Math.round(p.lon * 200) + '_' + Math.round(p.lat * 200);
         if(!fineBins[k]) fineBins[k] = { sumLon: 0, sumLat: 0, sumVal: 0, sumAlt: 0, count: 0 };
-        fineBins[k].sumLon += p.lon;
-        fineBins[k].sumLat += p.lat;
-        fineBins[k].sumVal += p.val;
-        fineBins[k].sumAlt += p.alt;
-        fineBins[k].count++;
+        fineBins[k].sumLon += p.lon; fineBins[k].sumLat += p.lat;
+        fineBins[k].sumVal += p.val; fineBins[k].sumAlt += p.alt; fineBins[k].count++;
       }
       const dedupedStations = Object.values(fineBins).map(b => ({
-        lon: b.sumLon / b.count,
-        lat: b.sumLat / b.count,
-        val: b.sumVal / b.count,
-        alt: b.sumAlt / b.count
+        lon: b.sumLon / b.count, lat: b.sumLat / b.count, val: b.sumVal / b.count, alt: b.sumAlt / b.count
       }));
 
       if(dedupedStations.length < 3){
@@ -2128,101 +2763,11 @@ function runKrigingInterpolation(){
         return;
       }
 
-      // 3. 評估地形輔助迴歸克利金（Regression Kriging）模式與去趨勢 (Detrending)
       const demChk = $("krigingDemChk");
-      const demEnabled = !!(demChk && demChk.checked && window.demData && window.demData.ready);
-      const demStatusEl = $("krigingDemStatus");
+      const demRequested = !!(demChk && demChk.checked);
+      const demEnabled = !!(demRequested && window.demData && window.demData.ready);
 
-      const isTemp = (v.key === "AirTemperature" || v.key === "DailyHigh" || v.key === "DailyLow" || v.key.includes("Temperature"));
-      const isPres = (v.key === "AirPressure" || v.key.includes("Pressure"));
-
-      let regressionMode = false;
-      let regBeta0 = 0, regBeta1 = 0;
-
-      if(!demEnabled){
-        if(demStatusEl){
-          if(demChk && !demChk.checked){
-            demStatusEl.textContent = "平面普通克利金 (無高程修正)";
-          } else {
-            demStatusEl.textContent = "DEM 網格載入中 (平面普通克利金)";
-          }
-        }
-        for(const p of dedupedStations){
-          p.trainVal = p.val;
-        }
-      } else if(isTemp){
-        if(demStatusEl){
-          demStatusEl.textContent = "直減率 -0.65°C/100m 修正中";
-        }
-        for(const p of dedupedStations){
-          p.trainVal = p.val + 0.0065 * p.alt;
-        }
-      } else if(isPres){
-        if(demStatusEl){
-          demStatusEl.textContent = "氣壓高度公式修正中";
-        }
-        for(const p of dedupedStations){
-          const safeAlt = Math.max(0, p.alt);
-          const base = Math.max(0.01, 1 - 2.25577e-5 * safeAlt);
-          p.trainVal = p.val / Math.pow(base, 5.25588);
-        }
-      } else {
-        // 其餘純量變數 (雨量、相對溼度、風速等) 執行 OLS 線性迴歸與雙門檻 (Dual Gate: |t|>=2.0 且 R^2>=0.10)
-        const reg = computeLinearRegression(dedupedStations);
-        if(reg.gatePassed){
-          regressionMode = true;
-          regBeta0 = reg.beta0;
-          regBeta1 = reg.beta1;
-          if(demStatusEl){
-            demStatusEl.textContent = "顯著地形相關修正中 (R²=" + reg.r2.toFixed(2) + ")";
-          }
-          for(const p of dedupedStations){
-            p.trainVal = p.val - (reg.beta0 + reg.beta1 * p.alt);
-          }
-        } else {
-          regressionMode = false;
-          if(demStatusEl){
-            demStatusEl.textContent = "無顯著地形相關 (普通克利金)";
-          }
-          for(const p of dedupedStations){
-            p.trainVal = p.val;
-          }
-        }
-      }
-
-      if(statusTxt) statusTxt.textContent = `克利金變異圖配適中 (${validStations.length} 站)…`;
-
-      // 4. 空間抽樣稀疏處理（控制矩陣大小 <= 110 站，兼顧精度與 100ms 內即時計算）
-      function thinPoints(pts, maxPts = 110){
-        if(pts.length <= maxPts) return pts;
-        let cellSize = 0.12;
-        let bins = {};
-        for(let attempt = 0; attempt < 5; attempt++){
-          bins = {};
-          for(const p of pts){
-            const key = Math.floor(p.lon / cellSize) + '_' + Math.floor(p.lat / cellSize);
-            if(!bins[key]) bins[key] = { sumLon: 0, sumLat: 0, sumTrainVal: 0, count: 0 };
-            bins[key].sumLon += p.lon;
-            bins[key].sumLat += p.lat;
-            bins[key].sumTrainVal += p.trainVal;
-            bins[key].count++;
-          }
-          if(Object.keys(bins).length <= maxPts) break;
-          cellSize *= 1.35;
-        }
-        return Object.values(bins).map(b => ({
-          lon: b.sumLon / b.count,
-          lat: b.sumLat / b.count,
-          trainVal: b.sumTrainVal / b.count
-        }));
-      }
-
-      const samplePts = thinPoints(dedupedStations, 110);
-      const vals = samplePts.map(p => p.trainVal);
-      const lons = samplePts.map(p => p.lon);
-      const lats = samplePts.map(p => p.lat);
-
-      // 5. 設定插值邊界範圍（全島預設涵蓋澎湖、彭佳嶼至恆春半島；外島與搜尋自動貼合）
+      // 3. 設定插值邊界範圍與網格解析度（全島預設涵蓋澎湖、彭佳嶼至恆春半島；外島與搜尋自動貼合）
       let minLon = 119.0, maxLon = 122.5, minLat = 21.7, maxLat = 25.8;
       if(county || q){
         const allLons = validStations.map(p => p.lon);
@@ -2234,256 +2779,47 @@ function runKrigingInterpolation(){
         if(maxLat <= minLat + 0.05) maxLat = minLat + 0.2;
         if(maxLon <= minLon + 0.05) maxLon = minLon + 0.2;
       }
-
-      // 基底粗網格（用以高速求解測站去趨勢海平面場 T_sea / P_sea）
       const baseNx = 60;
       const baseNy = Math.min(100, Math.max(30, Math.round(baseNx * ((maxLat - minLat) / (maxLon - minLon)))));
-      const baseDx = (maxLon - minLon) / baseNx;
-      const baseDy = (maxLat - minLat) / baseNy;
-      const baseGrid = new Float64Array(baseNx * baseNy);
-
-      // 目標高解析度網格（350~450 欄，單格縮小至 500m~800m，完整重現地貌）
       const targetNx = (county || q) ? 360 : 380;
       const targetNy = Math.max(30, Math.round(targetNx * ((maxLat - minLat) / (maxLon - minLon))));
-      const targetDx = (maxLon - minLon) / targetNx;
-      const targetDy = (maxLat - minLat) / targetNy;
-      const targetGrid = new Float64Array(targetNx * targetNy);
 
-      // 6. 檢驗變異數（若全區訓練值皆為相同常數，直接填滿避免變異圖求解 0 除問題）
       const allVals = validStations.map(p => p.val);
       let obsMin = Infinity, obsMax = -Infinity;
-      for(let i = 0; i < allVals.length; i++){
-        if(allVals[i] < obsMin) obsMin = allVals[i];
-        if(allVals[i] > obsMax) obsMax = allVals[i];
+      for(let i = 0; i < allVals.length; i++){ if(allVals[i] < obsMin) obsMin = allVals[i]; if(allVals[i] > obsMax) obsMax = allVals[i]; }
+
+      const ctx = {
+        v, county, q, dataSignature, validStationsCount: validStations.length,
+        demEnabled, surfaceOn, lineOn, statusEl, demStatusEl: $("krigingDemStatus"), obsMin, obsMax
+      };
+
+      if(statusTxt){
+        statusTxt.textContent = (krigingWorkerReady && !krigingWorkerUnavailable)
+          ? "運算中（背景執行緒）…"
+          : `克利金變異圖配適中 (${validStations.length} 站)…`;
       }
 
-      let trainMin = Infinity, trainMax = -Infinity;
-      for(let i = 0; i < vals.length; i++){
-        if(vals[i] < trainMin) trainMin = vals[i];
-        if(vals[i] > trainMax) trainMax = vals[i];
+      // 優先交給 Web Worker 背景運算，避免拖曳／縮放地圖時主執行緒卡頓
+      if(krigingWorkerReady && !krigingWorkerUnavailable && krigingWorker){
+        sendDemToKrigingWorker();
+        krigingWorkerCallbacks.set(mySeq, { ctx });
+        const payload = dedupedStations.map(p => ({ lon: p.lon, lat: p.lat, val: p.val, alt: p.alt }));
+        krigingWorker.postMessage({
+          type: "compute", seq: mySeq,
+          dedupedStations: payload,
+          demEnabled, demRequested,
+          vKey: v.key, vUnit: v.unit, vSrc: v.src,
+          minLon, maxLon, minLat, maxLat, baseNx, baseNy, targetNx, targetNy
+        });
+        return;
       }
 
-      const isNonNeg = (v.src === "rain" || v.key.startsWith("Rain") || v.key.includes("WindSpeed") || v.key === "PeakGustSpeed" || v.key === "WindVector" || v.key === "SolarRadiation" || v.key === "SunshineDuration" || v.key === "WindDirection");
+      // 備援：Worker 不可用（或初始化失敗）時，退回主執行緒同步運算，結果與 Worker 完全一致
+      const result = computeKrigingGridSync({
+        dedupedStations, demEnabled, demRequested, v, minLon, maxLon, minLat, maxLat, baseNx, baseNy, targetNx, targetNy
+      });
+      finalizeKrigingResult(ctx, result);
 
-      if(trainMax - trainMin < 1e-4){
-        baseGrid.fill(trainMin);
-      } else {
-        // 7. 普通克利金變異圖配適 (Ordinary Kriging - Exponential model)
-        if(typeof kriging === 'undefined' || !kriging.train){
-          console.warn("kriging.js 函式庫尚未就緒");
-          if(statusEl) statusEl.style.display = "none";
-          return;
-        }
-
-        const variogram = kriging.train(vals, lons, lats, 'exponential', 0, 100);
-        if(!variogram || !variogram.M || !isFinite(variogram.M[0])){
-          throw new Error("變異圖求解無效");
-        }
-
-        if(statusTxt) statusTxt.textContent = "計算海平面去趨勢基底場…";
-
-        // 8. 快速基底格點內插預測
-        const M = variogram.M, vx = variogram.x, vy = variogram.y, vn = variogram.n;
-        const model = variogram.model, nugget = variogram.nugget, range = variogram.range, sill = variogram.sill, A = variogram.A;
-
-        for(let j = 0; j < baseNy; j++){
-          const py = minLat + (j + 0.5) * baseDy;
-          const rowOff = j * baseNx;
-          for(let i = 0; i < baseNx; i++){
-            const px = minLon + (i + 0.5) * baseDx;
-            let sum = 0;
-            for(let k = 0; k < vn; k++){
-              const d = Math.hypot(px - vx[k], py - vy[k]);
-              sum += model(d, nugget, range, sill, A) * M[k];
-            }
-            baseGrid[rowOff + i] = sum;
-          }
-        }
-      }
-
-      if(statusTxt) statusTxt.textContent = "高效雙線性升採樣與高程地形重趨勢中…";
-
-      // 8. 快速雙線性升採樣至目標高解析度網格，並融合 DEM 扣減地形效應 (Fused Pipeline)
-      const upScaleX = baseNx / targetNx;
-      const upX0Arr = new Int32Array(targetNx);
-      const upX1Arr = new Int32Array(targetNx);
-      const upFxArr = new Float32Array(targetNx);
-
-      const demHeader = demEnabled && window.demData ? (window.demData.header || window.demData) : null;
-      const demRaw = demEnabled && window.demData ? window.demData.data : null;
-      const hasFastDem = !!(demHeader && demRaw && demHeader.nCols && demHeader.nRows && demHeader.cellLon && demHeader.cellLat);
-
-      const demX0Arr = hasFastDem ? new Int32Array(targetNx) : null;
-      const demX1Arr = hasFastDem ? new Int32Array(targetNx) : null;
-      const demFxArr = hasFastDem ? new Float32Array(targetNx) : null;
-      const demInLon = hasFastDem ? new Uint8Array(targetNx) : null;
-
-      for(let i = 0; i < targetNx; i++){
-        const gxUp = (i + 0.5) * upScaleX - 0.5;
-        const ux0 = Math.max(0, Math.min(baseNx - 1, Math.floor(gxUp)));
-        const ux1 = Math.max(0, Math.min(baseNx - 1, ux0 + 1));
-        upX0Arr[i] = ux0;
-        upX1Arr[i] = ux1;
-        upFxArr[i] = Math.max(0, Math.min(1, gxUp - ux0));
-
-        if(hasFastDem){
-          const px = minLon + (i + 0.5) * targetDx;
-          if(px >= demHeader.minLon && px <= demHeader.maxLon){
-            demInLon[i] = 1;
-            const gxDem = (px - demHeader.minLon) / demHeader.cellLon;
-            const dx0 = Math.max(0, Math.min(demHeader.nCols - 1, Math.floor(gxDem)));
-            const dx1 = Math.max(0, Math.min(demHeader.nCols - 1, dx0 + 1));
-            demX0Arr[i] = dx0;
-            demX1Arr[i] = dx1;
-            demFxArr[i] = Math.max(0, Math.min(1, gxDem - dx0));
-          }
-        }
-      }
-
-      const upScaleY = baseNy / targetNy;
-      const upY0Arr = new Int32Array(targetNy);
-      const upY1Arr = new Int32Array(targetNy);
-      const upFyArr = new Float32Array(targetNy);
-
-      const demY0Arr = hasFastDem ? new Int32Array(targetNy) : null;
-      const demY1Arr = hasFastDem ? new Int32Array(targetNy) : null;
-      const demFyArr = hasFastDem ? new Float32Array(targetNy) : null;
-      const demInLat = hasFastDem ? new Uint8Array(targetNy) : null;
-
-      for(let j = 0; j < targetNy; j++){
-        const gyUp = (j + 0.5) * upScaleY - 0.5;
-        const uy0 = Math.max(0, Math.min(baseNy - 1, Math.floor(gyUp)));
-        const uy1 = Math.max(0, Math.min(baseNy - 1, uy0 + 1));
-        upY0Arr[j] = uy0;
-        upY1Arr[j] = uy1;
-        upFyArr[j] = Math.max(0, Math.min(1, gyUp - uy0));
-
-        if(hasFastDem){
-          const py = minLat + (j + 0.5) * targetDy;
-          if(py >= demHeader.minLat && py <= demHeader.maxLat){
-            demInLat[j] = 1;
-            const gyDem = (py - demHeader.minLat) / demHeader.cellLat;
-            const dy0 = Math.max(0, Math.min(demHeader.nRows - 1, Math.floor(gyDem)));
-            const dy1 = Math.max(0, Math.min(demHeader.nRows - 1, dy0 + 1));
-            demY0Arr[j] = dy0;
-            demY1Arr[j] = dy1;
-            demFyArr[j] = Math.max(0, Math.min(1, gyDem - dy0));
-          }
-        }
-      }
-
-      const demCols = hasFastDem ? demHeader.nCols : 0;
-      for(let j = 0; j < targetNy; j++){
-        const dstRow = j * targetNx;
-        const uy0 = upY0Arr[j], uy1 = upY1Arr[j], ufy = upFyArr[j], uinvFy = 1.0 - ufy;
-        const uRow0 = uy0 * baseNx, uRow1 = uy1 * baseNx;
-
-        const py = minLat + (j + 0.5) * targetDy;
-        const inLat = hasFastDem ? demInLat[j] : false;
-        const dy0 = hasFastDem ? demY0Arr[j] : 0;
-        const dy1 = hasFastDem ? demY1Arr[j] : 0;
-        const dfy = hasFastDem ? demFyArr[j] : 0;
-        const dinvFy = 1.0 - dfy;
-        const dRow0 = dy0 * demCols, dRow1 = dy1 * demCols;
-
-        for(let i = 0; i < targetNx; i++){
-          const ux0 = upX0Arr[i], ux1 = upX1Arr[i], ufx = upFxArr[i], uinvFx = 1.0 - ufx;
-          const valSea = uinvFy * (uinvFx * baseGrid[uRow0 + ux0] + ufx * baseGrid[uRow0 + ux1]) +
-                         ufy * (uinvFx * baseGrid[uRow1 + ux0] + ufx * baseGrid[uRow1 + ux1]);
-
-          let valGrid = valSea;
-          if(demEnabled){
-            let demH = 0;
-            if(hasFastDem){
-              if(inLat && demInLon[i]){
-                const dx0 = demX0Arr[i], dx1 = demX1Arr[i], dfx = demFxArr[i], dinvFx = 1.0 - dfx;
-                const h00 = Math.max(0, demRaw[dRow0 + dx0]);
-                const h10 = Math.max(0, demRaw[dRow0 + dx1]);
-                const h01 = Math.max(0, demRaw[dRow1 + dx0]);
-                const h11 = Math.max(0, demRaw[dRow1 + dx1]);
-                const rawH = dinvFy * (dinvFx * h00 + dfx * h10) + dfy * (dinvFx * h01 + dfx * h11);
-                demH = Math.max(0, Math.round(rawH * 10) / 10);
-              }
-            } else {
-              const px = minLon + (i + 0.5) * targetDx;
-              demH = getElevationAt(px, py);
-            }
-
-            if(isTemp){
-              valGrid = valSea - 0.0065 * demH;
-            } else if(isPres){
-              const safeH = Math.max(0, demH);
-              valGrid = valSea * Math.pow(Math.max(0.01, 1 - 2.25577e-5 * safeH), 5.25588);
-            } else if(regressionMode){
-              valGrid = valSea + (regBeta0 + regBeta1 * demH);
-            }
-          }
-
-          // 物理邊界限制
-          if(isNonNeg) valGrid = Math.max(0, valGrid);
-          if(v.key === "RelativeHumidity") valGrid = Math.min(100, Math.max(0, valGrid));
-          else if(v.key === "WindDirection") valGrid = Math.min(360, Math.max(0, valGrid));
-          else if(v.key === "SunshineDuration") valGrid = Math.min(24, Math.max(0, valGrid));
-
-          targetGrid[dstRow + i] = valGrid;
-        }
-      }
-
-      // 9. 雙向平滑濾波 (DEM 模式下使用 1 次輕量平滑以保留高山山脊細緻度；平面模式使用 2 次)
-      const smoothedGrid = smoothFloat64Grid(targetGrid, targetNx, targetNy, demEnabled ? 1 : 2);
-      if(isNonNeg){
-        for(let i = 0; i < smoothedGrid.length; i++){
-          if(smoothedGrid[i] < 0) smoothedGrid[i] = 0;
-        }
-      }
-
-      let vMin = Infinity, vMax = -Infinity;
-      for(let i = 0; i < smoothedGrid.length; i++){
-        if(smoothedGrid[i] < vMin) vMin = smoothedGrid[i];
-        if(smoothedGrid[i] > vMax) vMax = smoothedGrid[i];
-      }
-
-      const config = getContourConfig(v, vMin, vMax);
-      const gridInfo = { grid: smoothedGrid, nx: targetNx, ny: targetNy, minLon, maxLon, minLat, maxLat, vMin, vMax };
-      lastKrigingGridInfo = { gridInfo, config, v, county, q, dataSignature, stationsCount: validStations.length, demEnabled };
-      window.lastKrigingGridInfo = lastKrigingGridInfo;
-
-      // 更新 UI 間距資訊
-      if($("krigingStepInfo")){
-        if(v.src === "rain" && obsMax < 0.1){
-          $("krigingStepInfo").textContent = "全區目前無降雨（觀測值均為 0 mm）";
-        } else if(obsMax - obsMin < 1e-4){
-          $("krigingStepInfo").textContent = `全區觀測值均為 ${Math.round(obsMin * 10) / 10} ${v.unit}`;
-        } else if(v.key === "AirTemperature" || v.key === "DailyHigh" || v.key === "DailyLow"){
-          $("krigingStepInfo").textContent = `間距: ${config.step} °C · 主線 10/20/30 °C`;
-        } else if(v.key === "AirPressure"){
-          $("krigingStepInfo").textContent = `間距: ${config.step} hPa · 主線 1000/1010/1020 hPa`;
-        } else if(v.src === "rain"){
-          $("krigingStepInfo").textContent = `間距: 階梯式雨量級距 · 主線 10/20/50/100 mm`;
-        } else if(v.key === "WindDirection"){
-          $("krigingStepInfo").textContent = `間距: 45° · 主線 90/180/270°（角度僅供趨勢參考）`;
-        } else if(v.key.includes("WindSpeed") || v.key === "PeakGustSpeed" || v.key === "WindVector"){
-          $("krigingStepInfo").textContent = `間距: ${config.step} m/s · 主線每 ${config.majorStep} m/s`;
-        } else {
-          $("krigingStepInfo").textContent = `間距: ${config.step} ${v.unit} · 主線每 ${config.majorStep} ${v.unit}`;
-        }
-      }
-
-      // 9. 繪製彩色等值面 (GeoJSON MultiPolygons)
-      if(surfaceOn){
-        renderSurfaceFromGrid(gridInfo, config, v);
-      } else if(krigingSurfaceLayer){
-        krigingSurfaceLayer.clearLayers();
-      }
-
-      // 10. 繪製平滑等值線與數值標籤
-      if(lineOn){
-        renderContoursFromGrid(gridInfo, config, v);
-      } else if(contourLayer){
-        contourLayer.clearLayers();
-      }
-
-      if(statusEl) statusEl.style.display = "none";
     } catch(err){
       console.error("[Kriging] 內插計算失敗:", err);
       if(statusEl) statusEl.style.display = "none";
@@ -2791,10 +3127,53 @@ $("cellOp").oninput=e=>{
 // ===== 閃電落雷即時觀測圖層（O-A0039-001，KMZ 檔）=====
 // 資料為 KMZ（壓縮的 KML）：以 JSZip 解壓後用 DOMParser 解析 Placemark 點位。
 // 標記顏色代表落雷距今時間（0–60 分鐘，越紅越新）；●實心=雲對地（落雷）、○空心=雲間閃電。
+// 輕量化圖層管線模式 (LayerPipeline Architecture)
+class LayerPipeline {
+  constructor(options){
+    this.id = options.id;
+    this.name = options.name;
+    this.layer = options.layer || L.layerGroup();
+    this.fetcher = options.fetcher;
+    this.renderer = options.renderer;
+    this.statusEl = options.statusEl ? $(options.statusEl) : null;
+    this.cache = null;
+    this.loaded = false;
+  }
+  async load(force = false){
+    if(!this.cache || force){
+      if(this.statusEl){ this.statusEl.style.display = "block"; this.statusEl.textContent = `⏳ 載入 ${this.name}…`; }
+      try{
+        this.cache = await this.fetcher();
+        this.loaded = true;
+      }catch(err){
+        if(this.statusEl){ this.statusEl.style.display = "block"; this.statusEl.textContent = `⚠️ ${this.name} 載入失敗：${err.message}`; }
+        throw err;
+      }
+    }
+    this.render();
+  }
+  render(){
+    if(!this.cache) return;
+    this.layer.clearLayers();
+    if(this.renderer) this.renderer(this.cache, this.layer);
+    if(!map.hasLayer(this.layer)) this.layer.addTo(map);
+  }
+  clear(){
+    if(map.hasLayer(this.layer)) map.removeLayer(this.layer);
+  }
+  destroy(){
+    this.clear();
+    this.cache = null;
+    this.loaded = false;
+  }
+}
+window.LayerPipeline = LayerPipeline;
+
 const LIGHT_ID="O-A0039-001";
 const lightRenderer=L.canvas({padding:0.4});   // canvas 繪製，大量點位效能較佳
 const lightLayer=L.layerGroup();
 let lightCache=null;
+
 const LIGHT_RAMP=[[0,'#ff3030'],[10,'#ff8c00'],[20,'#ffd500'],[30,'#4ade80'],[40,'#38bdf8'],[50,'#a78bfa'],[60,'#64748b']];
 function lightAgeMin(t){return t?Math.max(0,(Date.now()-t.getTime())/60000):null;}
 function lightColor(t){const a=lightAgeMin(t);return a==null?'#ffd500':colorAt(LIGHT_RAMP,Math.min(60,a));}
@@ -4231,6 +4610,588 @@ $("fit").onclick=()=>{$("countySel").value="";$("search").value="";map.fitBounds
 $("baseSel").onchange=e=>{map.removeLayer(curBase);curBase=BASES[e.target.value].addTo(map);curBase.bringToBack();};
 $("changeKey").onclick=()=>openGate();
 
+// ===== 浮動提示 Toast 通知 =====
+function showToast(msg, duration = 2500){
+  let t = $("cwaToast");
+  if(!t){
+    t = document.createElement("div");
+    t.id = "cwaToast";
+    t.className = "cwa-toast";
+    document.body.appendChild(t);
+  }
+  t.innerHTML = msg;
+  t.classList.add("show");
+  clearTimeout(t._timer);
+  t._timer = setTimeout(()=>{
+    t.classList.remove("show");
+  }, duration);
+}
+
+// ===== 分享目前檢視：URL 狀態序列化與還原 =====
+function getSharedParams(){
+  const p = new URLSearchParams();
+  const put = (k, val) => { if(val !== undefined && val !== null && val !== "") p.set(k, String(val)); };
+
+  // 1. 地圖視角與底圖
+  const c = map.getCenter();
+  put("lat", c.lat.toFixed(4));
+  put("lng", c.lng.toFixed(4));
+  put("z", map.getZoom());
+  if($("baseSel") && $("baseSel").value !== "osm") put("base", $("baseSel").value);
+  if($("dayNightChk") && !$("dayNightChk").checked) put("dn", "0");
+
+  // 2. 氣象觀測
+  if($("varSel") && $("varSel").value) put("var", $("varSel").value);
+  if($("countySel") && $("countySel").value) put("county", $("countySel").value);
+  if($("search") && $("search").value.trim()) put("q", $("search").value.trim());
+  if($("mergeHourlyChk") && !$("mergeHourlyChk").checked) put("mh", "0");
+
+  // 3. 空間克利金內插
+  if($("krigingSurfaceChk") && $("krigingSurfaceChk").checked){
+    put("ks", "1");
+    if($("krigingOp") && $("krigingOp").value !== "30") put("ko", $("krigingOp").value);
+  }
+  if($("krigingLineChk") && $("krigingLineChk").checked) put("kl", "1");
+  if($("krigingLabelChk") && $("krigingLabelChk").checked) put("kb", "1");
+  if($("krigingDemChk") && !$("krigingDemChk").checked) put("kdem", "0");
+
+  // 4. 雷達與對流胞
+  if($("radarSel") && $("radarSel").value){
+    put("radar", $("radarSel").value);
+    if($("radarOp") && $("radarOp").value !== "75") put("ro", $("radarOp").value);
+  }
+  if($("cellChk") && $("cellChk").checked){
+    put("cell", "1");
+    if($("cellOp") && $("cellOp").value !== "90") put("co", $("cellOp").value);
+  }
+
+  // 5. 衛星雲圖與向日葵
+  if($("cloudSel") && $("cloudSel").value){
+    put("cloud", $("cloudSel").value);
+    if($("cloudOp") && $("cloudOp").value !== "80") put("cldo", $("cloudOp").value);
+  }
+  if($("satChk") && $("satChk").checked){
+    put("sat", "1");
+    if($("satOp") && $("satOp").value !== "85") put("sato", $("satOp").value);
+  }
+
+  // 6. 閃電與落雷
+  if($("lightChk") && $("lightChk").checked) put("light", "1");
+  if($("tpChk") && $("tpChk").checked){
+    put("tp", "1");
+    if($("tpSrc") && $("tpSrc").value !== "auto") put("tps", $("tpSrc").value);
+  }
+
+  // 7. 颱風
+  if($("tyChk") && $("tyChk").checked) put("ty", "1");
+  if($("typChk") && $("typChk").checked) put("typ", "1");
+
+  // 8. 即時影像 CCTV
+  if($("camChk") && $("camChk").checked) put("cam", "1");
+
+  // 9. 水利署水情圖層 (整合 WRA)
+  if($("wlChk") && $("wlChk").checked){
+    put("wl", "1");
+    if($("wlVarSel") && $("wlVarSel").value !== "alert") put("wlv", $("wlVarSel").value);
+    if($("wlCountySel") && $("wlCountySel").value) put("wlc", $("wlCountySel").value);
+    if($("basinSel") && $("basinSel").value) put("wlb", $("basinSel").value);
+    if($("riverSel") && $("riverSel").value) put("wlr", $("riverSel").value);
+    if($("wlSearch") && $("wlSearch").value.trim()) put("wlq", $("wlSearch").value.trim());
+    if($("naChk") && !$("naChk").checked) put("wlna", "0");
+    if($("alertChk") && $("alertChk").checked) put("wlal", "1");
+    if($("pulseChk") && !$("pulseChk").checked) put("wlpu", "0");
+
+    if($("gwChk") && $("gwChk").checked){
+      put("gw", "1");
+      if($("gwVarSel") && $("gwVarSel").value !== "lv") put("gwv", $("gwVarSel").value);
+      if($("gwZoneSel") && $("gwZoneSel").value) put("gwz", $("gwZoneSel").value);
+      if($("gwSrc") && $("gwSrc").value !== "auto") put("gws", $("gwSrc").value);
+      if($("gwNaChk") && $("gwNaChk").checked) put("gwn", "1");
+    }
+
+    if($("floodChk") && $("floodChk").checked){
+      put("fl", "1");
+      if($("floodOrgSel") && $("floodOrgSel").value) put("flo", $("floodOrgSel").value);
+      if($("floodOnlyChk") && $("floodOnlyChk").checked) put("flw", "1");
+      if($("floodStaleChk") && $("floodStaleChk").checked) put("fls", "1");
+    }
+    if($("dustChk") && $("dustChk").checked) put("du", "1");
+    if($("gateChk") && $("gateChk").checked) put("gt", "1");
+    if($("scourChk") && $("scourChk").checked) put("sr", "1");
+    if($("flowChk") && $("flowChk").checked) put("fv", "1");
+  }
+
+  return p;
+}
+
+let updateUrlTimer = null;
+function updateUrlState(){
+  if(updateUrlTimer) clearTimeout(updateUrlTimer);
+  updateUrlTimer = setTimeout(() => {
+    try{
+      const p = getSharedParams();
+      const s = p.toString();
+      history.replaceState(null, "", s ? ("?" + s) : location.pathname);
+    }catch(e){}
+  }, 400);
+}
+
+async function copyShareUrl(){
+  const p = getSharedParams();
+  const url = location.origin + location.pathname + (p.toString() ? "?" + p.toString() : "");
+  let copied = false;
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      await navigator.clipboard.writeText(url);
+      copied = true;
+    }
+  }catch(e){}
+  if(!copied){
+    try{
+      const ta = document.createElement("textarea");
+      ta.value = url;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      copied = true;
+    }catch(e2){}
+  }
+  showToast("🔗 已複製分享連結！包含地圖視角、變數及圖層設定。");
+}
+
+function restoreSharedState(){
+  const raw = location.search ? location.search.substring(1) : location.hash.replace(/^#/, "");
+  if(!raw) return false;
+  const p = new URLSearchParams(raw);
+
+  // 1. 地圖中心與視角
+  let hasCoords = false;
+  if(p.has("lat") && p.has("lng") && p.has("z")){
+    const lat = parseFloat(p.get("lat"));
+    const lng = parseFloat(p.get("lng"));
+    const z = parseInt(p.get("z"), 10);
+    if(!isNaN(lat) && !isNaN(lng) && !isNaN(z)){
+      map.setView([lat, lng], z);
+      hasCoords = true;
+    }
+  }
+
+  // 2. 底圖與日夜變化
+  if(p.has("base") && BASES[p.get("base")]){
+    if($("baseSel")) $("baseSel").value = p.get("base");
+    map.removeLayer(curBase);
+    curBase = BASES[p.get("base")].addTo(map);
+    curBase.bringToBack();
+  }
+  if(p.has("dn") && $("dayNightChk")){
+    $("dayNightChk").checked = p.get("dn") !== "0";
+    localStorage.setItem(DAYNIGHT_LS, $("dayNightChk").checked ? "1" : "0");
+  }
+
+  // 3. 氣象觀測選單
+  if(p.has("var") && $("varSel")){
+    $("varSel").value = p.get("var");
+  }
+  if(p.has("county") && $("countySel")){
+    $("countySel").value = p.get("county");
+  }
+  if(p.has("q") && $("search")){
+    $("search").value = p.get("q");
+  }
+  if(p.has("mh") && $("mergeHourlyChk")){
+    $("mergeHourlyChk").checked = p.get("mh") !== "0";
+  }
+
+  // 4. 克利金空間內插
+  if(p.has("ks") && $("krigingSurfaceChk")){
+    $("krigingSurfaceChk").checked = p.get("ks") === "1";
+  }
+  if(p.has("ko") && $("krigingOp")){
+    $("krigingOp").value = p.get("ko");
+    if($("krigingOpV")) $("krigingOpV").textContent = p.get("ko") + "%";
+  }
+  if(p.has("kl") && $("krigingLineChk")){
+    $("krigingLineChk").checked = p.get("kl") === "1";
+  }
+  if(p.has("kb") && $("krigingLabelChk")){
+    $("krigingLabelChk").checked = p.get("kb") === "1";
+  }
+  if(p.has("kdem") && $("krigingDemChk")){
+    $("krigingDemChk").checked = p.get("kdem") !== "0";
+  }
+
+  // 5. 雷達與對流胞
+  if(p.has("ro") && $("radarOp")){
+    $("radarOp").value = p.get("ro");
+    if($("radarOpV")) $("radarOpV").textContent = p.get("ro") + "%";
+  }
+  if(p.has("radar") && $("radarSel") && p.get("radar")){
+    $("radarSel").value = p.get("radar");
+    if(KEY) loadRadar(p.get("radar"));
+  }
+  if(p.has("co") && $("cellOp")){
+    $("cellOp").value = p.get("co");
+    if($("cellOpV")) $("cellOpV").textContent = p.get("co") + "%";
+  }
+  if(p.get("cell") === "1" && $("cellChk")){
+    $("cellChk").checked = true;
+    if(KEY) loadCell(true);
+  }
+
+  // 6. 衛星雲圖與向日葵反射率
+  if(p.has("cldo") && $("cloudOp")){
+    $("cloudOp").value = p.get("cldo");
+    if($("cloudOpV")) $("cloudOpV").textContent = p.get("cldo") + "%";
+  }
+  if(p.has("cloud") && $("cloudSel") && p.get("cloud")){
+    $("cloudSel").value = p.get("cloud");
+    if(KEY) loadCloud(p.get("cloud"));
+  }
+  if(p.has("sato") && $("satOp")){
+    $("satOp").value = p.get("sato");
+    if($("satOpV")) $("satOpV").textContent = p.get("sato") + "%";
+  }
+  if(p.get("sat") === "1" && $("satChk")){
+    $("satChk").checked = true;
+    if(KEY) loadSat(true);
+  }
+
+  // 7. 閃電與落雷
+  if(p.get("light") === "1" && $("lightChk")){
+    $("lightChk").checked = true;
+    if(KEY) loadLightning(true);
+  }
+  if(p.get("tp") === "1" && $("tpChk")){
+    $("tpChk").checked = true;
+    if(p.has("tps") && $("tpSrc")) $("tpSrc").value = p.get("tps");
+    loadTPLight(true);
+  }
+
+  // 8. 颱風
+  if(p.get("ty") === "1" && $("tyChk")){
+    $("tyChk").checked = true;
+    if(KEY) loadTyphoon(true);
+  }
+  if(p.get("typ") === "1" && $("typChk")){
+    $("typChk").checked = true;
+    if(KEY) loadTyProb(true);
+  }
+
+  // 9. 即時影像 CCTV
+  if(p.get("cam") === "1" && $("camChk")){
+    $("camChk").checked = true;
+    camApply();
+    buildCamCats();
+  }
+
+  return hasCoords;
+}
+
+// ===== 匯出地圖畫面為 PNG 圖片 =====
+async function exportMapImage(){
+  const shareStat = $("shareStat");
+  if(shareStat){
+    shareStat.style.display = "block";
+    shareStat.textContent = "⏳ 正在擷取地圖與圖資畫面…";
+  }
+  showToast("📷 正在產生地圖畫面截圖...", 3500);
+
+  try{
+    if(typeof html2canvas === "undefined"){
+      throw new Error("截圖工具尚未就緒，請檢查網路連線或稍後再試");
+    }
+
+    const zoomCtrl = document.querySelector(".leaflet-control-zoom");
+    const panelTab = $("panelTab");
+    const quickBar = document.querySelector(".map-quick-bar");
+    const toastEl = $("cwaToast");
+
+    const prevZoomDisp = zoomCtrl ? zoomCtrl.style.display : "";
+    const prevTabDisp = panelTab ? panelTab.style.display : "";
+    const prevQuickDisp = quickBar ? quickBar.style.display : "";
+    const prevToastDisp = toastEl ? toastEl.style.display : "";
+
+    if(zoomCtrl) zoomCtrl.style.display = "none";
+    if(panelTab) panelTab.style.display = "none";
+    if(quickBar) quickBar.style.display = "none";
+    if(toastEl) toastEl.style.display = "none";
+
+    const mapEl = document.getElementById("map");
+    const mapCanvas = await html2canvas(mapEl, {
+      useCORS: true,
+      allowTaint: false,
+      backgroundColor: "#0e1217",
+      logging: false,
+      scale: Math.min(window.devicePixelRatio || 1, 2)
+    });
+
+    if(zoomCtrl) zoomCtrl.style.display = prevZoomDisp;
+    if(panelTab) panelTab.style.display = prevTabDisp;
+    if(quickBar) quickBar.style.display = prevQuickDisp;
+    if(toastEl) toastEl.style.display = prevToastDisp;
+
+    // 檢查圖例是否可見並擷取
+    const legEl = document.getElementById("legend");
+    let legCanvas = null;
+    if(legEl && !legEl.classList.contains("collapsed") && legEl.offsetHeight > 40){
+      try{
+        legCanvas = await html2canvas(legEl, {
+          useCORS: true,
+          allowTaint: false,
+          backgroundColor: "rgba(23,28,40,0.92)",
+          logging: false,
+          scale: mapCanvas.width / mapEl.clientWidth
+        });
+      }catch(e){
+        console.warn("Capture legend optional step skipped:", e);
+      }
+    }
+
+    // 建立最終合成畫布
+    const finalCanvas = document.createElement("canvas");
+    const scale = mapCanvas.width / mapEl.clientWidth;
+    const bannerH = Math.round(52 * scale);
+    finalCanvas.width = mapCanvas.width;
+    finalCanvas.height = mapCanvas.height + bannerH;
+    const ctx = finalCanvas.getContext("2d");
+
+    // 1. 繪製地圖底圖
+    ctx.drawImage(mapCanvas, 0, 0);
+
+    // 2. 若有圖例，繪製於地圖右下方
+    if(legCanvas){
+      const margin = Math.round(16 * scale);
+      const lx = mapCanvas.width - legCanvas.width - margin;
+      const ly = mapCanvas.height - legCanvas.height - margin;
+      if(lx > 0 && ly > 0){
+        ctx.shadowColor = "rgba(0,0,0,0.5)";
+        ctx.shadowBlur = 16;
+        ctx.drawImage(legCanvas, lx, ly);
+        ctx.shadowColor = "transparent";
+        ctx.shadowBlur = 0;
+      }
+    }
+
+    // 3. 繪製底部資訊列 Banner
+    ctx.fillStyle = "rgba(14, 18, 23, 0.96)";
+    ctx.fillRect(0, mapCanvas.height, finalCanvas.width, bannerH);
+
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, mapCanvas.height);
+    ctx.lineTo(finalCanvas.width, mapCanvas.height);
+    ctx.stroke();
+
+    const pad = Math.round(16 * scale);
+
+    // 左側文字：標題與觀測資訊
+    ctx.fillStyle = "#ffffff";
+    ctx.font = `bold ${Math.round(13.5 * scale)}px "Roboto", "Noto Sans TC", sans-serif`;
+    ctx.fillText("🗺️ CWA 氣象即時觀測 × 全臺即時影像 × 水利署水情", pad, mapCanvas.height + Math.round(21 * scale));
+
+    const curV = curVar();
+    const obsT = $("obsTime") ? $("obsTime").textContent.replace("🕒 資料時間：", "").trim() : "";
+    const cty = $("countySel") && $("countySel").value ? $("countySel").value : "全臺";
+    ctx.fillStyle = "#9aa0a6";
+    ctx.font = `${Math.round(11 * scale)}px "Roboto", "Noto Sans TC", sans-serif`;
+    ctx.fillText(`觀測變數：${curV ? curV.label : "無"} ‧ 縣市：${cty} ‧ 資料時間：${obsT || "即時"}`, pad, mapCanvas.height + Math.round(41 * scale));
+
+    // 右側文字：啟用圖層與產製時間
+    const activeLayers = [];
+    if($("krigingSurfaceChk") && $("krigingSurfaceChk").checked) activeLayers.push("克利金等值面");
+    if($("krigingLineChk") && $("krigingLineChk").checked) activeLayers.push("克利金等值線");
+    if($("radarSel") && $("radarSel").value) activeLayers.push("雷達回波");
+    if($("cloudSel") && $("cloudSel").value) activeLayers.push("衛星雲圖");
+    if($("lightChk") && $("lightChk").checked) activeLayers.push("閃電落雷");
+    if($("tyChk") && $("tyChk").checked) activeLayers.push("颱風路徑");
+    if($("camChk") && $("camChk").checked) activeLayers.push("即時影像");
+    if($("wlChk") && $("wlChk").checked) activeLayers.push("水情圖層");
+    const layerStr = activeLayers.length ? "已啟用：" + activeLayers.join(" / ") : "";
+
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#8ab4f8";
+    ctx.font = `${Math.round(11 * scale)}px "Roboto", "Noto Sans TC", sans-serif`;
+    ctx.fillText(layerStr, finalCanvas.width - pad, mapCanvas.height + Math.round(21 * scale));
+
+    ctx.fillStyle = "#9aa0a6";
+    ctx.font = `${Math.round(10 * scale)}px "Roboto", "Noto Sans TC", sans-serif`;
+    ctx.fillText(`產製時間：${new Date().toLocaleString("zh-TW")}`, finalCanvas.width - pad, mapCanvas.height + Math.round(41 * scale));
+
+    // 觸發下載
+    const dataUrl = finalCanvas.toDataURL("image/png");
+    const a = document.createElement("a");
+    const pad2 = n => String(n).padStart(2, "0");
+    const now = new Date();
+    const curTime = `${now.getFullYear()}${pad2(now.getMonth()+1)}${pad2(now.getDate())}_${pad2(now.getHours())}${pad2(now.getMinutes())}`;
+    const varName = curV ? curV.key : "view";
+    a.download = `CWA_${varName}_${curTime}.png`;
+    a.href = dataUrl;
+    a.click();
+
+    if(shareStat){
+      shareStat.textContent = "✅ 圖片已成功匯出！";
+      setTimeout(()=>{ shareStat.style.display = "none"; }, 3000);
+    }
+    showToast("✅ 地圖畫面已成功匯出為 PNG 圖片！");
+  }catch(err){
+    console.error("Export image error:", err);
+    if(shareStat){
+      shareStat.textContent = "⚠️ 匯出失敗：" + err.message;
+    }
+    showToast("⚠️ 匯出圖片失敗：" + err.message, 3500);
+  }
+}
+
+// ===== 匯出目前篩選之測站資料 (CSV / JSON) =====
+function exportStationData(format = 'csv'){
+  const shareStat = $("shareStat");
+  try{
+    const v = curVar();
+    if(!v){
+      showToast("⚠️ 目前未選取觀測變數，無法匯出資料。");
+      return;
+    }
+    const list = (v.src === "rain" ? RAIN : v.src === "sun" ? SUN : RAW);
+    if(!list || !list.length){
+      showToast("⚠️ 目前查無測站觀測資料。");
+      return;
+    }
+
+    const county = $("countySel") ? $("countySel").value : "";
+    const q = $("search") ? $("search").value.trim().toLowerCase() : "";
+    const matched = [];
+
+    list.forEach(s => {
+      if(county && s.GeoInfo?.CountyName !== county) return;
+      if(q && !((s.StationName||"").toLowerCase().includes(q) || (s.StationId||"").toLowerCase().includes(q))) return;
+      const ll = wgs84(s);
+      if(!ll) return;
+      const val = v.get(s);
+      const we = s.WeatherElement || {};
+      const r = (typeof rainById !== "undefined" && rainById[s.StationId]) || (s.RainfallElement ? s : null);
+      
+      matched.push({
+        stationId: s.StationId || "",
+        stationName: s.StationName || "",
+        county: s.GeoInfo?.CountyName || "",
+        town: s.GeoInfo?.TownName || "",
+        lat: Number(ll[0].toFixed(5)),
+        lng: Number(ll[1].toFixed(5)),
+        obsTime: s.ObsTime?.DateTime || (s.WeatherElement?.Date ? (s.WeatherElement.Date + " " + (s.WeatherElement.Time || "")) : ""),
+        currentVar: v.label,
+        currentVal: val !== null ? val : "無觀測值",
+        unit: v.unit || "",
+        temp: num(we.AirTemperature),
+        rain1hr: r ? rget(r, "Past1hr") : null,
+        rain24hr: r ? rget(r, "Past24hr") : null,
+        windSpeed: num(we.WindSpeed),
+        windDir: num(we.WindDirection),
+        pressure: num(we.AirPressure),
+        humidity: num(we.RelativeHumidity)
+      });
+    });
+
+    if(!matched.length){
+      showToast("⚠️ 篩選條件下無符合之測站資料。");
+      return;
+    }
+
+    const pad2 = n => String(n).padStart(2, "0");
+    const now = new Date();
+    const curTime = `${now.getFullYear()}${pad2(now.getMonth()+1)}${pad2(now.getDate())}_${pad2(now.getHours())}${pad2(now.getMinutes())}`;
+
+    if(format === "csv"){
+      const headers = [
+        "站號", "站名", "縣市", "鄉鎮市區", "緯度", "經度",
+        "觀測時間", "選取變數", "變數數值", "單位",
+        "氣溫(°C)", "時雨量(mm)", "日累積雨量(mm)", "風速(m/s)", "風向(°)", "氣壓(hPa)", "相對溼度(%)"
+      ];
+      const escapeCsv = val => {
+        if(val === null || val === undefined) return "";
+        const str = String(val);
+        if(str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")){
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      };
+      const rows = [headers.map(escapeCsv).join(",")];
+      matched.forEach(item => {
+        rows.push([
+          item.stationId, item.stationName, item.county, item.town, item.lat, item.lng,
+          item.obsTime, item.currentVar, item.currentVal, item.unit,
+          item.temp ?? "", item.rain1hr ?? "", item.rain24hr ?? "",
+          item.windSpeed ?? "", item.windDir ?? "", item.pressure ?? "", item.humidity ?? ""
+        ].map(escapeCsv).join(","));
+      });
+      const bom = "\uFEFF";
+      const blob = new Blob([bom + rows.join("\r\n")], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.download = `CWA_stations_${v.key}_${curTime}.csv`;
+      a.href = url;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast(`✅ 已匯出 ${matched.length} 筆測站資料 (CSV)`);
+    } else {
+      const exportObj = {
+        title: "CWA 氣象即時觀測資料匯出",
+        exportTime: now.toISOString(),
+        obsTime: $("obsTime") ? $("obsTime").textContent.replace("🕒 資料時間：", "").trim() : "",
+        variable: { key: v.key, label: v.label, unit: v.unit },
+        countyFilter: county || "全部",
+        searchQuery: q || "",
+        totalStations: matched.length,
+        stations: matched
+      };
+      const blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: "application/json;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.download = `CWA_stations_${v.key}_${curTime}.json`;
+      a.href = url;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast(`✅ 已匯出 ${matched.length} 筆測站資料 (JSON)`);
+    }
+  }catch(err){
+    console.error("Export station data error:", err);
+    showToast("⚠️ 匯出資料失敗：" + err.message);
+  }
+}
+
+// 綁定分享與匯出按鈕事件
+if($("btnShareUrl")) $("btnShareUrl").onclick = copyShareUrl;
+if($("quickShare")) $("quickShare").onclick = copyShareUrl;
+if($("btnExportImg")) $("btnExportImg").onclick = exportMapImage;
+if($("quickShot")) $("quickShot").onclick = exportMapImage;
+if($("btnExportCsv")) $("btnExportCsv").onclick = () => exportStationData("csv");
+if($("btnExportJson")) $("btnExportJson").onclick = () => exportStationData("json");
+
+// 地圖移動與操作變更時自動同步更新 URL 狀態
+map.on("moveend", updateUrlState);
+map.on("zoomend", updateUrlState);
+["varSel", "countySel", "baseSel"].forEach(id => {
+  if($(id)) $(id).addEventListener("change", updateUrlState);
+});
+["search"].forEach(id => {
+  if($(id)) $(id).addEventListener("input", updateUrlState);
+});
+["krigingSurfaceChk", "krigingLineChk", "krigingLabelChk", "krigingDemChk", "mergeHourlyChk", "dayNightChk", "cellChk", "satChk", "lightChk", "tpChk", "tyChk", "typChk", "camChk"].forEach(id => {
+  if($(id)) $(id).addEventListener("change", updateUrlState);
+});
+["radarSel", "cloudSel"].forEach(id => {
+  if($(id)) $(id).addEventListener("change", updateUrlState);
+});
+
+window.getSharedParams = getSharedParams;
+window.restoreSharedState = restoreSharedState;
+window.copyShareUrl = copyShareUrl;
+window.exportMapImage = exportMapImage;
+window.exportStationData = exportStationData;
+
 // ===== 面板 / 圖例 縮小切換（利於手機排版）=====
 function bindCollapse(boxId,btnId){
   const box=$(boxId),btn=$(btnId);
@@ -4267,6 +5228,105 @@ $("panelTab").onclick=()=>{
   $("panelTab").classList.toggle("collapsed",c);
   $("panelTab").textContent=c?"▶":"◀";
 };
+// 行動裝置底部抽屜互動邏輯 (Mobile Bottom Sheet Controller)
+function setupMobileBar(){
+  const sheet = $("mobileSheet");
+  if(!sheet) return;
+
+  const closeSheet = () => {
+    sheet.classList.remove("open");
+    sheet.innerHTML = "";
+    ["mBtnVar", "mBtnCounty", "mBtnStats"].forEach(id => {
+      const b = $(id); if(b) b.classList.remove("active");
+    });
+  };
+
+  const toggleSheet = (btnId, contentFn) => {
+    const btn = $(btnId);
+    if(!btn) return;
+    const isCur = btn.classList.contains("active");
+    closeSheet();
+    if(!isCur){
+      btn.classList.add("active");
+      sheet.innerHTML = contentFn();
+      sheet.classList.add("open");
+    }
+  };
+
+  if($("mBtnPanel")){
+    $("mBtnPanel").onclick = () => {
+      closeSheet();
+      if($("panelTab")) $("panelTab").click();
+    };
+  }
+
+  if($("mBtnVar")){
+    $("mBtnVar").onclick = () => {
+      toggleSheet("mBtnVar", () => {
+        const curV = $("varSel") ? $("varSel").value : "";
+        let h = '<div style="font-weight:700;font-size:12px;color:var(--muted);padding:4px 8px;margin-bottom:4px">選擇觀測變數</div>';
+        VARS.forEach(v => {
+          const act = v.key === curV ? "active" : "";
+          h += `<div class="msheet-item ${act}" data-v="${v.key}">${v.label}${v.unit ? ` (${v.unit})` : ""}</div>`;
+        });
+        return h;
+      });
+    };
+  }
+
+  if($("mBtnCounty")){
+    $("mBtnCounty").onclick = () => {
+      toggleSheet("mBtnCounty", () => {
+        const sel = $("countySel");
+        const curC = sel ? sel.value : "";
+        let h = '<div style="font-weight:700;font-size:12px;color:var(--muted);padding:4px 8px;margin-bottom:4px">選擇縣市範圍</div>';
+        if(sel){
+          Array.from(sel.options).forEach(opt => {
+            const act = opt.value === curC ? "active" : "";
+            h += `<div class="msheet-item ${act}" data-c="${opt.value}">${opt.text}</div>`;
+          });
+        }
+        return h;
+      });
+    };
+  }
+
+  if($("mBtnStats")){
+    $("mBtnStats").onclick = () => {
+      toggleSheet("mBtnStats", () => {
+        const sHi = $("stHi") ? $("stHi").textContent : "—";
+        const sLo = $("stLo") ? $("stLo").textContent : "—";
+        const sRn = $("stRain") ? $("stRain").textContent : "—";
+        const sGu = $("stGust") ? $("stGust").textContent : "—";
+        return `<div style="font-weight:700;font-size:12px;color:var(--accent);padding:4px 8px">📈 全臺極值統計</div>
+          <div class="msheet-item"><span>最高溫</span><b style="color:#ffffff">${sHi}</b></div>
+          <div class="msheet-item"><span>最低溫</span><b style="color:#ffffff">${sLo}</b></div>
+          <div class="msheet-item"><span>日累積雨量</span><b style="color:#ffffff">${sRn}</b></div>
+          <div class="msheet-item"><span>最大陣風</span><b style="color:#ffffff">${sGu}</b></div>`;
+      });
+    };
+  }
+
+  sheet.addEventListener("click", e => {
+    const item = e.target.closest(".msheet-item");
+    if(!item) return;
+    if(item.dataset.v !== undefined){
+      if($("varSel")){
+        $("varSel").value = item.dataset.v;
+        render(false);
+      }
+      closeSheet();
+    } else if(item.dataset.c !== undefined){
+      if($("countySel")){
+        $("countySel").value = item.dataset.c;
+        render(true);
+      }
+      closeSheet();
+    }
+  });
+}
+setupMobileBar();
+
 // 手機窄螢幕：預設收合面板與圖例，減少遮擋地圖
 if(window.innerWidth<=520){
   $("panelTab").onclick();
@@ -4309,7 +5369,7 @@ function submitKey(){
   if(gtOverlay){map.removeLayer(gtOverlay);gtOverlay=null;}
   tyCache=null;
   typClearCache();
-  load();
+  load(!hasCustomCoords);
   if($("cellChk").checked)loadCell(true);
   if($("lightChk").checked)loadLightning(true);
   if($("tpChk").checked)loadTPLight(true);
@@ -4628,12 +5688,12 @@ function countyOf(s){
    水利署河川水位站警戒水位分三級，數值大小為 一級 > 二級 > 三級，
    一級警戒最嚴重（水位預期未來 3 小時將達計畫洪水位或堤頂）。 */
 const LEVELS=[
-  {k:1,label:"一級警戒",color:"#dc2626",r:9},
-  {k:2,label:"二級警戒",color:"#f97316",r:8},
-  {k:3,label:"三級警戒",color:"#facc15",r:7},
-  {k:0,label:"未達警戒",color:"#22c55e",r:5.5},
-  {k:-1,label:"未訂警戒值",color:"#38bdf8",r:5},
-  {k:-9,label:"無即時資料",color:"#7a8aa3",r:4}
+  {k:1,label:"[⛔ 一級警戒]",color:"#dc2626",r:9},
+  {k:2,label:"[⚠️ 二級警戒]",color:"#f97316",r:8},
+  {k:3,label:"[ℹ️ 三級警戒]",color:"#facc15",r:7},
+  {k:0,label:"[✓ 未達警戒]",color:"#22c55e",r:5.5},
+  {k:-1,label:"[◆ 未訂警戒值]",color:"#38bdf8",r:5},
+  {k:-9,label:"[○ 無即時資料]",color:"#7a8aa3",r:4}
 ];
 /* 河川水位站圖示：▽ 倒三角形。測量學上 ▽ 即水面高程符號；
    同時避開氣象站／IoW 沖刷深度的圓形、地下水的菱形、IoW 揚塵的正三角形。 */
@@ -5860,6 +6920,10 @@ async function iowToggle(id){
 let hashLoading=false;
 function saveHash(){
   if(hashLoading)return;
+  if(typeof updateUrlState === "function"){
+    updateUrlState();
+    return;
+  }
   const p=new URLSearchParams();
   const put=(k,val)=>{if(val)p.set(k,val);};
   put("v",$("wlVarSel").value!=="alert"?$("wlVarSel").value:"");
@@ -5891,26 +6955,34 @@ function saveHash(){
 }
 function loadHash(){
   hashLoading=true;
-  const p=new URLSearchParams(location.hash.replace(/^#/,""));
-  if(p.get("v"))$("wlVarSel").value=p.get("v");
-  if(p.get("q"))$("wlSearch").value=p.get("q");
-  if(p.get("na")==="0")$("naChk").checked=false;
-  if(p.get("al")==="1")$("alertChk").checked=true;
-  if(p.get("pu")==="0")$("pulseChk").checked=false;
+  const rawP = location.search ? location.search.substring(1) : location.hash.replace(/^#/,"");
+  const p=new URLSearchParams(rawP);
+  const getVal = (k, alt) => p.get(k) || (alt ? p.get(alt) : null);
+  if(getVal("v","wlv"))$("wlVarSel").value=getVal("v","wlv");
+  if(getVal("q","wlq"))$("wlSearch").value=getVal("q","wlq");
+  if(getVal("na","wlna")==="0")$("naChk").checked=false;
+  if(getVal("al","wlal")==="1")$("alertChk").checked=true;
+  if(getVal("pu","wlpu")==="0")$("pulseChk").checked=false;
   if(p.get("gw")==="1")$("gwChk").checked=true;
-  if(p.get("gv"))$("gwVarSel").value=p.get("gv");
-  if(p.get("gs"))$("gwSrc").value=p.get("gs");
+  if(getVal("gv","gwv"))$("gwVarSel").value=getVal("gv","gwv");
+  if(getVal("gs","gws"))$("gwSrc").value=getVal("gs","gws");
   if(p.get("fl")==="1")$("floodChk").checked=true;
-  if(p.get("fw")==="1")$("floodOnlyChk").checked=true;
-  if(p.get("fs")==="1")$("floodStaleChk").checked=true;
+  if(getVal("fw","flw")==="1")$("floodOnlyChk").checked=true;
+  if(getVal("fs","fls")==="1")$("floodStaleChk").checked=true;
   if(p.get("du")==="1")$("dustChk").checked=true;
   if(p.get("gt")==="1")$("gateChk").checked=true;
   if(p.get("sr")==="1")$("scourChk").checked=true;
   if(p.get("fv")==="1")$("flowChk").checked=true;
-  if(p.get("gn")==="1")$("gwNaChk").checked=true;
+  if(getVal("gn","gwn")==="1")$("gwNaChk").checked=true;
   if(p.get("wl")==="1")$("wlChk").checked=true;
   hashLoading=false;
-  return {c:p.get("c")||"",b:p.get("b")||"",r:p.get("r")||"",z:p.get("gz")||"",fo:p.get("fo")||""};
+  return {
+    c: getVal("c","wlc")||"",
+    b: getVal("b","wlb")||"",
+    r: getVal("r","wlr")||"",
+    z: getVal("gz","gwz")||"",
+    fo: getVal("fo","flo")||""
+  };
 }
 
 /* ===== 主流程 ===== */
@@ -6061,15 +7133,69 @@ return {
 };
 })();
 
+// ===== localStorage 自動垃圾回收清理 (GC) =====
+function cleanupStorageCache(){
+  try{
+    const now = Date.now();
+    const MAX_AGE = 24 * 3600 * 1000; // 24 小時
+    const targetPrefixes = ["cwa_", "wra_", "iow_", "moenv_"];
+    const keysToRemove = [];
+
+    for(let i = 0; i < localStorage.length; i++){
+      const k = localStorage.key(i);
+      if(!k) continue;
+      // 保留重要設定鍵值
+      if(k === STORE || k === DAYNIGHT_LS || k === LEG_LS || k === TP_PROXY_LS) continue;
+      
+      const isTarget = targetPrefixes.some(pre => k.startsWith(pre)) || k.includes("_cache") || k.includes("_ts_");
+      if(isTarget){
+        try{
+          const itemStr = localStorage.getItem(k);
+          if(!itemStr) continue;
+          const parsed = JSON.parse(itemStr);
+          if(parsed && typeof parsed === "object" && parsed.t){
+            if(now - parsed.t > MAX_AGE){
+              keysToRemove.push(k);
+            }
+          }
+        }catch(e){
+          // 若為非 JSON 且過期格式則安全忽略
+        }
+      }
+    }
+    keysToRemove.forEach(k => {
+      try{ localStorage.removeItem(k); }catch(_){}
+    });
+    if(keysToRemove.length > 0){
+      console.log(`[Storage GC] 已清除 ${keysToRemove.length} 項過期快取。`);
+    }
+  }catch(err){
+    console.warn("[Storage GC] 清理失敗:", err);
+  }
+}
+
+// 綁定閘門「清除已記住的金鑰」按鈕
+if($("clearSavedKeyBtn")){
+  $("clearSavedKeyBtn").onclick = () => {
+    try{ localStorage.removeItem(STORE); }catch(_){}
+    if($("keyInput")) $("keyInput").value = "";
+    if($("rememberKey")) $("rememberKey").checked = false;
+    showToast("🧹 已清除記住的金鑰設定");
+  };
+}
+
 // 啟動：若瀏覽器已記住金鑰則直接載入，否則顯示輸入畫面
+let hasCustomCoords = false;
 (function init(){
+  cleanupStorageCache();
   let saved="";
   try{saved=localStorage.getItem(STORE)||"";}catch(e){}
+  if(typeof restoreSharedState === "function") hasCustomCoords = restoreSharedState();
   if(saved){
     $("rememberKey").checked=true;
     setKey(saved);
     closeGate();
-    load();
+    load(!hasCustomCoords);
   }else{
     openGate();
   }
