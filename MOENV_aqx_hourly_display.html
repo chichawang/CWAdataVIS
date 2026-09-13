@@ -232,6 +232,9 @@
   <select id="baseSel">
     <option value="dark">深色圖</option>
     <option value="osm">街道圖 (OSM)</option>
+    <option value="emap">台灣電子地圖 (國土測繪中心)</option>
+    <option value="emapgray">台灣電子地圖-灰階 (國土測繪中心)</option>
+    <option value="photomix">台灣電子地圖+正射影像混合 (TGOS/NLSC)</option>
     <option value="sat">衛星影像</option>
     <option value="topo">地形圖</option>
     <option value="light" selected>淺色圖</option>
@@ -460,6 +463,9 @@ const map=L.map("map",{zoomControl:true}).fitBounds(TAIWAN);
 map.zoomControl.setPosition("topright");
 const BASES={
   osm:L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap",crossOrigin:true}),
+  emap:L.tileLayer("https://wmts.nlsc.gov.tw/wmts/EMAP/default/GoogleMapsCompatible/{z}/{y}/{x}",{maxZoom:20,attribution:"© 內政部國土測繪中心 (NLSC)",crossOrigin:true}),
+  emapgray:L.tileLayer("https://wmts.nlsc.gov.tw/wmts/EMAP01/default/GoogleMapsCompatible/{z}/{y}/{x}",{maxZoom:20,attribution:"© 內政部國土測繪中心 (NLSC 灰階)",crossOrigin:true}),
+  photomix:L.tileLayer("https://wmts.nlsc.gov.tw/wmts/PHOTO_MIX/default/GoogleMapsCompatible/{z}/{y}/{x}",{maxZoom:20,attribution:"© 國土測繪中心/TGOS 正射影像(混合)",crossOrigin:true}),
   sat:L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:19,attribution:"Esri World Imagery",crossOrigin:true}),
   topo:L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",{maxZoom:17,attribution:"© OpenTopoMap",crossOrigin:true}),
   dark:L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=cb1_325q_1_8b5e6f905ab09a4799809661",{maxZoom:20,attribution:"© CARTO",crossOrigin:true}),

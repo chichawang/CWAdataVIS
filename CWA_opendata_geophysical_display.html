@@ -214,6 +214,9 @@
     <option value="dark">深色底圖</option>
     <option value="sat">衛星影像</option>
     <option value="osm" selected>街道圖 (OSM)</option>
+    <option value="emap">台灣電子地圖 (國土測繪中心)</option>
+    <option value="emapgray">台灣電子地圖-灰階 (國土測繪中心)</option>
+    <option value="photomix">台灣電子地圖+正射影像混合 (TGOS/NLSC)</option>
     <option value="topo">地形圖</option>
     <option value="light">淺色底圖</option>
   </select>
@@ -597,6 +600,9 @@ map.setView([23.7,121.0],7);
 const BASES={
   dark:L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=cb1_325q_1_8b5e6f905ab09a4799809661",{maxZoom:20,attribution:"© CARTO © OpenStreetMap ‧ 資料：中央氣象署"}),
   osm:L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap ‧ 資料：中央氣象署"}),
+  emap:L.tileLayer("https://wmts.nlsc.gov.tw/wmts/EMAP/default/GoogleMapsCompatible/{z}/{y}/{x}",{maxZoom:20,attribution:"© 內政部國土測繪中心 (NLSC)",crossOrigin:true}),
+  emapgray:L.tileLayer("https://wmts.nlsc.gov.tw/wmts/EMAP01/default/GoogleMapsCompatible/{z}/{y}/{x}",{maxZoom:20,attribution:"© 內政部國土測繪中心 (NLSC 灰階)",crossOrigin:true}),
+  photomix:L.tileLayer("https://wmts.nlsc.gov.tw/wmts/PHOTO_MIX/default/GoogleMapsCompatible/{z}/{y}/{x}",{maxZoom:20,attribution:"© 國土測繪中心/TGOS 正射影像(混合)",crossOrigin:true}),
   sat:L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:19,attribution:"Esri World Imagery ‧ 資料：中央氣象署"}),
   topo:L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",{maxZoom:17,attribution:"© OpenTopoMap ‧ 資料：中央氣象署"}),
   light:L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_325q_1_8b5e6f905ab09a4799809661",{maxZoom:20,attribution:"© CARTO © OpenStreetMap ‧ 資料：中央氣象署"})
