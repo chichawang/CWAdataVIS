@@ -308,6 +308,19 @@
     .map-quick-bar{top:10px;right:46px;gap:4px}
     .map-quick-btn{padding:5px 8px;font-size:11px}
   }
+
+  /* 地圖自動更新倒數浮層 */
+  .countdown-box{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:1000;
+    display:none;align-items:center;gap:8px;
+    background:rgba(23,28,40,0.82);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    border:1px solid var(--line);border-radius:20px;padding:6px 16px;
+    font-size:13px;font-weight:600;color:var(--txt);
+    box-shadow:0 4px 20px rgba(0,0,0,0.4);white-space:nowrap;pointer-events:none}
+  .pulse-dot{width:9px;height:9px;border-radius:50%;background:#4ade80;flex-shrink:0;
+    animation:cdPulse 1.5s ease-in-out infinite}
+  @keyframes cdPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(1.35)}}
+  .time-badge{background:rgba(74,222,128,0.18);border:1px solid rgba(74,222,128,0.45);
+    border-radius:8px;padding:1px 8px;color:#4ade80;font-variant-numeric:tabular-nums;letter-spacing:.04em}
 </style>
 </head>
 <body>
@@ -352,6 +365,14 @@
 <div class="map-quick-bar">
   <button type="button" class="map-quick-btn" id="quickShare" title="複製目前地圖與圖層分享連結">🔗 分享檢視</button>
   <button type="button" class="map-quick-btn" id="quickShot" title="匯出地圖畫面為 PNG 圖片">📷 截圖匯出</button>
+</div>
+
+<!-- 地圖自動更新倒數浮層 -->
+<div id="mapCountdownBox" class="countdown-box">
+  <span class="pulse-dot"></span>
+  <span>自動更新倒數</span>
+  <span id="mapCountdownTimer" class="time-badge">02:00</span>
+  <span id="mapCountdownLast" style="font-size:11px;color:var(--muted);display:none"></span>
 </div>
 
 <!-- 浮動 Toast 提示通知 -->
@@ -667,7 +688,7 @@
     </div>
   </details>
 
-  <details class="sec" id="shareSec" open>
+  <details class="sec" id="shareSec">
     <summary>📤 分享與匯出檢視<span class="car">▾</span></summary>
     <div class="sec-body">
       <div class="btns" style="margin-top:0">
@@ -4587,16 +4608,33 @@ const AUTO_MS=120000;                       // 更新間隔：2 分鐘
 let autoTimer=null,autoNext=0,autoLast=null;
 function autoStatUI(){
   const el=$("autoStat");
-  if(!$("autoChk").checked){el.style.display="none";el.textContent="";return;}
+  const mapBox=$("mapCountdownBox");
+  const mapTimer=$("mapCountdownTimer");
+  const mapLast=$("mapCountdownLast");
+
+  if(!$("autoChk").checked){
+    el.style.display="none";el.textContent="";
+    if(mapBox)mapBox.style.display="none";
+    return;
+  }
   el.style.display="block";
   const remain=Math.max(0,Math.ceil((autoNext-Date.now())/1000));
   const mm=Math.floor(remain/60),ss=String(remain%60).padStart(2,"0");
   el.textContent="🔄 自動更新已開啟｜⏳ 下次更新倒數 "+mm+":"+ss
     +(autoLast?"｜最近更新 "+autoLast.toLocaleTimeString("zh-TW"):"");
+  if(mapBox){
+    mapBox.style.display="inline-flex";
+    if(mapTimer)mapTimer.textContent=mm+":"+ss;
+    if(mapLast){
+      if(autoLast){mapLast.style.display="inline";mapLast.textContent="(前次 "+autoLast.toLocaleTimeString("zh-TW")+")";}
+      else{mapLast.style.display="none";}
+    }
+  }
 }
 $("autoChk").onchange=e=>{
   if(e.target.checked){
     if(!KEY){e.target.checked=false;openGate();return;}
+    showToast("⏱️ 已開啟自動更新，每 2 分鐘自動刷新");
     autoNext=Date.now()+AUTO_MS;
     autoTimer=setInterval(()=>{
       if(Date.now()>=autoNext){
@@ -4607,6 +4645,7 @@ $("autoChk").onchange=e=>{
     },1000);
     autoStatUI();
   }else{
+    showToast("⏱️ 已關閉自動更新");
     if(autoTimer){clearInterval(autoTimer);autoTimer=null;}
     autoLast=null;
     autoStatUI();

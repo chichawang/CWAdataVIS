@@ -257,10 +257,22 @@
     cursor:pointer;font-weight:600;display:inline-flex;align-items:center;gap:4px;box-shadow:0 4px 16px rgba(0,0,0,0.3);
     transition:all .2s ease}
   .map-quick-btn:hover{background:rgba(255,255,255,0.12);border-color:var(--accent);color:var(--accent)}
-  @media(max-width:520px){
-    .map-quick-bar{top:10px;right:46px;gap:4px}
-    .map-quick-btn{padding:5px 8px;font-size:11px}
-  }
+  /* 地圖懸浮自動更新倒數資訊盒 */
+  .countdown-box{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:1000;
+    background:rgba(23,28,40,0.85);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+    border:1px solid rgba(138,180,248,0.4);border-radius:24px;padding:6px 14px;
+    box-shadow:0 6px 20px rgba(0,0,0,0.4);display:none;align-items:center;gap:8px;
+    font-size:12px;font-weight:600;color:#fff;pointer-events:auto;transition:all .3s ease}
+  .countdown-box .pulse-dot{width:8px;height:8px;border-radius:50%;background:#4ade80;box-shadow:0 0 8px #4ade80;animation:cdPulse 1.5s infinite}
+  @keyframes cdPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.85)}}
+  .countdown-box .time-badge{background:rgba(138,180,248,0.2);color:var(--accent);padding:2px 8px;border-radius:12px;font-family:ui-monospace,Menlo,monospace;font-size:12px;font-weight:700}
+  @media(max-width:520px){.countdown-box{top:54px;font-size:11px;padding:4px 10px}}
+
+  /* 環境部空品測站標記與彈出視窗樣式 */
+  .moenv-marker{display:flex;align-items:center;justify-content:center;border-radius:6px;border:1.5px solid #fff;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,0.5);transform:translate(-50%,-50%);cursor:pointer;transition:transform .15s ease}
+  .moenv-marker:hover{transform:translate(-50%,-50%) scale(1.18);z-index:9999}
+  .moenv-marker .badge-txt{font-size:10px;line-height:1;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.8);font-family:ui-monospace,Menlo,monospace}
+  .moenv-badge-tag{display:inline-block;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:700;color:#0b1220;margin-left:6px}
 </style>
 </head>
 <body>
@@ -307,6 +319,14 @@
   <button type="button" class="map-quick-btn" id="quickShot" title="匯出地圖畫面為 PNG 圖片">📷 截圖匯出</button>
 </div>
 
+<!-- 地圖懸浮自動更新倒數顯示資訊框 -->
+<div id="mapCountdownBox" class="countdown-box">
+  <span class="pulse-dot"></span>
+  <span>自動更新倒數</span>
+  <span id="mapCountdownTimer" class="time-badge">02:00</span>
+  <span id="mapCountdownLast" style="font-size:11px;color:var(--muted);display:none"></span>
+</div>
+
 <!-- 浮動 Toast 提示通知 -->
 <div id="cwaToast" class="cwa-toast"></div>
 
@@ -325,6 +345,13 @@
     <div class="sec-body">
       <label>觀測變數</label>
       <select id="varSel"></select>
+      <div style="margin-top:7px;padding-top:7px;border-top:1px dashed var(--line)">
+        <label class="ckrow"><input type="checkbox" id="moenvChk"> 🌫️ 納入環境部測站觀測資料 (aqx_p_133 / 134)</label>
+        <div style="font-size:11px;color:var(--muted);margin-left:22px;margin-top:2px">
+          ※ 僅顯示與氣象署同小時之觀測值（依所選變數同步比對氣溫、雨量、風速、風向、氣壓、相對濕度）
+        </div>
+        <span class="chip" id="moenvStat" style="display:none;margin-top:4px"></span>
+      </div>
       <label>縣市</label>
       <select id="countySel"><option value="">全部（縮放至全臺）</option></select>
       <label>搜尋（站名 / 代碼）</label>
@@ -421,22 +448,6 @@
     </div>
   </details>
 
-  <!-- 區塊: 分享與匯出檢視 -->
-  <details class="sec" id="shareSec" open>
-    <summary>📤 分享與匯出檢視<span class="car">▾</span></summary>
-    <div class="sec-body">
-      <div class="btns" style="margin-top:0">
-        <button id="btnShareUrl" title="複製目前地圖視野與圖層狀態連結">🔗 複製分享連結</button>
-        <button class="ghost" id="btnExportImg" title="將目前地圖畫面與圖例匯出為 PNG 圖片">📷 匯出畫面 (PNG)</button>
-      </div>
-      <div class="btns" style="margin-top:6px">
-        <button class="ghost" id="btnExportCsv" title="匯出目前篩選之測站觀測資料為 CSV">📊 匯出資料 (CSV)</button>
-        <button class="ghost" id="btnExportJson" title="匯出目前篩選之測站觀測資料為 JSON">{ } 匯出 JSON</button>
-      </div>
-      <span class="chip" id="shareStat" style="display:none;margin-top:6px"></span>
-    </div>
-  </details>
-
   <!-- 區塊 6: 操作與自動更新 -->
   <details class="sec" id="ctrlSec">
     <summary>⚙️ 操作與更新<span class="car">▾</span></summary>
@@ -454,7 +465,7 @@
   </details>
 
   <!-- 區塊 7: 分享與匯出檢視 -->
-  <details class="sec" id="shareSec" open>
+  <details class="sec" id="shareSec">
     <summary>📤 分享與匯出檢視<span class="car">▾</span></summary>
     <div class="sec-body">
       <div class="btns" style="margin-top:0">
@@ -900,6 +911,7 @@ function render(fit, skipKriging){
   $("info").textContent=`顯示 ${pts.length} 站 ‧ 變數：${v.label}`;
   legend(v);
   if(!skipKriging && typeof scheduleKriging === "function") scheduleKriging(150);
+  if(typeof renderMoenvLayer === "function") renderMoenvLayer();
 }
 
 // 垂直離散色階 HTML（共用：主圖例與格點圖例）
@@ -2839,6 +2851,317 @@ function marineStat(){
 $("tideChk").onchange=e=>loadMarine("tide",e.target.checked);
 $("swellChk").onchange=e=>loadMarine("swell",e.target.checked);
 
+// ===== 環境部空品測站小時值圖層（aqx_p_133 / aqx_p_134 ＋ aqx_p_07 座標 ＋ 同小時嚴格匹配 ＋ 依氣象署變數呈現）=====
+const MOENV_API_133 = "https://data.moenv.gov.tw/api/v2/aqx_p_133?api_key=af57253c-e838-46da-a1f5-12b43afd75f3&limit=1000&sort=monitordate%20desc&format=JSON";
+const MOENV_API_134 = "https://data.moenv.gov.tw/api/v2/aqx_p_134?api_key=e75b1660-e564-4107-aad5-a8be1f905dd9&limit=1000&sort=monitordate%20desc&format=JSON";
+const MOENV_API_07  = "https://data.moenv.gov.tw/api/v2/aqx_p_07?api_key=af57253c-e838-46da-a1f5-12b43afd75f3&limit=1000&format=JSON";
+
+const moenvLayer = L.layerGroup();
+let moenvRawData = null; // { stations: { siteid: { sitename, county, ll, items: { eng: { val, name, unit, date } } } }, latestHour: "" }
+let moenvMetaMap = null; // siteid/sitename -> { ll, sitetype, township, address, engname }
+
+// 取得氣象署當前資料的小時鍵值 (格式: "YYYY-MM-DD HH")
+function getCwaCurrentHourKey(){
+  const tStr = RAW && RAW[0]?.ObsTime?.DateTime;
+  if(!tStr) return "";
+  const d = new Date(tStr);
+  if(isNaN(d)) return "";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dt = String(d.getDate()).padStart(2, "0");
+  const hr = String(d.getHours()).padStart(2, "0");
+  return `${y}-${m}-${dt} ${hr}`;
+}
+
+// 載入環境部測站經緯度基本資訊 (aqx_p_07)
+async function loadMoenvMeta(){
+  if(moenvMetaMap) return moenvMetaMap;
+  try{
+    const r = await fetch(MOENV_API_07);
+    if(!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json();
+    const recs = Array.isArray(j) ? j : (j.records || []);
+    const map = {};
+    recs.forEach(s => {
+      const la = parseFloat(s.twd97lat), lo = parseFloat(s.twd97lon);
+      if(!isFinite(la) || !isFinite(lo)) return;
+      const meta = {
+        siteid: s.siteid || "",
+        sitename: s.sitename || "",
+        county: s.county || "",
+        township: s.township || "",
+        address: s.siteaddress || "",
+        engname: s.siteengname || "",
+        sitetype: s.sitetype || "",
+        ll: [la, lo]
+      };
+      if(s.siteid) map[s.siteid] = meta;
+      if(s.sitename) map[s.sitename] = meta;
+      map[String(s.sitename).replace(/台/g, "臺")] = meta;
+    });
+    moenvMetaMap = map;
+    return moenvMetaMap;
+  }catch(e){
+    console.warn("載入環境部坐標元資料失敗:", e);
+    return {};
+  }
+}
+
+// 載入並整合環境部小時觀測資料 (133 + 134)
+async function fetchMoenvHourlyData(){
+  const statEl = $("moenvStat");
+  if(statEl){
+    statEl.style.display = "block";
+    statEl.textContent = "⏳ 正在載入環境部小時值資料 (aqx_p_133 / 134)…";
+  }
+
+  const [meta, res133, res134] = await Promise.all([
+    loadMoenvMeta(),
+    fetch(MOENV_API_133).then(r => r.json()).catch(e => { console.warn("133 fetch err", e); return []; }),
+    fetch(MOENV_API_134).then(r => r.json()).catch(e => { console.warn("134 fetch err", e); return []; })
+  ]);
+
+  const list133 = Array.isArray(res133) ? res133 : (res133.records || []);
+  const list134 = Array.isArray(res134) ? res134 : (res134.records || []);
+  const allRecords = [...list133, ...list134];
+
+  if(!allRecords.length){
+    throw new Error("未能取得環境部小時觀測資料（可能是網路連線或 API 配額限制）");
+  }
+
+  const stations = {};
+  allRecords.forEach(r => {
+    if(!r.siteid) return;
+    const sid = r.siteid;
+    if(!stations[sid]){
+      const m = meta[sid] || meta[r.sitename] || {};
+      stations[sid] = {
+        siteid: sid,
+        sitename: r.sitename || m.sitename || "",
+        county: r.county || m.county || "",
+        ll: m.ll || null,
+        meta: m,
+        items: {},
+        latestDate: ""
+      };
+    }
+    const st = stations[sid];
+    const eng = r.itemengname || r.itemname;
+    const dateStr = r.monitordate || "";
+    if(dateStr > st.latestDate) st.latestDate = dateStr;
+    const val = (r.concentration === "" || r.concentration === null || r.concentration === undefined)
+      ? null
+      : parseFloat(r.concentration);
+
+    if(!st.items[eng] || dateStr >= st.items[eng].date){
+      st.items[eng] = {
+        val: isFinite(val) ? val : null,
+        name: r.itemname || eng,
+        unit: r.itemunit || "",
+        date: dateStr
+      };
+    }
+  });
+
+  return stations;
+}
+
+// 根據氣象署變數 key 從環境部測站提取對應氣象數值
+function getMoenvValForCwaVar(st, cwaKey){
+  if(!st || !st.items) return null;
+  switch(cwaKey){
+    case "AirTemperature":
+    case "DailyHigh":
+    case "DailyLow":
+      return st.items["AMB_TEMP"] ? st.items["AMB_TEMP"].val : null;
+    case "Precipitation":
+      return st.items["RAINFALL"] ? st.items["RAINFALL"].val : null;
+    case "RelativeHumidity":
+      return st.items["RH"] ? st.items["RH"].val : null;
+    case "AirPressure":
+      return st.items["PRESSURE"] ? st.items["PRESSURE"].val : null;
+    case "WindSpeed":
+    case "PeakGustSpeed":
+    case "WindVector":
+      return st.items["WS_HR"] ? st.items["WS_HR"].val : (st.items["WIND_SPEED"] ? st.items["WIND_SPEED"].val : null);
+    case "WindDirection":
+      return st.items["WD_HR"] ? st.items["WD_HR"].val : (st.items["WIND_DIREC"] ? st.items["WIND_DIREC"].val : null);
+    default:
+      return null;
+  }
+}
+
+// 繪製環境部測站圖層（僅呈現與氣象署同小時、且對應氣象署所選觀測變數之資料）
+function renderMoenvLayer(){
+  if(!$("moenvChk") || !$("moenvChk").checked){
+    if(map.hasLayer(moenvLayer)) map.removeLayer(moenvLayer);
+    if($("moenvStat")) $("moenvStat").style.display = "none";
+    return;
+  }
+
+  moenvLayer.clearLayers();
+  if(!moenvRawData){
+    return;
+  }
+
+  const statEl = $("moenvStat");
+  const cwaHourKey = getCwaCurrentHourKey(); // 例如 "2026-09-14 22"
+  const v = curVar(); // 當前氣象署選取的觀測變數
+  const countyFilter = $("countySel") ? $("countySel").value : "";
+  const query = $("search") ? $("search").value.trim().toLowerCase() : "";
+  const sc = sizeScale();
+
+  let matchedStationsCount = 0;
+  let totalHourMatched = 0;
+
+  Object.values(moenvRawData).forEach(st => {
+    if(!st.ll) return;
+
+    // 找出該測站最新觀測時間
+    const stTime = st.latestDate || "";
+    const stHourKey = stTime.length >= 13 ? stTime.substring(0, 13) : "";
+
+    // 🌟 嚴格同小時比對：必須與氣象署資料為同個小時才顯示！
+    if(cwaHourKey && stHourKey !== cwaHourKey){
+      return;
+    }
+    totalHourMatched++;
+
+    // 縣市與關鍵字過濾
+    if(countyFilter && !st.county.includes(countyFilter)) return;
+    if(query && !st.sitename.toLowerCase().includes(query) && !st.siteid.toLowerCase().includes(query)) return;
+
+    matchedStationsCount++;
+    const val = getMoenvValForCwaVar(st, v.key);
+    const color = val === null ? "#7a8aa3" : colorFor(val, v);
+
+    let m;
+    if(v.wind){
+      const spd = (st.items["WS_HR"] ? st.items["WS_HR"].val : null) ?? (st.items["WIND_SPEED"] ? st.items["WIND_SPEED"].val : null);
+      const dir = (st.items["WD_HR"] ? st.items["WD_HR"].val : null) ?? (st.items["WIND_DIREC"] ? st.items["WIND_DIREC"].val : null);
+      const byDir = (v.key === "WindDirection");
+
+      if(byDir){
+        if(dir === null){
+          m = L.circleMarker(st.ll, { radius: 5 * sc, fillColor: "#7a8aa3", color: "#38bdf8", weight: 2, dashArray: "2,2", fillOpacity: 0.9 });
+        } else {
+          const size = 26 * sc, col = colorFor(dir, v), rot = (dir + 180) % 360;
+          const html = `<div style="transform:rotate(${rot}deg);width:${size}px;height:${size}px;line-height:0">
+            <svg viewBox="0 0 24 24" width="${size}" height="${size}">
+              <path d="M12 1 L19 16 L12 12.5 L5 16 Z" fill="${col}" stroke="#38bdf8" stroke-width="1.8"/>
+            </svg></div>`;
+          m = L.marker(st.ll, { icon: L.divIcon({ className: "windarrow", html, iconSize: [size, size], iconAnchor: [size / 2, size / 2] }) });
+        }
+      } else if(spd === null){
+        m = L.circleMarker(st.ll, { radius: 5 * sc, fillColor: "#7a8aa3", color: "#38bdf8", weight: 2, dashArray: "2,2", fillOpacity: 0.9 });
+      } else if(dir === null){
+        m = L.circleMarker(st.ll, { radius: 6 * sc, fillColor: colorAt(RAMP.wind, spd), color: "#38bdf8", weight: 2, fillOpacity: 0.92 });
+      } else {
+        const size = Math.max(18, Math.min(50, 16 + spd * 2.4)) * sc;
+        const col = colorAt(RAMP.wind, spd);
+        const rot = (dir + 180) % 360;
+        const html = `<div style="transform:rotate(${rot}deg);width:${size}px;height:${size}px;line-height:0">
+          <svg viewBox="0 0 24 24" width="${size}" height="${size}">
+            <path d="M12 1 L19 16 L12 12.5 L5 16 Z" fill="${col}" stroke="#38bdf8" stroke-width="1.8"/>
+          </svg></div>`;
+        m = L.marker(st.ll, { icon: L.divIcon({ className: "windarrow", html, iconSize: [size, size], iconAnchor: [size / 2, size / 2] }) });
+      }
+    } else {
+      // 數值型變數：採用醒目的方型 Badge 標記（外框青藍色以區隔氣象署圓形測站）
+      const valDisplay = (val === null || val === undefined) ? "—" : (Math.round(val * 10) / 10);
+      const badgeHtml = `<div class="moenv-marker" style="background:${color};border-color:#38bdf8;width:30px;height:20px;" title="環境部：${st.sitename}">
+        <span class="badge-txt">${valDisplay}</span>
+      </div>`;
+
+      m = L.marker(st.ll, {
+        icon: L.divIcon({
+          className: "",
+          html: badgeHtml,
+          iconSize: [30, 20],
+          iconAnchor: [15, 10]
+        })
+      });
+    }
+
+    m.bindPopup(() => buildMoenvPopup(st, v, val, color, cwaHourKey));
+    m.addTo(moenvLayer);
+  });
+
+  if(!map.hasLayer(moenvLayer)) moenvLayer.addTo(map);
+
+  if(statEl){
+    statEl.style.display = "block";
+    if(!cwaHourKey){
+      statEl.innerHTML = `⚠️ 尚未載入氣象署資料時間，暫無法同步環境部測站。`;
+    } else if(totalHourMatched === 0){
+      statEl.innerHTML = `⚠️ <b>時間未對齊</b>：環境部此小時（${cwaHourKey}:00）資料尚未發布，已依條件暫隱藏測站。`;
+    } else {
+      statEl.innerHTML = `🌿 <b>環境部測站</b>：已匹配氣象署同小時 <code>${cwaHourKey}:00</code>（共 ${matchedStationsCount} 站顯示中）`;
+    }
+  }
+}
+
+// 構建環境部測站 Popup HTML（僅顯示氣象署有的氣象變數，不呈現非氣象類雜項）
+function buildMoenvPopup(st, v, val, color, cwaHour){
+  const m = st.meta || {};
+  const disp = val === null ? "無資料" : (val.toLocaleString("zh-TW", {maximumFractionDigits: 1}) + (v.unit ? " " + v.unit : ""));
+  const row = (k, valStr) => `<div class="row"><span class="k">${k}</span><span>${valStr}</span></div>`;
+
+  const getFmt = (k, unit) => {
+    const it = st.items[k];
+    if(!it || it.val === null || it.val === undefined) return "—";
+    return `${it.val.toLocaleString("zh-TW", {maximumFractionDigits: 1})} ${unit}`;
+  };
+
+  let html = `<div class="pop">
+    <h3>${st.sitename} <small style="color:#9fb0c8">${st.siteid} ‧ 環境部測站</small></h3>
+    <div class="row">
+      <span class="k">${v.label}</span>
+      <span class="big" style="color:${val === null ? '#9fb0c8' : color}">${disp}</span>
+    </div>
+    ${row("縣市地區", `${st.county} ${m.township || ""} ${m.areaname ? "‧ " + m.areaname : ""}`)}
+    ${row("測站類型", m.sitetype || "環境部空氣品質監測站")}
+    <div style="border-top:1px solid var(--line);margin:6px 0 4px;padding-top:5px;color:#9fb0c8;font-size:11px">
+      逐時氣象觀測值 (aqx_p_133 / 134)
+    </div>
+    ${row("氣溫", getFmt("AMB_TEMP", "°C"))}
+    ${row("相對溼度", getFmt("RH", "%"))}
+    ${row("時雨量", getFmt("RAINFALL", "mm"))}
+    ${row("風速 / 風向", `${getFmt("WS_HR", "m/s")} / ${getFmt("WD_HR", "°")}`)}
+    ${row("氣壓", getFmt("PRESSURE", "hPa"))}
+    ${row("觀測時間", st.latestDate || "—")}
+    ${row("氣象署基準時間", `<code>${cwaHour || "—"}:00</code>`)}
+  </div>`;
+
+  return html;
+}
+
+// 載入或重整環境部測站資料
+async function toggleMoenvLayer(enable){
+  if(!enable){
+    renderMoenvLayer();
+    return;
+  }
+  try{
+    if(!moenvRawData){
+      moenvRawData = await fetchMoenvHourlyData();
+    }
+    renderMoenvLayer();
+  }catch(e){
+    if($("moenvChk")) $("moenvChk").checked = false;
+    if($("moenvStat")){
+      $("moenvStat").style.display = "block";
+      $("moenvStat").textContent = "⚠️ 環境部測站載入失敗：" + e.message;
+    }
+    showToast("⚠️ 環境部測站載入失敗：" + e.message, 4000);
+  }
+}
+
+if($("moenvChk")){
+  $("moenvChk").onchange = e => toggleMoenvLayer(e.target.checked);
+}
+
+
 // ===== 閃電落雷即時觀測圖層（O-A0039-001，KMZ 檔）=====
 // 資料為 KMZ（壓縮的 KML）：以 JSZip 解壓後用 DOMParser 解析 Placemark 點位。
 // 標記顏色代表落雷距今時間（0–60 分鐘，越紅越新）；●實心=雲對地（落雷）、○空心=雲間閃電。
@@ -3459,12 +3782,39 @@ const AUTO_MS=120000;                       // 更新間隔：2 分鐘
 let autoTimer=null,autoNext=0,autoLast=null;
 function autoStatUI(){
   const el=$("autoStat");
-  if(!$("autoChk").checked){el.style.display="none";el.textContent="";return;}
-  el.style.display="block";
+  const mapBox=$("mapCountdownBox");
+  const mapTimer=$("mapCountdownTimer");
+  const mapLast=$("mapCountdownLast");
+
+  if(!$("autoChk").checked){
+    if(el){el.style.display="none";el.textContent="";}
+    if(mapBox){mapBox.style.display="none";}
+    return;
+  }
+
   const remain=Math.max(0,Math.ceil((autoNext-Date.now())/1000));
   const mm=Math.floor(remain/60),ss=String(remain%60).padStart(2,"0");
-  el.textContent="🔄 自動更新已開啟｜⏳ 下次更新倒數 "+mm+":"+ss
-    +(autoLast?"｜最近更新 "+autoLast.toLocaleTimeString("zh-TW"):"");
+  const timeStr = mm+":"+ss;
+
+  if(el){
+    el.style.display="block";
+    el.textContent="🔄 自動更新已開啟｜⏳ 下次更新倒數 "+timeStr
+      +(autoLast?"｜最近更新 "+autoLast.toLocaleTimeString("zh-TW"):"");
+  }
+
+  // 地圖上的懸浮倒數顯示資訊框
+  if(mapBox){
+    mapBox.style.display="inline-flex";
+    if(mapTimer) mapTimer.textContent = timeStr;
+    if(mapLast){
+      if(autoLast){
+        mapLast.style.display = "inline";
+        mapLast.textContent = `(前次 ${autoLast.toLocaleTimeString("zh-TW")})`;
+      } else {
+        mapLast.style.display = "none";
+      }
+    }
+  }
 }
 $("autoChk").onchange=e=>{
   if(e.target.checked){
@@ -3478,10 +3828,12 @@ $("autoChk").onchange=e=>{
       autoStatUI();
     },1000);
     autoStatUI();
+    showToast("⏱️ 已開啟自動更新（每 2 分鐘），地圖上方已顯示倒數資訊框");
   }else{
     if(autoTimer){clearInterval(autoTimer);autoTimer=null;}
     autoLast=null;
     autoStatUI();
+    showToast("⏱️ 已關閉自動更新");
   }
 };
 $("fit").onclick=()=>{$("countySel").value="";$("search").value="";map.fitBounds(TAIWAN);render(false);};
@@ -3741,12 +4093,13 @@ function getSharedParams(){
     if($("gridOp") && $("gridOp").value !== "70") put("grido", $("gridOp").value);
   }
 
-  // 5. 海象 / 閃電 / 颱風
+  // 5. 海象 / 閃電 / 颱風 / 環境部
   if($("tideChk") && $("tideChk").checked) put("tide", "1");
   if($("swellChk") && $("swellChk").checked) put("swell", "1");
   if($("lightChk") && $("lightChk").checked) put("light", "1");
   if($("tyChk") && $("tyChk").checked) put("ty", "1");
   if($("typChk") && $("typChk").checked) put("typ", "1");
+  if($("moenvChk") && $("moenvChk").checked) put("moenv", "1");
 
   return p;
 }
@@ -3878,6 +4231,10 @@ function restoreSharedState(){
     $("typChk").checked = true;
     if(KEY) loadTyProb(true);
   }
+  if(p.get("moenv") === "1" && $("moenvChk")){
+    $("moenvChk").checked = true;
+    toggleMoenvLayer(true);
+  }
 
   return hasCoords;
 }
@@ -4002,6 +4359,7 @@ async function exportMapImage(){
     if($("lightChk") && $("lightChk").checked) activeLayers.push("即時閃電");
     if($("tyChk") && $("tyChk").checked) activeLayers.push("颱風路徑");
     if($("typChk") && $("typChk").checked) activeLayers.push("侵襲機率");
+    if($("moenvChk") && $("moenvChk").checked) activeLayers.push("環境部測站");
     const layerStr = activeLayers.length ? "已啟用：" + activeLayers.join(" / ") : "";
 
     ctx.textAlign = "right";
@@ -4170,7 +4528,7 @@ map.on("zoomend", updateUrlState);
 ["search"].forEach(id => {
   if($(id)) $(id).addEventListener("input", updateUrlState);
 });
-["krigingSurfaceChk", "krigingLineChk", "krigingLabelChk", "krigingDemChk", "dayNightChk", "tideChk", "swellChk", "lightChk", "tyChk", "typChk"].forEach(id => {
+["krigingSurfaceChk", "krigingLineChk", "krigingLabelChk", "krigingDemChk", "dayNightChk", "tideChk", "swellChk", "lightChk", "tyChk", "typChk", "moenvChk"].forEach(id => {
   if($(id)) $(id).addEventListener("change", updateUrlState);
 });
 ["gridSel"].forEach(id => {
