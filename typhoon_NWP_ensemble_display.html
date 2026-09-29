@@ -87,7 +87,9 @@ input[type=range]{accent-color:var(--acc);width:100%}
 .chk input{accent-color:var(--acc);width:15px;height:15px;flex:0 0 auto}
 .swatch{width:11px;height:11px;border-radius:3px;flex:0 0 auto;box-shadow:0 0 0 1px rgba(15,23,42,.18)}
 .mstat{margin-left:auto;font-size:10px;color:var(--fg3);white-space:nowrap}
-.mstat.ok{color:var(--ok)} .mstat.err{color:var(--bad)} .mstat.load{color:var(--warn)}
+.mstat.ok{color:var(--ok)} .mstat.err{color:var(--bad)} .mstat.load{color:var(--warn)} .mstat.warn{color:var(--warn)}
+.single-init-btn{display:inline-block;padding:1px 5px;border-radius:4px;background:rgba(234,88,12,.12);color:#c2410c;cursor:pointer;font-weight:600;transition:0.15s;}
+.single-init-btn:hover{background:rgba(234,88,12,.22);color:#9a3412;text-decoration:none;}
 .hint{font-size:11.5px;color:var(--fg2);line-height:1.55;margin:7px 0 0}
 .pill{display:inline-block;background:rgba(15,23,42,.04);border:1px solid var(--line);border-radius:999px;
   padding:1px 8px;font-size:10px;color:var(--fg2);margin:2px 3px 0 0}
@@ -107,9 +109,9 @@ input[type=range]{accent-color:var(--acc);width:100%}
   border:1px solid var(--line);border-radius:16px;box-shadow:0 8px 32px rgba(15,23,42,.18);
   backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
 .leaflet-popup-tip{background:rgba(255,255,255,.9);border:1px solid var(--line)}
-.leaflet-tooltip:before{display:none}
-.leaflet-bar a{background:var(--bg3);color:var(--fg);border-color:var(--line)}
-.leaflet-bar a:hover{background:rgba(37,99,235,.1);color:#1d4ed8}
+.leaflet-control-zoom{border:1px solid var(--line) !important;border-radius:12px !important;overflow:hidden;box-shadow:0 4px 18px rgba(15,23,42,.14) !important}
+.leaflet-bar a{background:var(--glass) !important;color:var(--fg) !important;border-color:var(--line) !important;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+.leaflet-bar a:hover{background:rgba(37,99,235,.14) !important;color:#1d4ed8 !important}
 
 /* 地圖上浮層 */
 .ovl{position:absolute;z-index:600;background:var(--glass);border:1px solid var(--line);
@@ -213,7 +215,7 @@ input[type=range]{accent-color:var(--acc);width:100%}
   #chartHead{gap:5px;padding:5px 8px;flex-wrap:wrap}
   #chartHead .t{font-size:11px}
   .seg button{padding:4px 7px;font-size:11px}
-  #legend{right:8px;top:8px;bottom:auto;max-width:min(250px,calc(100vw - 24px));max-height:calc(100% - 124px);overflow:auto}
+  #legend{right:8px;top:76px;bottom:auto;max-width:min(250px,calc(100vw - 24px));max-height:calc(100% - 176px);overflow:auto}
   #legend.mini{width:40px;height:40px}
   #timeBar{bottom:8px;width:calc(100% - 16px);min-height:88px;padding:8px 10px;
     grid-template-columns:38px minmax(0,1fr);column-gap:10px;row-gap:3px;border-radius:22px}
@@ -255,7 +257,7 @@ input[type=range]{accent-color:var(--acc);width:100%}
   .chk{padding:4px 5px;font-size:12px}
   .row{margin:4px 0}
   #chartPane{height:112px}
-  #legend{right:8px;top:8px;bottom:auto;max-width:230px;max-height:calc(100% - 104px);overflow:auto}
+  #legend{right:8px;top:76px;bottom:auto;max-width:230px;max-height:calc(100% - 160px);overflow:auto}
   #timeBar{bottom:6px;width:min(760px,calc(100% - 16px));min-height:74px;padding:7px 12px;
     grid-template-columns:36px minmax(0,1fr);row-gap:2px;border-radius:20px}
   #timeBar .tplay{width:34px;height:34px}
@@ -274,7 +276,7 @@ input[type=range]{accent-color:var(--acc);width:100%}
 <div id="top">
   <h1>NWP/MLWP 系集颱風路徑預報<small>TIGGE CXML · Ensemble &amp; Deterministic Track Forecast</small></h1>
   <button class="btn" id="btnFile">開啟本機檔</button>
-  <input type="file" id="fileIn" multiple accept=".xml,.gz,.xml.gz,.txt,.csv" style="display:none"/>
+  <input type="file" id="fileIn" multiple accept=".xml,.gz,.xml.gz,.txt,.csv,.json,.json.gz" style="display:none"/>
   <button class="btn" id="btnCsv" title="載入 Google WeatherNext2 大系集 cyclogenesis CSV（約 33MB）">🌀 大系集 CSV</button>
   <input type="file" id="csvIn" accept=".csv,.txt" style="display:none"/>
   <div id="status">請選擇起報時間後按「載入資料」</div>
@@ -403,18 +405,26 @@ input[type=range]{accent-color:var(--acc);width:100%}
 
 /* ───────── 模式設定 ───────── */
 const BASE = "https://data.gdex.ucar.edu/d330003";
-/* Google DeepMind WeatherLab 氣旋 ATCF A-deck
-   OPER                = WeatherNext (第一代營運模式)．paired
-   FNV3P2              = WeatherNext 2．paired
+/* Google DeepMind WeatherLab 氣旋 ATCF A-deck & CSV
+   OPER                = WeatherNext (第一代營運模式)．paired (ATCF / CSV)
+   WNV3                = WeatherNext 3．paired (CSV)
+   FNV3P2              = WeatherNext 2．paired (ATCF)
    FNV3_LARGE_ENSEMBLE = WeatherNext 2 大系集．cyclogenesis（CSV） */
 const WNEXT_ATCF_ROOT = "https://deepmind.google.com/science/weatherlab/download/cyclones";
-const wnextAtcfBase = (ds, track, fmt) =>
-  `${WNEXT_ATCF_ROOT}/${ds}/ensemble/${track||"paired"}/${fmt==="csv"?"csv":"atcf"}`;
+const wnextAtcfBase = (ds, track, fmt, type) =>
+  `${WNEXT_ATCF_ROOT}/${ds}/${type||"ensemble"}/${track||"paired"}/${fmt==="csv"?"csv":"atcf"}`;
 const WNEXT_READER_BASE = "https://r.jina.ai";
 const MODELS = [
-  {code:"ECMF", label:"ECMWF IFS/ENS", org:"歐洲中期預報中心", dir:"ecmf", color:"#ef4444", ens:true,
-   files:["z_tigge_c_ecmf_{YMD}{HH}0000_ifs_glob_prod_all_glo.xml"]},
-  {code:"KWBC", label:"NCEP GEFS", org:"美國國家環境預報中心", dir:"kwbc", color:"#2563eb", ens:true,
+  {code:"ECMF", label:"ECMWF IFS/ENS", org:"歐洲中期預報中心", dir:"ecmf", color:"#1d4ed8", ens:true, format:"json",
+   singleInit:true,
+   url:"https://chichawang.github.io/track_data_api/ecmwf_ifs-ens_track.json.gz",
+   files:["https://chichawang.github.io/track_data_api/ecmwf_ifs-ens_track.json.gz",
+          "z_tigge_c_ecmf_{YMD}{HH}0000_ifs_glob_prod_all_glo.xml"]},
+  {code:"ECMF_AIFS", label:"ECMWF AIFS", org:"歐洲中期預報中心 (AI)", dir:"ecmf_aifs", color:"#3b82f6", ens:true, format:"json",
+   singleInit:true,
+   url:"https://chichawang.github.io/track_data_api/ecmwf_aifs-ens_track.json.gz",
+   files:["https://chichawang.github.io/track_data_api/ecmwf_aifs-ens_track.json.gz"]},
+  {code:"KWBC", label:"NCEP GEFS", org:"美國國家環境預報中心", dir:"kwbc", color:"#166534", ens:true,
    files:["z_tigge_c_kwbc_{YMD}{HH}0000_GEFS_glob_prod_esttr_glo.xml"]},
   {code:"CMC",  label:"CMC ENS", org:"加拿大氣象中心", dir:"kwbc", color:"#0891b2", ens:true,
     files:["z_tigge_c_kwbc_{YMD}{HH}0000_CENS_glob_prod_esttr_glo.xml"]},
@@ -425,21 +435,31 @@ const MODELS = [
     files:["z_tigge_c_rksl_{YMD}{HH}0000_GEPS_glob_prod_etctr_nwp.xml"]},
   {code:"RJTD", label:"JMA GEPS", org:"日本氣象廳", dir:"rjtd", color:"#a855f7", ens:true,
    files:["z_tigge_c_RJTD_{YMD}{HH}0000_GEM_glob_prod_etctr_nwp.xml.gz"]},
-  {code:"EGRR", label:"UKMO MOGREPS", org:"英國氣象局", dir:"egrr", color:"#f59e0b", ens:true,
+  {code:"EGRR", label:"UKMO MOGREPS", org:"英國氣象局", dir:"egrr", color:"#ec4899", ens:true,
    files:["z_tigge_c_egrr_{YMD}{HH}0000_mogreps_glob_prod_etctr_glo.xml.gz"]},
-  /* ── Google DeepMind（AI 模式）置於最後 ── */
-  {code:"WNX", label:"Google WeatherNext", org:"Google DeepMind", dir:"weathernext", color:"#c2410c", ens:true, format:"atcf",
-   dataset:"OPER", product:"WeatherNext (OPER) ATCF A-deck",
-   files:["OPER_{Y}_{M}_{D}T{HH}_00_atcf_a_deck.txt"]},
-  {code:"WNX2", label:"Google WeatherNext2", org:"Google DeepMind", dir:"weathernext2", color:"#f97316", ens:true, format:"atcf",
+  /* ── Google DeepMind（AI 模式，依濃度由濃至淡：OP > Next3 Cyclone > Next2 > Next > Next2 大系集）置於最後 ── */
+  {code:"WNX_CYCOP", label:"Google WeatherNext CyclonesOP", org:"Google DeepMind", dir:"weathernext_cycop", color:"#9a3412", ens:true, isGoogle:true, format:"csv",
+   dataset:"OPER", track:"paired", product:"Google WeatherNext CyclonesOP paired CSV",
+   files:["OPER_{Y}_{M}_{D}T{HH}_00_paired.csv"]},
+  {code:"WNV3_CYC", label:"Google WeatherNext3 Cyclones", org:"Google DeepMind", dir:"weathernext3_cyc", color:"#c2410c", ens:true, isGoogle:true, format:"csv",
+   dataset:"WNV3", track:"paired", product:"Google WeatherNext3 Cyclones paired CSV",
+   files:["WNV3_{Y}_{M}_{D}T{HH}_00_paired.csv"]},
+  {code:"WNX2", label:"Google WeatherNext2", org:"Google DeepMind", dir:"weathernext2", color:"#ea580c", ens:true, isGoogle:true, format:"atcf",
    dataset:"FNV3P2", product:"WeatherNext 2 ATCF A-deck",
    files:["FNV3P2_{Y}_{M}_{D}T{HH}_00_atcf_a_deck.txt"]},
-  {code:"WNX2L", label:"Google WeatherNext2 大系集", org:"Google DeepMind（約 33MB，載入較久）", dir:"weathernext2le", color:"#fb923c", ens:true, heavy:true, format:"csv",
+  {code:"WNX", label:"Google WeatherNext", org:"Google DeepMind", dir:"weathernext", color:"#f97316", ens:true, isGoogle:true, format:"atcf",
+   dataset:"OPER", product:"WeatherNext (OPER) ATCF A-deck",
+   files:["OPER_{Y}_{M}_{D}T{HH}_00_atcf_a_deck.txt"]},
+  {code:"WNX2L", label:"Google WeatherNext2 大系集", org:"Google DeepMind（約 33MB，載入較久）", dir:"weathernext2le", color:"#fb923c", ens:true, isGoogle:true, heavy:true, format:"csv",
    dataset:"FNV3_LARGE_ENSEMBLE", track:"cyclogenesis", product:"WeatherNext 2 Large Ensemble cyclogenesis CSV",
    files:["FNV3_LARGE_ENSEMBLE_{Y}_{M}_{D}T{HH}_00_cyclogenesis.csv"]}
 ];
-/* 預設不勾大檔模式（WeatherNext2 大系集 CSV 約 33MB），需要時再自行勾選 */
-const DEFAULT_ON = MODELS.filter(m=>m.ens && !m.heavy).map(m=>m.code);
+/* 預設勾選：各大氣象中心系集模式 + Google 系列中預設勾選 Google WeatherNext CyclonesOP（大檔與其他 Google 模式不預設勾選；單一起報模式不預設勾選） */
+const DEFAULT_ON = MODELS.filter(m=>{
+  if(m.isGoogle) return m.code === "WNX_CYCOP";
+  if(m.singleInit) return false;
+  return m.ens && !m.heavy;
+}).map(m=>m.code);
 
 const LS = {models:"nwpens.models", base:"nwpens.base", layers:"nwpens.layers", dayNight:"nwpens.daynight"};
 
@@ -467,6 +487,16 @@ function hav(a1,o1,a2,o2){
 function norm180(x){ x=((x+180)%360+360)%360-180; return x===-180?180:x; }
 /* 把 b 平移 ±360 使其最接近參考 ref */
 function nearRef(b, ref){ while(b-ref>180) b-=360; while(b-ref<-180) b+=360; return b; }
+/* 檢查起報時間是否同一時次（比較 UTC 年、月、日、時） */
+function isSameInitCycle(baseTimeStr, targetDate){
+  if(!baseTimeStr || !targetDate) return false;
+  const d = new Date(baseTimeStr);
+  if(isNaN(d.getTime())) return false;
+  return d.getUTCFullYear() === targetDate.getUTCFullYear() &&
+         d.getUTCMonth() === targetDate.getUTCMonth() &&
+         d.getUTCDate() === targetDate.getUTCDate() &&
+         d.getUTCHours() === targetDate.getUTCHours();
+}
 
 /* ───────── 資料讀取（含 gzip） ───────── */
 async function fetchOnce(url, timeout, kind="xml"){
@@ -483,6 +513,7 @@ async function fetchOnce(url, timeout, kind="xml"){
     if(kind==="xml" && !/<\?xml|<cxml/i.test(txt.slice(0,3000))) throw new Error("非 XML 內容");
     if(kind==="atcf" && !looksLikeATCF(txt)) throw new Error("非 ATCF 內容");
     if(kind==="csv"  && !looksLikeTrackCSV(txt)) throw new Error("非 CSV 內容");
+    if(kind==="json" && !/^\s*[\{\[]/i.test(txt.slice(0,500))) throw new Error("非 JSON 內容");
     return txt;
   }catch(e){
     clearTimeout(tid);
@@ -575,7 +606,7 @@ const BASIN_MAP = [
   [/northeast\s*pacific|eastern\s*north\s*pacific|^ep$|^nep$|central\s*pacific|^cp$/i, "NEP", "東北太平洋"],
   [/north\s*atlantic|^al$|^at$|^na$/i, "NAT", "北大西洋"],
   [/north\s*indian|arabian|bay\s*of\s*bengal|^io$|^ni$/i, "NIO", "北印度洋"],
-  [/south|^sh$|^sp$|^si$|^sl$/i, "SH", "南半球"]
+  [/south|^sh$|^sp$|^si$|^sl$|^au$/i, "SH", "南半球"]
 ];
 function basinCode(s){
   s=(s||"").trim(); if(!s) return null;
@@ -688,6 +719,139 @@ function parseATCF(text, model, srcLabel){
   }
   if(lineCount && !tracks.length) throw new Error("ATCF 檔案中無可用路徑資料");
   return {header:H, tracks:tracks};
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   ECMWF IFS-ENS JSON 解析
+   資料來源：track_data_api / ecmwf_ifs-ens_track.json.gz
+   ══════════════════════════════════════════════════════════════════ */
+function parseEcmwfTrackJson(text, model, srcLabel){
+  const data = typeof text === "string" ? JSON.parse(text) : text;
+  const meta = data.metadata || {};
+  const baseTimeStr = meta.base_datetime || "";
+  const H = {
+    product: (model.label || "ECMWF") + " Track (BUFR/JSON)",
+    center: "ECMWF",
+    subCenter: "",
+    modelName: model.label || "ECMWF",
+    resolution: "0.25°",
+    appType: "ensemble",
+    numMembers: 51,
+    baseTime: baseTimeStr,
+    creationTime: meta.generated_at || "",
+    src: srcLabel
+  };
+
+  const tracks = [];
+  const stormsObj = data.storms || {};
+
+  for(const [stormId, s] of Object.entries(stormsObj)){
+    const rawName = s.storm_name || "";
+    const isInvest = /^\d{2}[A-Z]$/i.test(rawName) || BAD_NAMES.test(rawName);
+    const name = isInvest ? "" : rawName.toUpperCase();
+    const id = s.storm_id || stormId;
+    const braw = s.basin_code || "";
+    let firstPt = null;
+
+    function buildPts(arr){
+      if(!Array.isArray(arr) || !arr.length) return [];
+      const pts = [];
+      for(const p of arr){
+        const lat = parseFloat(p.lat);
+        const lon = parseFloat(p.lon);
+        if(!isFinite(lat) || !isFinite(lon) || Math.abs(lat) > 90) continue;
+        const h = p.lead_time !== undefined ? parseFloat(p.lead_time) : null;
+        let vms = null;
+        if(p.valid_time){
+          vms = Date.parse(p.valid_time);
+        } else if(h !== null && baseTimeStr){
+          vms = Date.parse(baseTimeStr) + h * 3600000;
+        }
+        let pres = p.pressure_hpa !== undefined ? parseFloat(p.pressure_hpa) : (p.mean_pressure_hpa !== undefined ? parseFloat(p.mean_pressure_hpa) : null);
+        if(pres !== null && (!isFinite(pres) || pres < 700 || pres > 1080)) pres = null;
+        let wind = p.wind_speed_kts !== undefined ? parseFloat(p.wind_speed_kts) : (p.mean_wind_speed_kts !== undefined ? parseFloat(p.mean_wind_speed_kts) : null);
+        if(wind === null && p.wind_speed_ms !== undefined) wind = parseFloat(p.wind_speed_ms) * KT;
+        if(wind !== null && (!isFinite(wind) || wind < 0 || wind > 300)) wind = null;
+
+        pts.push({
+          h: h !== null ? h : pts.length * 6,
+          t: isFinite(vms) ? vms : null,
+          lat: lat,
+          lon: norm180(lon),
+          pres: pres,
+          wind: wind,
+          src: p.member_type || (p.member !== undefined ? String(p.member) : "")
+        });
+      }
+      if(pts.length < 2) return [];
+      pts.sort((a,b) => a.h - b.h);
+      const seen = new Set();
+      const uniquePts = pts.filter(p => {
+        if(seen.has(p.h)) return false;
+        seen.add(p.h);
+        return true;
+      });
+      if(uniquePts.length < 2) return [];
+      for(let i=1; i<uniquePts.length; i++) uniquePts[i].lon = nearRef(uniquePts[i].lon, uniquePts[i-1].lon);
+      if(!firstPt && uniquePts.length) firstPt = uniquePts[0];
+      return uniquePts;
+    }
+
+    // 1. 控制報 (Control Run)
+    const ctlRaw = s.control_run && s.control_run.points ? s.control_run.points : (Array.isArray(s.control_run) ? s.control_run : null);
+    if(ctlRaw){
+      const pts = buildPts(ctlRaw);
+      if(pts.length >= 2){
+        tracks.push({
+          model: model.code, modelLabel: model.label, color: model.color,
+          header: H, dataType: "control", member: 0, perturb: "control",
+          isEns: true, isCtl: true, isMean: false, distId: id,
+          name: name, number: id, localID: id,
+          basin: basinCode(braw) || (firstPt ? basinFromPos(firstPt.lat, firstPt.lon) : "NWP"),
+          basinRaw: braw,
+          pts: pts
+        });
+      }
+    }
+
+    // 2. 官方系集平均 (Ensemble Mean)
+    const meanRaw = Array.isArray(s.ensemble_mean) ? s.ensemble_mean : (s.ensemble_mean && s.ensemble_mean.points ? s.ensemble_mean.points : null);
+    if(meanRaw){
+      const pts = buildPts(meanRaw);
+      if(pts.length >= 2){
+        tracks.push({
+          model: model.code, modelLabel: model.label, color: model.color,
+          header: H, dataType: "mean", member: -1, perturb: "mean",
+          isEns: true, isCtl: false, isMean: true, distId: id,
+          name: name, number: id, localID: id,
+          basin: basinCode(braw) || (firstPt ? basinFromPos(firstPt.lat, firstPt.lon) : "NWP"),
+          basinRaw: braw,
+          pts: pts
+        });
+      }
+    }
+
+    // 3. 系集成員 (Perturbed Members)
+    const memsObj = s.members || {};
+    const memEntries = Array.isArray(memsObj) ? memsObj.map((m, idx) => [String(idx+1), m]) : Object.entries(memsObj);
+    for(const [memKey, memPtsRaw] of memEntries){
+      const pts = buildPts(Array.isArray(memPtsRaw) ? memPtsRaw : (memPtsRaw && memPtsRaw.points ? memPtsRaw.points : []));
+      if(pts.length < 2) continue;
+      const memNum = parseInt(memKey, 10);
+      tracks.push({
+        model: model.code, modelLabel: model.label, color: model.color,
+        header: H, dataType: "forecast", member: isNaN(memNum) ? null : memNum, perturb: String(memKey),
+        isEns: true, isCtl: false, isMean: false, distId: id,
+        name: name, number: id, localID: id,
+        basin: basinCode(braw) || (firstPt ? basinFromPos(firstPt.lat, firstPt.lon) : "NWP"),
+        basinRaw: braw,
+        pts: pts
+      });
+    }
+  }
+
+  if(!tracks.length) throw new Error("ECMWF JSON 檔案中無可用路徑資料");
+  return { header: H, tracks: tracks };
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -843,12 +1007,16 @@ function makeCsvTrackParser(model, srcLabel){
     let t = byTrack.get(key);
     if(!t){
       const braw = (ci.basin>=0 ? (f[ci.basin]||"") : "").toUpperCase();
+      const bFromSid = sid.match(/^([A-Z]{2})/i) ? basinCode(sid.match(/^([A-Z]{2})/i)[1]) : null;
+      const isAtcfId = /^[A-Z]{2}\d{2}(\d{4})?$/i.test(sid);
+      const isMeanTrk = memNum===-1 || (model.type==="ensemble_mean");
       t = {
         model:model.code, modelLabel:model.label, color:model.color,
-        header:null, dataType:"forecast", member:memNum, perturb:String(memRaw||""),
-        isEns:true, isCtl:memNum===0, distId:id,
-        name:/[a-z]/i.test(sid)?sid:"", number:id, localID:id,
-        basin:basinCode(braw) || basinFromPos(lat, lon), basinRaw:braw,
+        header:null, dataType:isMeanTrk?"mean":"forecast", member:memNum, perturb:String(memRaw||""),
+        isEns:true, isCtl:memNum===0, isMean:isMeanTrk, distId:id,
+        name:isAtcfId ? "" : (/[a-z]/i.test(sid)?sid:""),
+        number:id, localID:id,
+        basin:basinCode(braw) || bFromSid || basinFromPos(lat, lon), basinRaw:braw,
         pts:[]
       };
       byTrack.set(key,t);
@@ -1421,9 +1589,9 @@ const S = {
   infoHtml: "尚未載入資料"
 };
 try{
-  if(localStorage.getItem("nwpens.defaultModelSet")!=="20260731-weathernext"){
+  if(localStorage.getItem("nwpens.defaultModelSet")!=="20260919-color-update"){
     localStorage.removeItem(LS.models);
-    localStorage.setItem("nwpens.defaultModelSet","20260731-weathernext");
+    localStorage.setItem("nwpens.defaultModelSet","20260919-color-update");
   }
 }catch(e){}
 try{ const s=JSON.parse(localStorage.getItem(LS.models)||"null"); if(s) S.modelOn=s; }catch(e){}
@@ -1436,8 +1604,9 @@ const TILES = {
   osm  :{u:"https://tile.openstreetmap.org/{z}/{x}/{y}.png", a:"© OpenStreetMap contributors", max:19},
   sat  :{u:"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", a:"Esri World Imagery", max:18}
 };
-const map = L.map("map",{center:[22.5,127], zoom:4, worldCopyJump:false, zoomControl:true,
+const map = L.map("map",{center:[22.5,127], zoom:4, worldCopyJump:false, zoomControl:false,
                          preferCanvas:true, minZoom:2, maxZoom:12});
+L.control.zoom({position:"topright"}).addTo(map);
 let tileLayer = null;
 function setBase(k){
   const t = TILES[k]||TILES.light;
@@ -1472,12 +1641,114 @@ function buildModelList(){
       <span class="mstat" id="ms-${m.code}"></span>`;
     box.appendChild(l);
   });
-  box.addEventListener("change", e=>{
+  box.addEventListener("change", async e=>{
     const c = e.target.getAttribute && e.target.getAttribute("data-m");
     if(!c) return;
-    S.modelOn[c] = e.target.checked;
+    const checked = e.target.checked;
+    S.modelOn[c] = checked;
     try{ localStorage.setItem(LS.models, JSON.stringify(S.modelOn)); }catch(err){}
+    const m = MODELS.find(x=>x.code===c);
+    if(m && m.singleInit && checked){
+      await handleSingleInitModelSelect(m);
+      return;
+    }
     rebuild(false);   // 勾選模式時維持目前的地圖範圍，不自動縮放
+  });
+  updateSingleInitMstats();
+}
+
+async function switchToSingleInit(m){
+  S.modelOn[m.code] = true;
+  const chk = $(`#modelList input[data-m="${m.code}"]`);
+  if(chk) chk.checked = true;
+  try{ localStorage.setItem(LS.models, JSON.stringify(S.modelOn)); }catch(err){}
+  await handleSingleInitModelSelect(m);
+}
+
+async function handleSingleInitModelSelect(m){
+  // 若尚未載入該模式資料，先載入以取得遠端最新起報時間
+  if(!S.files || !S.files[m.code] || !S.files[m.code].ok){
+    mstat(m.code, "載入中…", "load");
+    setStatus(`正在載入 ${m.label} 最新資料…`);
+    try {
+      const u = m.url || (m.files && m.files[0]) || "";
+      const res = await fetchCXML(u, null, "json");
+      const r = parseEcmwfTrackJson(res.text, m, u);
+      if(r.tracks.length){
+        if(!S.files) S.files = {};
+        S.files[m.code] = {ok:true, header:r.header, tracks:r.tracks, url:u, via:res.via};
+      }
+    } catch(e) {
+      console.warn("載入單一起報模式失敗", e);
+      const msg = String(e.message||e);
+      mstat(m.code, summarizeLoadError(msg), "err");
+      setStatus(`載入 ${m.label} 失敗: ${msg}`, "err");
+      return;
+    }
+  }
+
+  const f = S.files && S.files[m.code];
+  if(!f || !f.ok) return;
+
+  const targetDateStr = f.header && f.header.baseTime;
+  if(!targetDateStr) {
+    rebuild(false);
+    return;
+  }
+  const targetDate = new Date(targetDateStr);
+  if(isNaN(targetDate.getTime())){
+    rebuild(false);
+    return;
+  }
+
+  const curInit = initDateUTC();
+  const needTimeSwitch = !isSameInitCycle(targetDateStr, curInit);
+
+  if(needTimeSwitch){
+    setInitDateUTC(targetDate);
+    markInitClean();
+    setStatus(`已切換至 ${m.label} 最新起報時間 (${fmtUTC(targetDate)})`);
+  }
+
+  rebuild(needTimeSwitch, false);
+  updateSingleInitMstats();
+}
+
+function updateSingleInitMstats(){
+  MODELS.forEach(m=>{
+    if(!m.singleInit) return;
+    const f = S.files ? S.files[m.code] : null;
+    const bt = f && f.header && f.header.baseTime;
+    const el = $("#ms-" + m.code);
+    if(!el) return;
+    if(!bt){
+      if(!S.modelOn[m.code]){
+        el.textContent = "";
+        el.className = "mstat";
+        el.onclick = null;
+      }
+      return;
+    }
+    const d = new Date(bt);
+    if(isNaN(d.getTime())) return;
+    const isCur = isSameInitCycle(bt, initDateUTC());
+    const timeStr = `${pad2(d.getUTCMonth()+1)}/${pad2(d.getUTCDate())} ${pad2(d.getUTCHours())}Z`;
+    if(!isCur){
+      el.innerHTML = `<span class="single-init-btn" title="點擊切換至此起報時間">僅 ${timeStr} (切換)</span>`;
+      el.onclick = (e)=>{
+        e.stopPropagation();
+        e.preventDefault();
+        switchToSingleInit(m);
+      };
+    } else {
+      el.onclick = null;
+      if(f && f.ok){
+        const nm = new Set(f.tracks.map(t=>t.member===null?"d":t.member)).size;
+        const count = f.tracks.length > nm ? f.tracks.length : nm;
+        el.textContent = `${count} 條 · ${timeStr}`;
+        el.className = "mstat ok";
+      }
+    }
   });
 }
 function mstat(code, txt, cls){
@@ -1536,6 +1807,7 @@ function updateLoadButtonState(){
 function markInitDirty(){
   updateTimePanel();
   updateLoadButtonState();
+  updateSingleInitMstats();
   setStatus("已切換起報時間，按「載入資料」更新資料");
 }
 function markInitClean(key){
@@ -1568,15 +1840,23 @@ function urlsFor(m){
   if(!v) return [];
   const [Y,M,D]=v.split("-");
   const YMD = Y+M+D, YY = Y.slice(2);
+  if(m.url){
+    const fallbacks = (m.files||[]).filter(f=>!f.startsWith("http")).map(f=>{
+      const fn = f.replace(/\{YMD\}/g,YMD).replace(/\{HH\}/g,hh).replace(/\{YY\}/g,YY);
+      return `${BASE}/${m.dir}/${Y}/${YMD}/${fn}`;
+    });
+    return [m.url, ...fallbacks];
+  }
   if(m.format==="atcf" || m.format==="csv"){
     return m.files.map(f=>{
       const fn = f.replace(/\{Y\}/g,Y).replace(/\{M\}/g,M).replace(/\{D\}/g,D).replace(/\{HH\}/g,hh);
-      const raw = `${wnextAtcfBase(m.dataset||"OPER", m.track, m.format)}/${fn}`;
-      // 大型 CSV 先直連（30MB+ 走 r.jina.ai 轉檔幾乎必然逾時），失敗才退回轉檔
-      return m.format==="csv" ? [raw, `${WNEXT_READER_BASE}/${raw}`] : [`${WNEXT_READER_BASE}/${raw}`, raw];
+      const raw = `${wnextAtcfBase(m.dataset||"OPER", m.track, m.format, m.type)}/${fn}`;
+      // 大型 CSV 先直連（30MB+ 走 r.jina.ai 轉檔幾乎必然逾時），失敗才退回轉檔；一般大小優先走 r.jina.ai 避開瀏覽器跨域限制
+      return m.heavy ? [raw, `${WNEXT_READER_BASE}/${raw}`] : [`${WNEXT_READER_BASE}/${raw}`, raw];
     }).flat();
   }
   return m.files.map(f=>{
+    if(f.startsWith("http")) return f;
     const fn = f.replace(/\{YMD\}/g,YMD).replace(/\{HH\}/g,hh).replace(/\{YY\}/g,YY);
     return `${BASE}/${m.dir}/${Y}/${YMD}/${fn}`;
   });
@@ -1604,6 +1884,7 @@ async function loadAll(){
   if(allStorms) allStorms.checked = false;
   S.storm = null;
   rebuild(true, true);
+  updateSingleInitMstats();
   markInitClean(requestedInitKey);
 }
 
@@ -1621,7 +1902,7 @@ async function loadCurrentCycle(sel, seq){
     for(const u of urls){
       try{
         let r, via, tried=[];
-        if(m.format==="csv"){
+        if(m.heavy && m.format==="csv"){
           // 大檔：串流下載＋邊收邊解析，並顯示進度
           r = await fetchCsvTracksStream(u, m, 300000, (got,total)=>{
             if(seq!==loadSeq) return;
@@ -1629,8 +1910,13 @@ async function loadCurrentCycle(sel, seq){
           });
           via = "direct(stream)";
         }else{
-          const res = await fetchCXML(u, null, m.format||"xml");
-          r = m.format==="atcf" ? parseATCF(res.text, m, u) : parseCXML(res.text, m, u);
+          const isJson = m.format==="json" || m.format==="json_gz" || u.includes(".json");
+          const kind = isJson ? "json" : (m.format||"xml");
+          const res = await fetchCXML(u, null, kind);
+          r = isJson ? parseEcmwfTrackJson(res.text, m, u) :
+              m.format==="csv"  ? parseTrackCSV(res.text, m, u) :
+              m.format==="atcf" ? parseATCF(res.text, m, u) :
+              parseCXML(res.text, m, u);
           via = res.via; tried = res.tried||[];
         }
         if(seq!==loadSeq) return;
@@ -1638,8 +1924,24 @@ async function loadCurrentCycle(sel, seq){
         S.files[m.code] = {ok:true, header:r.header, tracks:r.tracks, url:u, via:via};
         okCount++; trackTotal += r.tracks.length;
         const nm = new Set(r.tracks.map(t=>t.member===null?"d":t.member)).size;
-        mstat(m.code, nm+" 條 · "+via, "ok");
-        urlLog.push("    ✓ 成功管道：" + via + (tried.length?"（先失敗："+tried.join("、")+"）":""));
+        const count = r.tracks.length > nm ? r.tracks.length : nm;
+
+        // 若為單一起報時次模式，檢查是否與目前時次吻合
+        if(m.singleInit && r.header && r.header.baseTime){
+          const isCur = isSameInitCycle(r.header.baseTime, initDateUTC());
+          const d = new Date(r.header.baseTime);
+          const timeStr = isNaN(d.getTime()) ? "" : `${pad2(d.getUTCMonth()+1)}/${pad2(d.getUTCDate())} ${pad2(d.getUTCHours())}Z`;
+          if(!isCur){
+            mstat(m.code, "僅 " + timeStr, "warn");
+            urlLog.push(`    ✓ 已載入最新資料（起報時次為 ${timeStr}，非目前檢視時次暫不繪製，可點擊模式狀態切換）`);
+          } else {
+            mstat(m.code, count + " 條 · " + via, "ok");
+            urlLog.push("    ✓ 成功管道：" + via + (tried.length?"（先失敗："+tried.join("、")+"）":""));
+          }
+        } else {
+          mstat(m.code, count + " 條 · " + via, "ok");
+          urlLog.push("    ✓ 成功管道：" + via + (tried.length?"（先失敗："+tried.join("、")+"）":""));
+        }
         lastErr=null; break;
       }catch(e){ lastErr=e; }
     }
@@ -1715,19 +2017,24 @@ async function loadFiles(fileList, forceCode){
       // 指定模式優先，否則依檔名猜
       let m = forced;
       if(!m){
-        m = MODELS.find(x=>lower.includes("_"+x.dir+"_")||lower.includes("_"+x.code.toLowerCase()+"_"));
-        if(lower.includes("cmc")) m = MODELS.find(x=>x.code==="CMC");
+        if(lower.includes("aifs")) m = MODELS.find(x=>x.code==="ECMF_AIFS");
+        else if(lower.includes("ecmwf") || lower.includes("ifs-ens") || lower.includes("ifs_ens")) m = MODELS.find(x=>x.code==="ECMF");
+        else if(lower.includes("cmc")) m = MODELS.find(x=>x.code==="CMC");
         else if(lower.includes("gefs")) m = MODELS.find(x=>x.code==="KWBC");
         else if(lower.includes("large_ensemble") || lower.includes("cyclogenesis")) m = MODELS.find(x=>x.code==="WNX2L");
+        else if(lower.includes("wnv3") || lower.includes("weathernext3") || lower.includes("weathernext_3")) m = MODELS.find(x=>x.code==="WNV3_CYC");
+        else if(lower.includes("oper_") && (lower.includes("paired") || lower.includes("cyclones") || lower.includes(".csv"))) m = MODELS.find(x=>x.code==="WNX_CYCOP");
         else if(lower.includes("fnv3p2") || lower.includes("weathernext2") || lower.includes("weathernext_2")) m = MODELS.find(x=>x.code==="WNX2");
         else if(lower.includes("oper_")) m = MODELS.find(x=>x.code==="WNX");
         else if(lower.includes("weathernext") || lower.includes("atcf") || lower.includes("_a_deck")) m = MODELS.find(x=>x.code==="WNX2");
       }
       if(!m) m = {code:"FILE"+n, label:f.name, org:"本機檔", color:"#94a3b8", dir:"", files:[], ens:true};
-      const isCsv  = bigCsv || csvByName || (m.format==="csv" && !looksLikeATCF(txt)) ||
-                     (!/^\s*<\?xml|^\s*<cxml/i.test(txt) && !looksLikeATCF(txt) && looksLikeTrackCSV(txt));
-      const isAtcf = !isCsv && (m.format==="atcf" || looksLikeATCF(txt));
-      const r = bigCsv ? await parseFileCsvStream(f, m)
+      const isJson = lower.endsWith(".json") || lower.endsWith(".json.gz") || (m && (m.format==="json" || m.format==="json_gz"));
+      const isCsv  = !isJson && (bigCsv || csvByName || (m.format==="csv" && !looksLikeATCF(txt)) ||
+                     (!/^\s*<\?xml|^\s*<cxml/i.test(txt) && !looksLikeATCF(txt) && looksLikeTrackCSV(txt)));
+      const isAtcf = !isJson && !isCsv && (m.format==="atcf" || looksLikeATCF(txt));
+      const r = isJson ? parseEcmwfTrackJson(txt, m, f.name)
+              : bigCsv ? await parseFileCsvStream(f, m)
               : isCsv  ? parseTrackCSV(txt, m, f.name)
               : isAtcf ? parseATCF(txt, m, f.name)
               : parseCXML(txt, m, f.name);
@@ -1756,10 +2063,16 @@ async function loadFiles(fileList, forceCode){
    ══════════════════════════════════════════════════════════════════ */
 function activeTracks(){
   const out=[];
+  const curInit = initDateUTC();
   for(const k in S.files){
     const f=S.files[k]; if(!f||!f.ok) continue;
     const base = k.split("#")[0];
-    if(MODELS.some(m=>m.code===base) && !S.modelOn[base]) continue;
+    const m = MODELS.find(x=>x.code===base);
+    if(m && !S.modelOn[base]) continue;
+    if(m && m.singleInit){
+      const baseTime = f.header && f.header.baseTime;
+      if(!isSameInitCycle(baseTime, curInit)) continue;
+    }
     out.push(...f.tracks);
   }
   return out;
@@ -1773,6 +2086,7 @@ function rebuild(refit, preferFirst){
   if(!keep) keep = pickDefaultStorm();
   selectStorm(keep, refit!==false);
   renderStormList();
+  updateSingleInitMstats();
 }
 function filterBasin(list){
   return S.basin==="ALL" ? list : list.filter(g=>g.basin===S.basin);
@@ -1873,8 +2187,17 @@ function selectStorm(g, refit){
   g.means = {};
   if(!g.multi){
     for(const c in g.byModel){
-      const ens = g.byModel[c].filter(t=>t.isEns);
+      const ens = g.byModel[c].filter(t=>t.isEns && !t.isMean && t.member!==-1);
       if(ens.length>=3) g.means[c] = meanTrack(ens);
+      else {
+        const meanTrk = g.byModel[c].find(t=>t.isMean || t.member===-1);
+        if(meanTrk && meanTrk.pts.length>=2){
+          g.means[c] = meanTrk.pts.map(p=>({
+            h:p.h, lat:p.lat, lon:p.lonF!==undefined?p.lonF:p.lon,
+            pres:p.pres, wind:p.wind, n:1, frac:1, spread:0
+          }));
+        }
+      }
     }
   }
   const maxH = g.maxH;
@@ -1900,6 +2223,7 @@ function draw(refit){
     pts.forEach(p=>bounds.push(p));
     const isDet = !t.isEns;
     const isCtl = t.isCtl;
+    const isMean = t.isMean || t.member===-1;
     if(isDet || isCtl){
       if(!showCtl) continue;
       const pl = L.polyline(pts,{color:t.color, weight:Math.max(2.6,w+1.6), opacity:.98,
@@ -1911,6 +2235,13 @@ function draw(refit){
       t.pts.forEach(p=>{ if(p.h>0 && p.h%24===0)
         L.circleMarker(ll(p),{radius:2.6,color:t.color,weight:1,fillColor:t.color,fillOpacity:.9})
          .bindTooltip("+"+p.h+"h",{direction:"top"}).addTo(gCtl); });
+    }else if(isMean){
+      // 集合平均檔：若已由 gMean 繪製（showMean），則不重複畫成員線；若 showMean 關閉但 showMem 開啟，則以成員線呈現
+      if(!showMean && showMem){
+        const pl = L.polyline(pts,{color:t.color, weight:Math.max(2.2,w+0.8), opacity:Math.min(1,op+0.2), lineJoin:"round",
+                                   interactive:true}).addTo(gMem);
+        bindTip(pl,t,"系集平均");
+      }
     }else{
       if(!showMem) continue;
       const pl = L.polyline(pts,{color:t.color, weight:w, opacity:op, lineJoin:"round",
@@ -1927,14 +2258,16 @@ function draw(refit){
       const pts = mt.map(p=>[p.lat,p.lon]);
       L.polyline(pts,{color:"#000",weight:6.5,opacity:.45}).addTo(gMean);
       const pl = L.polyline(pts,{color:col,weight:3.4,opacity:1,dashArray:"9 5"}).addTo(gMean);
-      pl.bindTooltip((m?m.label:c)+" 集合平均 ("+g.byModel[c].filter(t=>t.isEns).length+" 成員)",{sticky:true});
+      const nMem = g.byModel[c].filter(t=>t.isEns && !t.isMean && t.member!==-1).length;
+      pl.bindTooltip((m?m.label:c)+" 集合平均" + (nMem ? ` (${nMem} 成員)` : ""),{sticky:true});
       mt.forEach(p=>{
         if(p.h%24!==0) return;
         L.circleMarker([p.lat,p.lon],{radius:4.4,color:"#fff",weight:1.6,fillColor:col,fillOpacity:1})
-         .bindTooltip(`<b>${m?m.label:c}</b> 集合平均<br>+${p.h}h　成員 ${p.n}<br>`
+         .bindTooltip(`<b>${m?m.label:c}</b> 集合平均<br>+${p.h}h`
+            + (p.n>1 ? `　成員 ${p.n}` : "") + `<br>`
             + (p.pres?`平均氣壓 ${p.pres.toFixed(0)} hPa<br>`:"")
             + (p.wind?`平均風速 ${p.wind.toFixed(0)} kt<br>`:"")
-            + `離散度 ${p.spread.toFixed(0)} km`,{sticky:true})
+            + (p.spread?`離散度 ${p.spread.toFixed(0)} km`:""),{sticky:true})
          .addTo(gMean);
       });
     }
@@ -1970,9 +2303,11 @@ function drawDots(){
     const p = nearestFix(t.pts, h);
     if(!p) continue;
     n++;
+    const isMean = t.isMean || t.member===-1;
+    const role = isMean ? "系集平均" : (t.isEns ? ("成員 "+t.member) : "決定性");
     L.circleMarker(ll(p),{radius:t.isCtl?5:3.2, color:t.isCtl?"#fff":t.color, weight:t.isCtl?2:1,
        fillColor:t.color, fillOpacity:t.isCtl?1:.75})
-     .bindTooltip(`${t.modelLabel} ${t.isEns?("成員 "+t.member):"決定性"}<br>+${p.h}h　`
+     .bindTooltip(`${t.modelLabel} ${role}<br>+${p.h}h　`
        +(p.pres?p.pres.toFixed(0)+" hPa ":"")+(p.wind?p.wind.toFixed(0)+" kt":""),{sticky:true})
      .addTo(gDots);
   }
@@ -1982,10 +2317,12 @@ function drawDots(){
     if(!p) continue;
     const m=MODELS.find(x=>x.code===c);
     L.circleMarker([p.lat,p.lon],{radius:7,color:"#fff",weight:2,fillColor:m?m.color:"#fff",fillOpacity:.95})
-     .bindTooltip(`${m?m.label:c} 平均位置 +${p.h}h<br>離散度 ${p.spread.toFixed(0)} km`,{sticky:true})
+     .bindTooltip(`${m?m.label:c} 平均位置 +${p.h}h` + (p.spread?`<br>離散度 ${p.spread.toFixed(0)} km`:""),{sticky:true})
      .addTo(gDots);
-    L.circle([p.lat,p.lon],{radius:p.spread*1000, color:m?m.color:"#fff", weight:1.2,
-       opacity:.7, fill:false, dashArray:"4 4"}).addTo(gDots);
+    if(p.spread>0){
+      L.circle([p.lat,p.lon],{radius:p.spread*1000, color:m?m.color:"#fff", weight:1.2,
+         opacity:.7, fill:false, dashArray:"4 4"}).addTo(gDots);
+    }
   }
 }
 function nearestFix(pts,h){
