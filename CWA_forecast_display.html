@@ -340,6 +340,24 @@ body.panel-collapsed #legend{max-width:min(330px,calc(100% - 24px))}
   border:2px solid rgba(255,255,255,0.8);font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,0.5)}
 .pt-lab{background:rgba(14,18,23,0.85);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:8px;color:var(--txt);
   font-size:10.5px;padding:2px 6px;white-space:nowrap}
+/* 陸地面量浮動提示：多行精簡版（避免單行過長） */
+.pt-tip{white-space:normal;max-width:220px;line-height:1.45;padding:4px 8px}
+.pt-tip .tt-n{font-weight:700;color:#fff;font-size:11.5px}
+.pt-tip .tt-s{color:var(--muted);font-size:10px}
+.pt-tip .tt-v{font-size:11.5px}
+/* 月／季展望精簡彈窗 */
+.pp-long{min-width:240px;max-width:280px}
+.pp .lo-row{border-top:1px dashed var(--line);margin-top:7px;padding-top:6px}
+.pp .lo-hd{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700}
+.pp .lo-badge{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11.5px;font-weight:700}
+.pp .lo-band{font-size:10px;color:var(--muted);font-weight:400}
+.pp .lo-bar{display:flex;height:8px;border-radius:4px;overflow:hidden;margin:6px 0 3px;background:#ffffff14}
+.pp .lo-leg{display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted)}
+.pp .lo-leg b{color:#fff}
+.pp .lo-leg i{display:inline-block;width:7px;height:7px;border-radius:2px;margin-right:3px;vertical-align:middle}
+.pp .lo-clim{font-size:11px;margin-top:4px}
+.pp .lo-clim span{color:var(--muted)}
+.pp .lo-sec{font-size:11.5px;font-weight:700;color:var(--accent);margin-top:8px}
 .wx-ico{font-size:16px;text-shadow:0 1px 3px #000;text-align:center;line-height:1}
 
 /* 颱風圖示與彈窗樣式 */
@@ -1922,7 +1940,10 @@ function fmtLandItem(k,it,t,county){
   return `${fmtNum(it.v,k==='PoP'||k==='RH'||k==='WS'||k==='UVI'?0:1)}${landUnit(k)}`;
 }
 function timeMini(it){
-  return it&&it.s?`｜${fmtT(it.s)}${it.e?'–'+fmtT(it.e):''}`:'';
+  if(!(it&&it.s)) return '';
+  if(!it.e) return fmtT(it.s);
+  const sameDay=it.s.getDate()===it.e.getDate()||(it.e-it.s<=24*3600e3&&it.e.getHours()===0);
+  return `${fmtT(it.s)}–${sameDay?`${pad(it.e.getHours()||24)}:00`:fmtT(it.e)}`;
 }
 function townValueItem(rec,t,p){
   const rec7=(LAND.town7&&p)?(LAND.town7['G'+String(p.TOWNCODE||'')]
@@ -1986,23 +2007,30 @@ function countyFallbackItem(rec,t){
   }
   return valAt(rec,S.land,t);
 }
+/* 回傳 {label,val,time,note}，由 landTipHTML 排成多行精簡提示 */
 function landTooltipValue(p,useCounty,t,isHealth,dataFor){
   const county=normName(p.COUNTYNAME||'');
   if(isHealth){
     const it=nearestHealth(dataFor(p),t);
-    if(!it) return `${landVarName(S.land)}：無資料`;
+    if(!it) return {label:landVarName(S.land),val:'無資料',time:''};
     const warn=it.txt?`（${it.txt}）`:'';
-    return `${landVarName(S.land)}：${it.v!=null?fmtNum(it.v,1):'–'}${warn}${timeMini(it)}`;
+    return {label:landVarName(S.land),val:`${it.v!=null?fmtNum(it.v,1):'–'}${warn}`,time:timeMini(it)};
   }
-  let it=null, label=landVarName(S.land);
+  let it=null, note='';
   if(useCounty){
     it=countyValueItem(p,t);
     if(!it){ const rec=LAND.county?LAND.county[county]:null; it=countyFallbackItem(rec,t); }
-    label += S.land==='Wx'?'（代表鄉鎮）':'（縣市平均）';
+    note = S.land==='Wx'?'代表鄉鎮':'縣市平均';
   }else{
     it=townValueItem(dataFor(p),t,p);
   }
-  return `${label}：${fmtLandItem(S.land,it,t,county)}${timeMini(it)}`;
+  return {label:landVarName(S.land),val:fmtLandItem(S.land,it,t,county),time:timeMini(it),note};
+}
+function landTipHTML(name,parts){
+  const e=escapeHtml;
+  return `<div class="tt-n">${e(name)}${parts.note?` <span class="tt-s">${e(parts.note)}</span>`:''}</div>`
+    +`<div class="tt-v">${e(parts.label)}：<b>${e(parts.val)}</b></div>`
+    +(parts.time?`<div class="tt-s">${e(parts.time)}</div>`:'');
 }
 
 let longPromise=null;
@@ -2211,12 +2239,74 @@ function longOutlookText(cell){
   const rBandLabel=r.bandIdx>=0?`（${LONG_OUTLOOK_BANDS[r.bandIdx]}）`:'';
   const tTriplet=t.triplet?` [${t.triplet.join(':')}]`:'';
   const rTriplet=r.triplet?` [${r.triplet.join(':')}]`:'';
-  const tv=cell.tempClimate?`（氣候區間 ${fmtClimateValue(cell.tempClimate)}）`:'';
-  const rv=cell.rainClimate?`（氣候區間 ${fmtClimateValue(cell.rainClimate)}）`:'';
+  const tv=cell.tempClimate?`（氣候正常值區間 ${fmtClimateValue(cell.tempClimate)}）`:'';
+  const rv=cell.rainClimate?`（氣候正常值區間 ${fmtClimateValue(cell.rainClimate)}）`:'';
 
   const tDesc=t.cat==='normal'?`氣溫 正常${tTriplet}${tv}`:`氣溫 ${tCatLabel} ${t.prob}%${tBandLabel}${tTriplet}${tv}`;
   const rDesc=r.cat==='normal'?`降雨 正常${rTriplet}${rv}`:`降雨 ${rCatLabel} ${r.prob}%${rBandLabel}${rTriplet}${rv}`;
   return `${cell.region}｜${tDesc} ｜ ${rDesc}`;
+}
+/* ── 月／季展望精簡呈現（浮動提示／彈窗共用） ── */
+const LONG_KIND_META={
+  temp:{icon:'🌡️',name:'氣溫',labels:OUTLOOK_TEMP_LABELS,cols:{below:'#6fa8c5',normal:'#9aa3ad',above:'#e18e4f'}},
+  rain:{icon:'💧',name:'降雨',labels:OUTLOOK_RAIN_LABELS,cols:{below:'#b89b59',normal:'#9aa3ad',above:'#007c89'}},
+};
+function longHasTriplet(raw){ return !!(raw&&probTriplet(raw.value)); }
+/* 主要顯示值（地圖著色依據）：如「偏暖 50%」「正常 40%」 */
+function longSigText(sig,kind,raw){
+  if(raw&&!longHasTriplet(raw)) return raw.value?String(raw.value):'無資料';
+  if(!raw) return '無資料';
+  const lab=LONG_KIND_META[kind].labels[sig.cat]||'正常';
+  return `${lab} ${sig.prob}%`;
+}
+function longSigBadge(sig,kind,raw){
+  const txt=escapeHtml(longSigText(sig,kind,raw));
+  let bg, fg='#0b1220';
+  if(kind==='temp'){ bg=getOutlookTempColor(sig.cat,sig.prob); if(sig.bandIdx>=4) fg='#fff'; }
+  else{ bg=sig.cat==='normal'?LONG_NORMAL_COLOR:LONG_KIND_META.rain.cols[sig.cat]; if(sig.cat!=='normal') fg='#fff'; }
+  return `<span class="lo-badge" style="background:${bg};color:${fg}">${txt}</span>`;
+}
+/* 單一要素區塊：主要訊號 ＋ 三分類機率條 ＋ 氣候正常值區間 */
+function longKindBlock(sig,kind,raw,clim){
+  const m=LONG_KIND_META[kind];
+  const band=(sig.bandIdx>=0&&longHasTriplet(raw))?`<span class="lo-band">級距 ${LONG_OUTLOOK_BANDS[sig.bandIdx]}</span>`:'';
+  let h=`<div class="lo-row"><div class="lo-hd">${m.icon} ${m.name} ${longSigBadge(sig,kind,raw)}${band}</div>`;
+  if(longHasTriplet(raw)){
+    const [b,n,a]=probTriplet(raw.value), sum=(b+n+a)||1;
+    const segs=[['below',b],['normal',n],['above',a]];
+    h+=`<div class="lo-bar">`+segs.map(([c,v])=>`<span style="width:${v/sum*100}%;background:${m.cols[c]}"></span>`).join('')+`</div>`;
+    h+=`<div class="lo-leg">`+segs.map(([c,v])=>{
+      const on=c===sig.cat; const t=`${m.labels[c]} ${v}%`;
+      return `<span><i style="background:${m.cols[c]}"></i>${on?`<b>${t}</b>`:t}</span>`;
+    }).join('')+`</div>`;
+  }
+  h+=`<div class="lo-clim"><span>氣候正常值區間：</span>${escapeHtml(clim?fmtClimateValue(clim):'–')}</div></div>`;
+  return h;
+}
+function longCellHTML(cell){
+  if(!cell) return '<div class="sm">目前無資料</div>';
+  return longKindBlock(cell.tempSig,'temp',cell.tempRaw,cell.tempClimate)
+    +longKindBlock(cell.rainSig,'rain',cell.rainRaw,cell.rainClimate);
+}
+/* 浮動提示：只列名稱、期間與兩項主要訊號 */
+function longTipHTML(county,region,type,cell){
+  const e=escapeHtml;
+  let h=`<div class="tt-n">${e(county)} <span class="tt-s">${e(region||'')}</span></div>`;
+  if(!region||!cell) return h+`<div class="tt-s">長期展望無分區資料</div>`;
+  h+=`<div class="tt-s">${e(LONG_TYPES[type].label)}・${e(cell.period)}</div>`;
+  h+=`<div class="tt-v">🌡️ ${e(longSigText(cell.tempSig,'temp',cell.tempRaw))}　💧 ${e(longSigText(cell.rainSig,'rain',cell.rainRaw))}</div>`;
+  return h+`<div class="tt-s">點選查看三分類機率與氣候正常值區間</div>`;
+}
+/* 長期展望模式點選縣市：只顯示目前時間軸所選期間 */
+async function openLongPopup(props,latlng){
+  const county=normName(props.COUNTYNAME||''), region=REGION4[county], type=S.land;
+  try{ await loadLongOutlook(); }catch(e){}
+  const cell=region?longOutlookCell(type,region):null;
+  const html=`<div class="pp pp-long"><h3>${escapeHtml(county)} <span class="sm">｜${escapeHtml(region||'—')}</span></h3>`
+    +`<div class="sm">${escapeHtml(LONG_TYPES[type].label)}・<b style="color:#fff">${escapeHtml(cell?cell.period:'—')}</b></div>`
+    +longCellHTML(cell)
+    +`<div class="sm" style="margin-top:8px"><a href="javascript:void(0)" onclick="openLongDrawer()">查看完整月／季展望 →</a></div></div>`;
+  L.popup({maxWidth:300}).setLatLng(latlng).setContent(html).openOn(S.map);
 }
 function longOutlookValidText(type){
   const cell=longOutlookCell(type,'北部');
@@ -2268,13 +2358,18 @@ function renderLand(){
     return {color:'#0b1220',weight:isLong ? 1 : (useCounty?1:.5),fillColor:fill,fillOpacity:isLong ? 1 : op,opacity:isLong ? .8 : .6};
   };
 
+  /* 回傳已跳脫的多行精簡 HTML */
   const getTipFor=(p)=>{
+    const county=normName(p.COUNTYNAME||'');
     if(isLong){
-      const region=REGION4[normName(p.COUNTYNAME||'')], cell=longOutlookCell(S.land,region);
-      return region?`${normName(p.COUNTYNAME)}｜${region}｜${longOutlookText(cell)}`:'長期展望無分區資料';
+      const region=REGION4[county], cell=region?longOutlookCell(S.land,region):null;
+      return longTipHTML(county,region,S.land,cell);
     }
-    return (useCounty?normName(p.COUNTYNAME):normName(p.COUNTYNAME)+normName(p.TOWNNAME))+`｜${landTooltipValue(p,useCounty,t,isHealth,dataFor)}`;
+    const name=useCounty?county:county+' '+normName(p.TOWNNAME||'');
+    return landTipHTML(name,landTooltipValue(p,useCounty,t,isHealth,dataFor));
   };
+  const onLandClick=(p,ly)=>isLongLand()?openLongPopup(p,ly.getBounds().getCenter()):openLandPopup(p,ly.getBounds().getCenter());
+  const TIP_OPT={sticky:true,className:'pt-lab pt-tip',direction:'top'};
 
   // 1. 若使用縣市圖層
   if(useCounty){
@@ -2285,15 +2380,15 @@ function renderLand(){
       LAND.layerCounty.eachLayer(ly=>{
         ly.setStyle(styleFor(ly.feature));
         const tip=getTipFor(ly.feature.properties);
-        if(ly.getTooltip()) ly.setTooltipContent(escapeHtml(tip));
+        if(ly.getTooltip()) ly.setTooltipContent(tip);
       });
     }else{
       if(LAND.layerCounty) S.map.removeLayer(LAND.layerCounty);
       LAND.layerCounty=L.geoJSON(LAND.topoCounty,{pane:'landPane',style:styleFor,
         onEachFeature:(f,ly)=>{
           const p=f.properties;
-          ly.on('click',()=>openLandPopup(p,ly.getBounds().getCenter()));
-          ly.bindTooltip(escapeHtml(getTipFor(p)),{sticky:true,className:'pt-lab',direction:'top'});
+          ly.on('click',()=>onLandClick(p,ly));
+          ly.bindTooltip(getTipFor(p),TIP_OPT);
         }});
       LAND.layerCounty.addTo(S.map); LAND.layerCounty.bringToBack();
     }
@@ -2308,15 +2403,15 @@ function renderLand(){
       LAND.layerTown.eachLayer(ly=>{
         ly.setStyle(styleFor(ly.feature));
         const tip=getTipFor(ly.feature.properties);
-        if(ly.getTooltip()) ly.setTooltipContent(escapeHtml(tip));
+        if(ly.getTooltip()) ly.setTooltipContent(tip);
       });
     }else{
       if(LAND.layerTown) S.map.removeLayer(LAND.layerTown);
       LAND.layerTown=L.geoJSON(LAND.topoTown,{pane:'landPane',style:styleFor,
         onEachFeature:(f,ly)=>{
           const p=f.properties;
-          ly.on('click',()=>openLandPopup(p,ly.getBounds().getCenter()));
-          ly.bindTooltip(escapeHtml(getTipFor(p)),{sticky:true,className:'pt-lab',direction:'top'});
+          ly.on('click',()=>onLandClick(p,ly));
+          ly.bindTooltip(getTipFor(p),TIP_OPT);
         }});
       LAND.layerTown.addTo(S.map); LAND.layerTown.bringToBack();
     }
@@ -2538,20 +2633,16 @@ async function openLandPopup(props, latlng){
         setStatus('就緒 '+fmtTs(new Date()));
       }).catch(()=>{ const el3=Q('#ppHelper'); if(el3) el3.textContent='載入失敗'; });
     },{once:true});
-    /* 月／季長期展望摘要（依 REGION4 分區對照，列出所有展望期間） */
+    /* 月／季長期展望摘要（依 REGION4 分區對照，僅顯示目前所選期間，避免列出全部期間過長） */
     const pl=Q('#ppLong');
     if(pl && region){
       loadLongOutlook().then(()=>{
         const lines=[];
         for(const type of ['longM','longS']){
-          const pack=LAND.long&&LAND.long[type];
-          const n=pack&&pack.periods?pack.periods.length:0;
-          for(let i=0;i<n;i++){
-            const cell=longOutlookCell(type,region,i);
-            if(cell) lines.push(`<div><b>${LONG_TYPES[type].label}（${escapeHtml(cell.period)}）</b>：${escapeHtml(longOutlookText(cell))}</div>`);
-          }
+          const cell=longOutlookCell(type,region);
+          if(cell) lines.push(`<div class="lo-sec">${LONG_TYPES[type].label}・${escapeHtml(cell.period)}</div>${longCellHTML(cell)}`);
         }
-        lines.push(`<div style="margin-top:4px"><a href="javascript:void(0)" onclick="openLongDrawer()">查看完整月／季展望 →</a></div>`);
+        lines.push(`<div style="margin-top:6px"><a href="javascript:void(0)" onclick="openLongDrawer()">查看完整月／季展望 →</a></div>`);
         pl.innerHTML=lines.length>1?lines.join(''):'目前無資料';
       }).catch(()=>{ pl.textContent='載入失敗'; });
     }
@@ -4284,7 +4375,7 @@ function fmtOutlookValue(v,measures){
     const sigTxt=sig.cat==='normal'?'正常 (33–40%)':`${sig.cat==='above'?'偏高 (Above)':'偏低 (Below)'} ${sig.prob}% ${bandTxt}`;
     return `<div><b>${sigTxt}</b></div><div style="font-size:10px;color:var(--muted)">偏低 ${m[1]}% / 正常 ${m[2]}% / 偏高 ${m[3]}%</div>`;
   }
-  return `${v}${measures?' '+measures:''}`;
+  return escapeHtml(`${v}${measures?' '+measures:''}`);
 }
 function fmtClimateValue(p){
   if(!p||p.value==null||String(p.value).trim()==='') return '–';
@@ -4313,7 +4404,7 @@ function renderLongOutlookHTML(json){
         el.regions[rname].map((p,i)=>{
           const cp=clim&&clim.regions[rname]&&(clim.regions[rname][i]||clim.regions[rname].find(x=>x.period===p.period));
           const cv=cp?fmtClimateValue(cp):'';
-          return `<td>${escapeHtml(fmtOutlookValue(p.value,p.measures))}${cv?`<br><span style="color:var(--muted);font-size:10px">氣候區間 ${escapeHtml(cv)}</span>`:''}</td>`;
+          return `<td>${fmtOutlookValue(p.value,p.measures)}${cv?`<br><span style="color:var(--muted);font-size:10px">氣候正常值區間 ${escapeHtml(cv)}</span>`:''}</td>`;
         }).join('')+'</tr>';
     }
     html+='</tbody></table>';
@@ -4362,7 +4453,7 @@ async function renderDrawerTab(tab){
   }else if(tab==='long'){
     body.innerHTML='<div class="txtdoc"><h4>📅 月長期天氣展望（F-A0013-001）</h4><div id="dwLongM">載入中…</div></div>'+
       '<div class="txtdoc"><h4>📆 季長期天氣展望（F-A0013-002）</h4><div id="dwLongS">載入中…</div></div>'+
-      '<div class="note" style="padding:0 4px">展望內容為北中南東分區之溫度／降雨三分類機率、氣候區間值與文字說明。</div>';
+      '<div class="note" style="padding:0 4px">展望內容為北中南東分區之溫度／降雨三分類機率、氣候正常值區間與文字說明。</div>';
     apiFile(DS.longM).then(j=>{ const el=$('dwLongM'); if(el) el.innerHTML=renderLongOutlookHTML(j)||'目前無資料'; })
       .catch(()=>{ const el=$('dwLongM'); if(el) el.textContent='載入失敗'; });
     apiFile(DS.longS).then(j=>{ const el=$('dwLongS'); if(el) el.innerHTML=renderLongOutlookHTML(j)||'目前無資料'; })
@@ -4385,6 +4476,8 @@ $('dwBody').addEventListener('click',e=>{
 });
 document.querySelectorAll('.dw-tab').forEach(b=>b.addEventListener('click',()=>renderDrawerTab(b.dataset.tab)));
 $('btnDrawer').addEventListener('click',()=>{ $('drawer').classList.add('open'); renderDrawerTab('charts'); });
+/* 彈窗內「查看完整月／季展望」連結：開啟抽屜並切到長期展望分頁 */
+window.openLongDrawer=()=>{ if(S.map) S.map.closePopup(); $('drawer').classList.add('open'); renderDrawerTab('long'); };
 $('dwClose').addEventListener('click',()=>{ $('drawer').classList.remove('open');
   Object.keys(DRAWER.galTimers).forEach(k=>{ clearInterval(DRAWER.galTimers[k]); DRAWER.galTimers[k]=null; }); });
 $('lightbox').addEventListener('click',()=>$('lightbox').style.display='none');
