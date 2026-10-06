@@ -354,6 +354,14 @@
       </div>
       <label>縣市</label>
       <select id="countySel"><option value="">全部（縮放至全臺）</option></select>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <button id="locBtn" type="button" style="padding:5px 10px;border-radius:6px;border:1px solid #0284c7;background:#0284c7;color:#fff;cursor:pointer">📍 我的位置</button>
+        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;margin:0">
+          <input type="checkbox" id="locWatchChk" style="accent-color:#0284c7;width:15px;height:15px">
+          <span>持續追蹤</span>
+        </label>
+      </div>
+      <div id="locInfo" style="font-size:12px;color:#9fb0c8;margin-top:4px"></div>
       <label>搜尋（站名 / 代碼）</label>
       <input id="search" placeholder="例如：臺北、C0A9C0…">
       <span class="chip" id="info" style="margin-top:7px">—</span>
@@ -837,9 +845,61 @@ function buildPopup(s,v,val,color){
     html+=`<div style="border-top:1px solid var(--line);margin:6px 0 4px;padding-top:5px;color:#9fb0c8;font-size:11px">格點分析值 (${def.id})</div>`
       +row(def.label,gv===null?"—":gv.toFixed(1)+" "+def.unit);
   }
+  if(ll&&USER_POS) html+=row("距您",`<span style="color:#38bdf8;font-weight:600">${fmtDist(haversineKm(USER_POS[0],USER_POS[1],ll[0],ll[1]))}</span>`);
   html+=row("觀測時間",s.ObsTime?.DateTime?new Date(s.ObsTime.DateTime).toLocaleString("zh-TW"):"—")+`</div>`;
   return html;
 }
+
+/* ===== GPS 定位：顯示我的位置、地圖移至該處（不篩選測站） ===== */
+// 測站彈窗為開啟時才動態產生（bindPopup 傳入函式），故「距您」自動依最新 USER_POS 計算，無需重繪
+var USER_POS=null;            // [lat, lon]
+let locLayer=null, locWatchId=null, locFirstFix=true;
+function haversineKm(a1,o1,a2,o2){
+  const R=6371,d=Math.PI/180,dl=(a2-a1)*d,dn=(o2-o1)*d;
+  const h=Math.sin(dl/2)**2+Math.cos(a1*d)*Math.cos(a2*d)*Math.sin(dn/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+function fmtDist(km){ return km<1 ? Math.round(km*1000)+" m" : km.toLocaleString("zh-TW",{maximumFractionDigits:1})+" km"; }
+function locPopupHTML(la,lo,acc){
+  const row=(k,v)=>`<div class="row"><span class="k">${k}</span><span>${v}</span></div>`;
+  let h=`<div class="pop"><h3>📍 我的位置</h3>`+row("經緯度",`${la.toFixed(5)}, ${lo.toFixed(5)}`)+row("精度",`± ${Math.round(acc)} m`);
+  try{
+    if(gridKind&&gridCache[gridKind]){
+      const def=GRID_DEFS[gridKind],gv=gridAt(la,lo);
+      h+=row(def.label+"（格點）",gv===null?"—":gv.toFixed(1)+" "+def.unit);
+    }
+  }catch(e){}
+  return h+`</div>`;
+}
+function onLocSuccess(p){
+  const la=p.coords.latitude, lo=p.coords.longitude, acc=p.coords.accuracy||0;
+  USER_POS=[la,lo];
+  if(!locLayer) locLayer=L.layerGroup().addTo(map);
+  locLayer.clearLayers();
+  L.circle(USER_POS,{radius:acc,color:"#38bdf8",weight:1,fillColor:"#38bdf8",fillOpacity:.12,interactive:false}).addTo(locLayer);
+  L.circleMarker(USER_POS,{radius:8,color:"#fff",weight:3,fillColor:"#1a73e8",fillOpacity:1})
+    .bindPopup(()=>locPopupHTML(la,lo,acc))
+    .addTo(locLayer);
+  if(locFirstFix){ map.flyTo(USER_POS,Math.max(map.getZoom(),11),{duration:1}); locFirstFix=false; }
+  else if($("locWatchChk").checked){ map.panTo(USER_POS,{animate:true}); }
+  $("locInfo").textContent=`📍 ${la.toFixed(4)}, ${lo.toFixed(4)}（± ${Math.round(acc)} m）`;
+}
+function onLocError(e){
+  const msg={1:"使用者拒絕定位授權",2:"無法取得位置",3:"定位逾時"}[e.code]||e.message;
+  $("locInfo").textContent="⚠️ "+msg+(window.isSecureContext?"":"（需以 HTTPS 或 localhost 開啟）");
+}
+function stopLocWatch(){ if(locWatchId!==null){ navigator.geolocation.clearWatch(locWatchId); locWatchId=null; } }
+function startLocate(){
+  if(!navigator.geolocation){ $("locInfo").textContent="⚠️ 此瀏覽器不支援定位"; return; }
+  $("locInfo").textContent="定位中…";
+  locFirstFix=true;
+  const opt={enableHighAccuracy:true,timeout:15000,maximumAge:10000};
+  stopLocWatch();
+  if($("locWatchChk").checked) locWatchId=navigator.geolocation.watchPosition(onLocSuccess,onLocError,opt);
+  else navigator.geolocation.getCurrentPosition(onLocSuccess,onLocError,opt);
+}
+$("locBtn").addEventListener("click",startLocate);
+$("locWatchChk").addEventListener("change",e=>{ if(e.target.checked) startLocate(); else stopLocWatch(); });
 
 function render(fit, skipKriging){
   drawDayNight();

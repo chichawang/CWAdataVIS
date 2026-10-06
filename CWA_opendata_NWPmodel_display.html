@@ -542,6 +542,15 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2)}
       </select>
     </div>
 
+    <!-- 我的位置（GPS） -->
+    <div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="btn btn-ghost" id="locBtn" style="font-size:12px">📍 我的位置</button>
+        <label style="font-size:12px;display:flex;align-items:center;gap:4px"><input type="checkbox" id="locWatchChk"> 持續追蹤</label>
+      </div>
+      <div id="locInfo" style="font-size:12px;margin-top:6px;line-height:1.5"></div>
+    </div>
+
     <!-- 氣象變數 -->
     <div>
       <div class="section-label">氣象變數</div>
@@ -2640,6 +2649,76 @@ map.on('mousemove',function(e){
   $('hover-info').classList.add('visible');
 });
 map.on('mouseout',function(){$('hover-info').classList.remove('visible');});
+
+/* ── GPS 我的位置（不影響資料渲染，獨立圖層） ─────────── */
+var userLocLayer=L.layerGroup().addTo(map);
+var USER_POS=null, userLocWatchId=null, userLocFirstFix=true, userLocLastData=null;
+function sampleModelAt(lat,lon){
+  var d=currentData; if(!d||!d.grid) return null;
+  var g=d.grid, col, row;
+  if(g.lambert){ var ij=lambertLatLonToIJ(g,lat,lon); col=Math.round(ij[0]); row=Math.round(ij[1]); }
+  else{
+    var gl=lon;
+    if(g.lon1>=0&&g.lon2>180){ while(gl<0)gl+=360; while(gl>=360)gl-=360; }
+    col=Math.round((gl-g.lon1)/g.dx);
+    row=(g.lat1>g.lat2)?Math.round((g.lat1-lat)/g.dy):Math.round((lat-g.lat1)/g.dy);
+  }
+  if(col<0||col>=g.nx||row<0||row>=g.ny) return null;
+  var idx=row*g.nx+col, unit=(d.scale&&d.scale.unit)||'';
+  if(d.valsU&&d.valsV){
+    var u=d.valsU[idx], w=d.valsV[idx];
+    if(!isFinite(u)||!isFinite(w)) return null;
+    var dir=(270-Math.atan2(w,u)*180/Math.PI)%360; if(dir<0)dir+=360;
+    return Math.sqrt(u*u+w*w).toFixed(2)+' m/s（'+Math.round(dir)+'°）';
+  }
+  var v=d.values[idx]; if(!isFinite(v)) return null;
+  if(d.isKelvin) v-=273.15; if(d.isPa) v/=100;
+  return v.toFixed(2)+' '+unit;
+}
+function userLocContent(){
+  if(!USER_POS) return '';
+  var val=sampleModelAt(USER_POS.lat,USER_POS.lon);
+  var vname=(currentData&&currentData.msg&&(currentData.msg.name||currentData.msg.key))||'';
+  return '<b>📍 我的位置</b><br>'+USER_POS.lat.toFixed(4)+'°, '+USER_POS.lon.toFixed(4)+'°<br>精度 ±'+Math.round(USER_POS.acc)+' m'+
+    (currentData?'<br>'+(vname?vname+'：':'模式值：')+(val||'—（超出網格或無值）'):'');
+}
+function userLocRefresh(){
+  if(!USER_POS) return;
+  var html=userLocContent();
+  $('locInfo').innerHTML=html;
+  userLocLayer.eachLayer(function(l){ if(l.getPopup&&l.getPopup()) l.setPopupContent(html); });
+}
+function onUserLocSuccess(p){
+  USER_POS={lat:p.coords.latitude,lon:p.coords.longitude,acc:p.coords.accuracy||0};
+  var ll=[USER_POS.lat,USER_POS.lon];
+  userLocLayer.clearLayers();
+  L.circle(ll,{radius:USER_POS.acc,color:'#3b82f6',weight:1,fillColor:'#3b82f6',fillOpacity:0.12,interactive:false}).addTo(userLocLayer);
+  L.circleMarker(ll,{radius:8,color:'#fff',weight:2,fillColor:'#2563eb',fillOpacity:1}).bindPopup(userLocContent()).addTo(userLocLayer);
+  if(userLocFirstFix){ map.flyTo(ll,Math.max(map.getZoom(),8)); userLocFirstFix=false; }
+  else if(userLocWatchId!=null){ map.panTo(ll); }
+  userLocRefresh();
+  $('locBtn').disabled=false;
+}
+function onUserLocError(err){
+  var m={1:'定位權限遭拒絕',2:'無法取得位置',3:'定位逾時'}[err&&err.code]||'定位失敗';
+  if(!window.isSecureContext) m+='（瀏覽器定位需 HTTPS 或 localhost 環境）';
+  $('locInfo').textContent='⚠ '+m;
+  $('locBtn').disabled=false;
+}
+$('locBtn').addEventListener('click',function(){
+  if(!navigator.geolocation){ $('locInfo').textContent='⚠ 此瀏覽器不支援定位'+(!window.isSecureContext?'（需 HTTPS 或 localhost）':''); return; }
+  if(userLocWatchId!=null){ navigator.geolocation.clearWatch(userLocWatchId); userLocWatchId=null; }
+  userLocFirstFix=true;
+  $('locInfo').textContent='定位中…'; this.disabled=true;
+  var opt={enableHighAccuracy:true,timeout:15000,maximumAge:10000};
+  if($('locWatchChk').checked) userLocWatchId=navigator.geolocation.watchPosition(onUserLocSuccess,onUserLocError,opt);
+  else navigator.geolocation.getCurrentPosition(onUserLocSuccess,onUserLocError,opt);
+});
+$('locWatchChk').addEventListener('change',function(){
+  if(!this.checked&&userLocWatchId!=null){ navigator.geolocation.clearWatch(userLocWatchId); userLocWatchId=null; }
+});
+/* 顯示欄位/時間變更時更新我的位置數值 */
+setInterval(function(){ if(USER_POS&&currentData!==userLocLastData){ userLocLastData=currentData; userLocRefresh(); } },800);
 
 /* ═══════════════════════════════════════════════
    NetCDF-3 Parser（classic / 64-bit offset）
