@@ -105,6 +105,10 @@
   a.go.ty-theme:hover{background:rgba(255,159,67,0.12);border-color:rgba(255,159,67,0.4);box-shadow:0 8px 24px rgba(0,0,0,0.3), 0 0 16px rgba(255,159,67,0.2)}
   a.go.ty-theme .title-row .arrow{color:#ff9f43}
 
+  a.go.asia-theme::before{background:#8ab4f8}
+  a.go.asia-theme:hover{background:rgba(138,180,248,0.12);border-color:rgba(138,180,248,0.4);box-shadow:0 8px 24px rgba(0,0,0,0.3), 0 0 16px rgba(138,180,248,0.2)}
+  a.go.asia-theme .title-row .arrow{color:#8ab4f8}
+
   /* ===== 頁簽 ===== */
   .tabs{display:flex;gap:6px;margin-bottom:20px;padding:4px;background:rgba(255,255,255,0.04);
     border:1px solid var(--line);border-radius:16px}
@@ -146,7 +150,7 @@
         <span class="material-symbols-outlined">cloud</span> 氣象署觀測 <span class="cnt">7</span>
       </button>
       <button class="tab" role="tab" data-pane="other">
-        <span class="material-symbols-outlined">apps</span> 其他分頁 <span class="cnt">5</span>
+        <span class="material-symbols-outlined">apps</span> 其他分頁 <span class="cnt">7</span>
       </button>
     </div>
 
@@ -267,7 +271,17 @@
         <span class="desc">環境部環境資料開放平臺空品監測整合圖：以 AQI 六級標準色呈現全臺測站，可切換 19 種測項（PM2.5／PM10／O₃／SO₂／NO₂／CO 依 AQI 分級上色，另有 NO／NOx／CH₄／NMHC／THC 與溫濕度、雨量、氣壓、風向風速箭號）。
           側欄含各空品區未來數日 AQI 預報、全臺極值統計、縣市與測站類型篩選；可疊加河川揚塵監測、特殊性工業區監測與光化測站 50＋ 種 VOC 物種圖層。
           點選測站可載入該站單站資料集畫出近日逐時變化圖。
-          <span class="key-tag need"><span class="material-symbols-outlined" style="font-size:13px">key</span> 需 MOENV API KEY（頁面已內建預設金鑰，可直接進入）</span>
+        </span>
+      </a>
+
+      <a class="go asia-theme" style="border-left: 4px solid #8ab4f8;" href="Asia_stations_display.html">
+        <div class="title-row">
+          <span>東亞與東南亞地面氣象站即時觀測網（亞洲全區）</span>
+          <span class="material-symbols-outlined arrow">arrow_forward</span>
+        </div>
+        <span class="desc">涵蓋日本（JMA AMeDAS ~1,300 站）、南韓（KMA ASOS/AWS ~600 站）及東南亞（菲律賓、越南、泰國、馬來西亞、印尼、新加坡）逾 2,000 座國際地面氣象站。
+          支援即時氣溫、相對濕度、拔海高度、降水量、地面風速等要素切換、視錐裁剪（Frustum Culling）極速渲染、圓點數值顯示、群聚分組（Cluster）與單站即時重整。
+          <span class="key-tag free"><span class="material-symbols-outlined" style="font-size:13px">lock_open</span> 內建完整測站元資料庫與實況快照，不需金鑰開啟即用</span>
         </span>
       </a>
     </div>

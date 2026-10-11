@@ -1,0 +1,2452 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>東亞與東南亞地面氣象站即時觀測地圖（亞洲全區）</title>
+<!-- cwadatavis-icon -->
+<link rel="icon" type="image/svg+xml" href="icons/icon-10min.svg">
+<link rel="icon" href="favicon.ico" sizes="48x48">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#0e1217">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- Leaflet MarkerCluster 支援群聚切換 -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+<!-- 內建東亞與東南亞 5,664 測站元數據庫與最新實況快照（支援本機 file:// 直接開啟，零 CORS 限制） -->
+<script src="asia_stations_data.js"></script>
+
+<style>
+  :root {
+    --bg: #0e1217;
+    --card: rgba(23, 28, 40, 0.75);
+    --line: rgba(255, 255, 255, 0.12);
+    --txt: #f8f9fa;
+    --muted: #9aa0a6;
+    --accent: #8ab4f8;
+    --accent-dark: #1a73e8;
+    --chip: rgba(255, 255, 255, 0.08);
+    --panelW: 320px;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    font-family: "Roboto", "Noto Sans TC", system-ui, -apple-system, sans-serif;
+    color: var(--txt);
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+  }
+  #map {
+    position: absolute;
+    inset: 0;
+    background: var(--bg);
+  }
+
+  /* 浮層 Popup 樣式 (深色磨砂玻璃) */
+  .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+    background: rgba(23, 28, 40, 0.94);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    color: var(--txt);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  }
+  .leaflet-popup-content {
+    margin: 14px 16px;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+
+  .pop {
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  .pop-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+    gap: 8px;
+  }
+  .pop-title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    word-break: break-word;
+  }
+  .pop-title small {
+    color: #9fb0c8;
+    font-size: 12px;
+    font-weight: 400;
+  }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    background: rgba(138, 180, 248, 0.2);
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+  .badge.tw, .src-badge.tw { background: rgba(56, 189, 248, 0.18); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); }
+  .badge.cn, .src-badge.cn { background: rgba(244, 63, 94, 0.18); color: #fb7185; border: 1px solid rgba(244, 63, 94, 0.3); }
+  .badge.jp, .src-badge.jp { background: rgba(251, 146, 60, 0.18); color: #fb923c; border: 1px solid rgba(251, 146, 60, 0.3); }
+  .badge.kr, .src-badge.kr { background: rgba(168, 85, 247, 0.18); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); }
+  .badge.sea, .src-badge.sea { background: rgba(52, 211, 153, 0.18); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.3); }
+  .badge.kp, .src-badge.kp { background: rgba(239, 68, 68, 0.18); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+  .badge.la, .src-badge.la { background: rgba(234, 179, 8, 0.18); color: #facc15; border: 1px solid rgba(234, 179, 8, 0.3); }
+  .badge.kh, .src-badge.kh { background: rgba(20, 184, 166, 0.18); color: #2dd4bf; border: 1px solid rgba(20, 184, 166, 0.3); }
+  .badge.bt, .src-badge.bt { background: rgba(249, 115, 22, 0.18); color: #fb923c; border: 1px solid rgba(249, 115, 22, 0.3); }
+  .badge.mm, .src-badge.mm { background: rgba(234, 88, 12, 0.18); color: #fb923c; border: 1px solid rgba(234, 88, 12, 0.3); }
+  .badge.bd, .src-badge.bd { background: rgba(16, 185, 129, 0.18); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+
+  /* 各國觀測資料來源模組 (Data Sources Module Styles) */
+  .src-card {
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin-top: 8px;
+    transition: all .2s ease;
+  }
+  .src-card:hover {
+    background: rgba(255, 255, 255, 0.045);
+    border-color: rgba(138, 180, 248, 0.35);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  }
+  .src-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .src-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .src-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 7px;
+    border-radius: 6px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+  }
+  .src-meta {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    row-gap: 3px;
+    column-gap: 10px;
+    font-size: 11.5px;
+    line-height: 1.45;
+  }
+  .src-meta .k { color: var(--muted); }
+  .src-meta .v { color: var(--txt); word-break: break-word; }
+  .src-link {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color .2s, text-decoration .2s;
+  }
+  .src-link:hover {
+    color: #a8c7fa;
+    text-decoration: underline;
+  }
+  .src-notice {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.5;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-top: 10px;
+    border-left: 3px solid var(--accent);
+  }
+  .pop-var-banner {
+    margin: 6px 0;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 7px 10px;
+    border-radius: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-left: 4px solid var(--accent);
+  }
+  .pop-var-banner .var-lbl {
+    font-weight: 600;
+    color: var(--txt);
+    font-size: 12px;
+  }
+  .pop-var-banner .var-val {
+    font-size: 18px;
+    font-weight: 700;
+  }
+  .pop-meta-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin: 6px 0;
+  }
+  .pop-meta-grid .row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .pop-meta-grid .row span:last-child {
+    color: var(--txt);
+    font-weight: 500;
+    text-align: right;
+  }
+  .pop-footer {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+    border-top: 1px solid var(--line);
+    padding-top: 7px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .pop-footer .time-block {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    line-height: 1.4;
+  }
+  .pop-footer .time-utc {
+    color: #e2e8f0;
+    font-weight: 600;
+  }
+  .pop-footer .time-local {
+    color: var(--muted);
+    font-size: 10.5px;
+  }
+  .refresh-single-btn {
+    width: 100%;
+    padding: 6px 10px;
+    background: rgba(138, 180, 248, 0.15);
+    color: var(--accent);
+    border: 1px solid rgba(138, 180, 248, 0.4);
+    border-radius: 10px;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+  }
+  .refresh-single-btn:hover {
+    background: var(--accent);
+    color: #041e49;
+    box-shadow: 0 2px 8px rgba(138, 180, 248, 0.35);
+  }
+
+  /* 測站標記樣式（GPU transform 最佳化，無白邊/無框線純色圓點） */
+  .stn-pill-icon {
+    background: none;
+    border: none;
+    contain: layout style paint;
+  }
+  .stn-circle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    color: #ffffff;
+    font-weight: 700;
+    font-family: "Roboto", sans-serif;
+    border: none;
+    outline: none;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+    cursor: pointer;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+    letter-spacing: -0.03em;
+    user-select: none;
+    transition: transform 0.12s ease;
+  }
+  .stn-circle:hover {
+    will-change: transform;
+    transform: scale(1.35);
+    border: none;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.8);
+    z-index: 99999 !important;
+  }
+
+  /* MarkerCluster 群聚圖標樣式 */
+  .custom-cluster-wrapper {
+    background: none;
+    border: none;
+  }
+
+  /* 仿 CWA 右側全高面板：收合時向右整片滑出 */
+  .panel {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1000;
+    background: rgba(23, 28, 40, 0.75);
+    backdrop-filter: blur(24px) saturate(1.8);
+    -webkit-backdrop-filter: blur(24px) saturate(1.8);
+    border-left: 1px solid var(--line);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    padding: 18px 16px;
+    width: var(--panelW);
+    overflow-y: auto;
+    transition: transform .25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .panel::-webkit-scrollbar { width: 5px; }
+  .panel::-webkit-scrollbar-track { background: transparent; }
+  .panel::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
+  .panel.collapsed { transform: translateX(100%); }
+
+  /* 右側面板把手：貼於面板左緣 */
+  #panelTab {
+    position: absolute;
+    top: 50%;
+    right: var(--panelW);
+    transform: translateY(-50%);
+    z-index: 1001;
+    width: 24px;
+    height: 60px;
+    padding: 0;
+    flex: none;
+    background: rgba(23, 28, 40, 0.75);
+    backdrop-filter: blur(24px) saturate(1.8);
+    -webkit-backdrop-filter: blur(24px) saturate(1.8);
+    border: 1px solid var(--line);
+    border-right: none;
+    border-radius: 12px 0 0 12px;
+    color: var(--muted);
+    font-size: 13px;
+    cursor: pointer;
+    transition: right .25s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: -4px 0 16px rgba(0, 0, 0, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #panelTab:hover { color: var(--accent); border-color: var(--accent); }
+  #panelTab.collapsed { right: 0; }
+
+  .phead { display: flex; align-items: center; gap: 8px; }
+  .phead h1 { flex: 1; margin: 0; font-size: 16.5px; font-weight: 700; letter-spacing: -0.2px; }
+  .panel .sub { color: var(--muted); font-size: 12px; margin: 4px 0 10px; line-height: 1.5; }
+  .chip { display: block; margin-top: 6px; font-size: 11px; color: var(--muted); }
+  .chip.time { color: #ffffff; font-weight: 600; }
+
+  label { display: block; font-size: 11.5px; color: var(--muted); margin: 10px 0 4px; font-weight: 500; letter-spacing: 0.2px; }
+  select, input {
+    width: 100%;
+    padding: 8px 10px;
+    background: rgba(15, 20, 30, 0.6);
+    color: var(--txt);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    font-size: 13px;
+    outline: none;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  select:focus, input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(138, 180, 248, 0.2); }
+  select option { background: #171c28; color: #fff; }
+
+  /* 區塊化卡片 details.sec */
+  details.sec {
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 11px 13px;
+    margin-top: 10px;
+  }
+  details.sec > summary {
+    list-style: none;
+    cursor: pointer;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--txt);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    outline: none;
+    user-select: none;
+  }
+  details.sec > summary::-webkit-details-marker { display: none; }
+  details.sec > summary .car {
+    margin-left: auto;
+    color: var(--muted);
+    font-size: 10px;
+    transition: transform .2s;
+    flex: 0 0 auto;
+  }
+  details.sec:not([open]) > summary .car { transform: rotate(-90deg); }
+  details.sec > summary:hover { color: var(--accent); }
+  details.sec .sec-body { margin-top: 9px; }
+
+  .ckrow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0 0;
+    font-size: 12.5px;
+    color: var(--txt);
+    font-weight: 400;
+    cursor: pointer;
+    padding: 3px 0;
+  }
+  .ckrow input { width: auto; accent-color: var(--accent); }
+
+  .btns { display: flex; gap: 8px; margin-top: 12px; }
+  button {
+    flex: 1;
+    padding: 8px 12px;
+    background: var(--accent);
+    color: #041e49;
+    border: none;
+    border-radius: 20px;
+    font-size: 12.5px;
+    cursor: pointer;
+    font-weight: 700;
+    transition: all .2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+  button.ghost { background: transparent; border: 1px solid var(--line); color: var(--txt); }
+  button:hover { background: #a8c7fa; box-shadow: 0 2px 8px rgba(138, 180, 248, 0.3); }
+  button.ghost:hover { background: rgba(255, 255, 255, 0.08); border-color: var(--accent); color: var(--accent); }
+
+  /* 統計面板樣式 */
+  .stats, .stat-card {
+    margin-top: 0;
+    font-size: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 12px;
+    padding: 10px 12px;
+  }
+  .stats .t {
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 6px;
+    font-size: 12.5px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .stats .row {
+    display: flex;
+    justify-content: space-between;
+    color: var(--muted);
+    margin: 4px 0;
+  }
+  .stats .v { color: #ffffff; font-weight: 600; text-align: right; }
+
+  /* 仿 CWA 左下角圖例 (Colorbar Legend) */
+  .legend {
+    position: absolute;
+    bottom: 22px;
+    left: 14px;
+    z-index: 1000;
+    background: rgba(23, 28, 40, 0.75);
+    backdrop-filter: blur(24px) saturate(1.8);
+    -webkit-backdrop-filter: blur(24px) saturate(1.8);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 14px 16px;
+    width: 240px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+  .legend.collapsed { width: auto; padding: 8px 12px; }
+  .legend.collapsed .lbody { display: none; }
+  .lhead { display: flex; align-items: center; gap: 8px; }
+  .lhead .title { flex: 1; margin-bottom: 0; font-size: 13px; font-weight: 700; color: #ffffff; }
+  .mini {
+    flex: 0 0 auto;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--line);
+    color: var(--muted);
+    border-radius: 50%;
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+    font-weight: 700;
+  }
+  .mini:hover { color: var(--txt); border-color: var(--accent); background: rgba(138, 180, 248, 0.15); }
+  .bar { height: 14px; border-radius: 6px; border: 1px solid var(--line); margin-top: 8px; }
+  .ticks { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--muted); margin-top: 4px; }
+
+  /* 頂部快捷按鈕 */
+  .top-left-bar {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .back-btn {
+    background: rgba(23, 28, 40, 0.78);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    color: var(--txt);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 7px 12px;
+    font-size: 12.5px;
+    text-decoration: none;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    transition: all .2s ease;
+  }
+  .back-btn:hover { background: rgba(255, 255, 255, 0.12); border-color: var(--accent); color: var(--accent); }
+
+  .loader {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(14, 18, 23, 0.75);
+    backdrop-filter: blur(12px);
+    z-index: 2000;
+    color: var(--accent);
+    font-size: 15px;
+    font-weight: 500;
+  }
+
+  @media(max-width: 520px) {
+    :root { --panelW: min(300px, 88vw); }
+    .legend { width: 170px; bottom: 14px; left: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+<div id="loader" class="loader">⏳ 載入東亞與東南亞觀測資料中…</div>
+
+<!-- 左上角返回按鈕 -->
+<div class="top-left-bar">
+  <a href="index.html" class="back-btn" title="返回地圖集首頁">
+    <span class="material-symbols-outlined" style="font-size:18px">arrow_back</span>
+    <span>返回首頁</span>
+  </a>
+</div>
+
+<!-- 右側面板把手 -->
+<button type="button" id="panelTab" title="收合 / 展開面板">▶</button>
+
+<!-- 右側面板 -->
+<div class="panel" id="panel">
+  <div class="phead">
+    <h1>🌏 東亞與東南亞觀測網</h1>
+    <button type="button" class="mini" id="panelCloseBtn" title="收合面板">✕</button>
+  </div>
+  <div class="sub">日本 (JMA) ‧ 南韓 (KMA) ‧ 東南亞 (WMO / ASEAN)</div>
+  <span class="chip time" id="obsTime">🕒 資料狀態：已載入 2,621 站點</span>
+
+  <!-- 氣象站觀測變數與多層篩選 -->
+  <details class="sec" open>
+    <summary>🌡️ 氣象站觀測要素<span class="car">▾</span></summary>
+    <div class="sec-body">
+      <label>觀測變數</label>
+      <select id="varSel">
+        <option value="temp" selected>氣溫 (Air Temperature - °C)</option>
+        <option value="rain">降水量 (Precipitation - mm)</option>
+        <option value="wind">地面風速 (Wind Speed - m/s)</option>
+        <option value="press">氣壓 (Air Pressure - hPa)</option>
+        <option value="hum">相對濕度 (Relative Humidity - %)</option>
+        <option value="alt">海拔高度 (Elevation - m)</option>
+      </select>
+
+      <label>國家 / 地區篩選</label>
+      <select id="regionSel">
+        <option value="">🌏 亞洲全區 (All Asia - 5,600+ 站)</option>
+        <optgroup label="🇹🇼 台灣 (Taiwan - CWA)">
+          <option value="TW">台灣 全國 (~876 站)</option>
+          <option value="TW_North">北部地區 (北北基桃竹宜)</option>
+          <option value="TW_Central">中部地區 (苗中彰投雲)</option>
+          <option value="TW_South">南部地區 (嘉南高屏)</option>
+          <option value="TW_East">東部地區 (花蓮/台東)</option>
+          <option value="TW_Islands">離島地區 (澎湖/金門/馬祖)</option>
+        </optgroup>
+        <optgroup label="🇨🇳 中國 (China - CMA)">
+          <option value="CN">中國 全國 (~2,167 站)</option>
+          <option value="CN_North">華北地區 (京津冀晉蒙)</option>
+          <option value="CN_Northeast">東北地區 (遼吉黑)</option>
+          <option value="CN_East">華東地區 (滬蘇浙皖閩贛魯)</option>
+          <option value="CN_Central">華中地區 (豫鄂湘)</option>
+          <option value="CN_South">華南地區 (粵桂瓊)</option>
+          <option value="CN_Southwest">西南地區 (渝川貴雲藏)</option>
+          <option value="CN_Northwest">西北地區 (陝甘青寧新)</option>
+        </optgroup>
+        <optgroup label="🇯🇵 日本 (Japan - JMA AMeDAS)">
+          <option value="JP">日本 全國 (~1,286 站)</option>
+          <option value="JP_Hokkaido">北海道 地區</option>
+          <option value="JP_Tohoku">東北 地區</option>
+          <option value="JP_Kanto">關東 地區 (含東京都)</option>
+          <option value="JP_Chubu">中部 地區</option>
+          <option value="JP_Kinki">近畿 地區 (含關西)</option>
+          <option value="JP_Chugoku">中國 地區</option>
+          <option value="JP_Shikoku">四國 地區</option>
+          <option value="JP_Kyushu">九州 地區</option>
+          <option value="JP_Okinawa">沖繩 地區</option>
+        </optgroup>
+        <optgroup label="🇰🇷 南韓 (South Korea - KMA ASOS/AWS)">
+          <option value="KR">南韓 全國 (~745 站)</option>
+          <option value="KR_Capital">首都圈 (首爾/京畿/仁川)</option>
+          <option value="KR_Gangwon">江原道 地區</option>
+          <option value="KR_Chungcheong">忠清道 地區 (含大田/世宗)</option>
+          <option value="KR_Jeolla">全羅道 地區 (含光州)</option>
+          <option value="KR_Gyeongsang">慶尚道 地區 (含釜山/大邱/蔚山)</option>
+          <option value="KR_Jeju">濟州特別自治道</option>
+        </optgroup>
+        <optgroup label="🇰🇵 朝鮮 / 北韓 (North Korea - SHMA)">
+          <option value="KP">北韓 全國 (27 站 - WMO 基準站)</option>
+        </optgroup>
+        <optgroup label="🇧🇹 不丹 (Bhutan - NCHM)">
+          <option value="BT">不丹 全國 (10 站 - 喜馬拉雅高山站)</option>
+        </optgroup>
+        <optgroup label="🇲🇲 緬甸 (Myanmar - DMH)">
+          <option value="MM">緬甸 全國 (30 站 - 氣象水文局)</option>
+        </optgroup>
+        <optgroup label="🇧🇩 孟加拉 (Bangladesh - BMD)">
+          <option value="BD">孟加拉 全國 (25 站 - 國家氣象局)</option>
+        </optgroup>
+        <optgroup label="🌴 東南亞 (Southeast Asia - ASEAN / WMO)">
+          <option value="SEA">東南亞 全區 (~658 站)</option>
+          <option value="PH">🇵🇭 菲律賓 (Philippines - PAGASA)</option>
+          <option value="VN">🇻🇳 越南 (Vietnam - NCHMF)</option>
+          <option value="TH">🇹🇭 泰國 (Thailand - TMD)</option>
+          <option value="MY">🇲🇾 馬來西亞 (Malaysia - MET)</option>
+          <option value="ID">🇮🇩 印尼 (Indonesia - BMKG)</option>
+          <option value="SG">🇸🇬 新加坡 (Singapore - MSS)</option>
+          <option value="LA">🇱🇦 寮國 (Laos - DMH, 18 站)</option>
+          <option value="KH">🇰🇭 柬埔寨 (Cambodia - DOM, 20 站)</option>
+          <option value="MM">🇲🇲 緬甸 (Myanmar - DMH, 30 站)</option>
+        </optgroup>
+      </select>
+
+      <label>測站搜尋（站號 / 名稱 / 英文 / 地區）</label>
+      <input id="search" placeholder="例如：仰光、達卡、曼德勒、平壤、48060、41923…">
+
+      <div style="margin-top:10px;border-top:1px dashed var(--line);padding-top:8px">
+        <label style="margin-top:0">測站顯示與群聚設定</label>
+        <label class="ckrow">
+          <input type="checkbox" id="allStationsToggle">
+          🌐 顯示全亞洲所有測站（含次級/無人自動站，預設關閉僅顯示基本測站）
+        </label>
+        <label class="ckrow">
+          <input type="checkbox" id="clusterToggle">
+          🧩 啟用測站點聚合分組（MarkerCluster）
+        </label>
+        <label class="ckrow">
+          <input type="checkbox" id="showValueLabel">
+          🏷️ 圓點內部標示數值（氣溫/濕度/海拔等）
+        </label>
+      </div>
+
+      <div style="margin-top:10px;border-top:1px dashed var(--line);padding-top:8px">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <label style="margin-top:0; font-weight:700;">⏱️ 即時自動更新</label>
+          <span id="autoRefreshCountdown" style="font-size:11px; color:var(--accent); font-family:monospace;">2:00</span>
+        </div>
+        <label class="ckrow" style="margin-top:4px;">
+          <input type="checkbox" id="autoRefreshToggle" checked>
+          🔄 啟用定時自動更新（每 2 分鐘自動刷新）
+        </label>
+        <div style="margin-top:6px; display:flex; gap:6px;">
+          <button type="button" class="ghost" id="manualRefreshAllBtn" style="padding:4px 8px; font-size:11px; width:100%; border-radius:8px;">
+            ⚡ 立即更新可視測站實況
+          </button>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <!-- 底圖圖層選擇（9 大底圖包含台灣電子地圖與多樣化圖磚） -->
+  <details class="sec" open>
+    <summary>🗺️ 底圖圖層選擇 (Base Map)<span class="car">▾</span></summary>
+    <div class="sec-body">
+      <label style="margin-top:0">切換地圖風格</label>
+      <select id="baseSel" style="margin-top:0">
+        <option value="dark" selected>CARTO 深色暗底圖 (Dark Matter - 預設推薦)</option>
+        <option value="osm">OpenStreetMap 標準街道圖 (OSM)</option>
+        <option value="sat">Esri World Imagery 衛星影像 (高解析空拍)</option>
+        <option value="topo">OpenTopoMap 地形圖 (高程等高線)</option>
+        <option value="light">CARTO 淺色白底圖 (Positron)</option>
+        <option value="voyager">CARTO 導航全彩圖 (Voyager)</option>
+        <optgroup label="台灣國土測繪中心 (NLSC WMTS)">
+          <option value="emap">台灣電子地圖 (國土測繪中心 EMAP)</option>
+          <option value="emapgray">台灣電子地圖 - 灰階 (NLSC EMAP01)</option>
+          <option value="photomix">台灣電子地圖 + 正射影像混合 (PHOTO_MIX)</option>
+        </optgroup>
+      </select>
+      <div style="font-size:11px;color:var(--muted);line-height:1.5;margin-top:6px">
+        💡 <b>支援底圖</b>：CARTO深/淺色/Voyager、OSM、Esri衛星、Topo地形，以及內政部國土測繪中心（NLSC）台灣電子地圖與航照正射影像。
+      </div>
+    </div>
+  </details>
+
+  <!-- 極值統計面板 (Coverage & Stats) -->
+  <details class="sec" id="statsSec" open>
+    <summary>📊 當前視角極值統計<span class="car">▾</span></summary>
+    <div class="sec-body">
+      <div class="stats stat-card" id="stats">
+        <div class="t">📈 觀測站數與統計 (Coverage)</div>
+        <div class="row"><span>當前顯示測站</span><span class="v" id="stCnt">5,664 站</span></div>
+        <div class="row"><span>實況資料涵蓋</span><span class="v" id="stObsCount">—</span></div>
+        <div class="row"><span>目前變數極值</span><span class="v" id="stMinMax">—</span></div>
+        <div class="row"><span>平均值</span><span class="v" id="stAvg">—</span></div>
+        <div class="row" id="stBreakdown" style="font-size:11px; margin-top:6px; color:var(--muted); flex-wrap:wrap; gap:4px;"></div>
+      </div>
+    </div>
+  </details>
+
+  <!-- 各國氣象觀測資料來源 (Data Sources) -->
+  <details class="sec" id="sourcesSec">
+    <summary>ℹ️ 各國觀測資料來源 (Data Sources)<span class="car">▾</span></summary>
+    <div class="sec-body">
+      <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px;line-height:1.5">
+        本儀表板統一整合東亞、東南亞及南亞 14 大國家/地區官方地面氣象站網（共計 <b>5,794</b> 測站），包含即時觀測數值快照與官方 API 接口：
+      </div>
+
+      <!-- 1. 台灣 CWA -->
+      <div class="src-card">
+        <div class="src-head">
+          <div class="src-title">🇹🇼 台灣 (Taiwan)</div>
+          <span class="src-badge tw">CWA ‧ ~876 站</span>
+        </div>
+        <div class="src-meta">
+          <span class="k">主管機關</span>
+          <span class="v">交通部中央氣象署 (CWA)</span>
+          <span class="k">測站網絡</span>
+          <span class="v">有人觀測站 (O-A0003-001) 與無人自動站 (O-A0001-001)</span>
+          <span class="k">更新頻率</span>
+          <span class="v">逐 10 分鐘自動更新 (10-min AWS)</span>
+          <span class="k">資料門戶</span>
+          <span class="v"><a class="src-link" href="https://opendata.cwa.gov.tw/" target="_blank" rel="noopener noreferrer">氣象資料開放平臺 ↗</a></span>
+          <span class="k">授權條款</span>
+          <span class="v">政府資料開放授權條款 - 第1版 (OGL-Taiwan)</span>
+        </div>
+      </div>
+
+      <!-- 2. 中國 CMA -->
+      <div class="src-card">
+        <div class="src-head">
+          <div class="src-title">🇨🇳 中國 (China)</div>
+          <span class="src-badge cn">CMA / NMC ‧ 2,167 站</span>
+        </div>
+        <div class="src-meta">
+          <span class="k">主管機關</span>
+          <span class="v">中國氣象局 (CMA) ‧ 中央氣象台 (NMC)</span>
+          <span class="k">測站網絡</span>
+          <span class="v">國家氣象基準站 (831)、基本站 (403) 與一般站 (933)</span>
+          <span class="k">更新頻率</span>
+          <span class="v">逐小時整點更新 (Hourly Real-time)</span>
+          <span class="k">資料門戶</span>
+          <span class="v"><a class="src-link" href="http://www.nmc.cn/" target="_blank" rel="noopener noreferrer">中央氣象台門戶 ↗</a> ‧ <a class="src-link" href="https://data.cma.gov.cn/" target="_blank" rel="noopener noreferrer">中國氣象數據網 ↗</a></span>
+          <span class="k">授權條款</span>
+          <span class="v">中國氣象局公共氣象數據共享服務協議</span>
+        </div>
+      </div>
+
+      <!-- 3. 日本 JMA -->
+      <div class="src-card">
+        <div class="src-head">
+          <div class="src-title">🇯🇵 日本 (Japan)</div>
+          <span class="src-badge jp">JMA ‧ 1,286 站</span>
+        </div>
+        <div class="src-meta">
+          <span class="k">主管機關</span>
+          <span class="v">日本氣象廳 (JMA / 気象庁)</span>
+          <span class="k">測站網絡</span>
+          <span class="v">地域氣象觀測系統 (AMeDAS) 與氣象官署 (地方氣象台)</span>
+          <span class="k">更新頻率</span>
+          <span class="v">逐 10 分鐘 / 逐小時更新</span>
+          <span class="k">資料門戶</span>
+          <span class="v"><a class="src-link" href="https://www.jma.go.jp/" target="_blank" rel="noopener noreferrer">気象庁 Japan Meteorological Agency ↗</a></span>
+          <span class="k">授權條款</span>
+          <span class="v">気象庁ホームページ利用規約 (CC-BY 4.0 相容)</span>
+        </div>
+      </div>
+
+      <!-- 4. 南韓 KMA -->
+      <div class="src-card">
+        <div class="src-head">
+          <div class="src-title">🇰🇷 南韓 (South Korea)</div>
+          <span class="src-badge kr">KMA ‧ 745 站</span>
+        </div>
+        <div class="src-meta">
+          <span class="k">主管機關</span>
+          <span class="v">大韓民國氣象廳 (KMA / 기상청)</span>
+          <span class="k">測站網絡</span>
+          <span class="v">ASOS 鐘觀氣象觀測站 (100) 與 AWS 自動氣象站 (645)</span>
+          <span class="k">更新頻率</span>
+          <span class="v">逐 10 分鐘 / 逐小時更新</span>
+          <span class="k">資料門戶</span>
+          <span class="v"><a class="src-link" href="https://www.weather.go.kr/" target="_blank" rel="noopener noreferrer">날씨누리 ↗</a> ‧ <a class="src-link" href="https://data.kma.go.kr/" target="_blank" rel="noopener noreferrer">氣象資料開放門戶 ↗</a></span>
+          <span class="k">授權條款</span>
+          <span class="v">韓國公共數據利用法 (Public Data Act)</span>
+        </div>
+      </div>
+
+      <!-- 5. 東南亞 ASEAN / WMO -->
+      <div class="src-card">
+        <div class="src-head">
+          <div class="src-title">🌴 東南亞 (Southeast Asia)</div>
+          <span class="src-badge sea">WMO / ASEAN ‧ 628 站</span>
+        </div>
+        <div class="src-meta">
+          <span class="k">涵蓋國家</span>
+          <span class="v">🇵🇭 菲律賓 (105) ‧ 🇻🇳 越南 (96) ‧ 🇹🇭 泰國 (171)<br>🇲🇾 馬來西亞 (41) ‧ 🇮🇩 印尼 (162) ‧ 🇸🇬 新加坡 (15)<br>🇱🇦 寮國 (18) ‧ 🇰🇭 柬埔寨 (20)</span>
+          <span class="k">協調機制</span>
+          <span class="v">世界氣象組織 (WMO) 全球電信系統 (GTS) FM-12 SYNOP</span>
+          <span class="k">更新頻率</span>
+          <span class="v">逐小時至逐 3 小時 (Synoptic Cycles)</span>
+          <span class="k">國際網關</span>
+          <span class="v"><a class="src-link" href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo Gateway ↗</a> ‧ <a class="src-link" href="https://data.gov.sg/" target="_blank" rel="noopener noreferrer">data.gov.sg ↗</a></span>
+          <span class="k">授權條款</span>
+          <span class="v">WMO 統一數據政策 (Resolution 1 - 自由無限制交換)</span>
+        </div>
+      </div>
+
+      <!-- 6. 北韓 SHMA -->
+      <div class="src-card">
+        <div class="src-head">
+          <div class="src-title">🇰🇵 朝鮮 / 北韓 (North Korea)</div>
+          <span class="src-badge kp">SHMA ‧ 27 站</span>
+        </div>
+        <div class="src-meta">
+          <span class="k">主管機關</span>
+          <span class="v">朝鮮氣象水文局 (SHMA / 기상수문국)</span>
+          <span class="k">測站網絡</span>
+          <span class="v">WMO 國際交換地面基準氣象站 (47014~47085)</span>
+          <span class="k">更新頻率</span>
+          <span class="v">逐 3 小時國際廣播 (WMO GTS SYNOP)</span>
+          <span class="k">資料門戶</span>
+          <span class="v"><a class="src-link" href="https://www.weather.go.kr/w/theme/nk-weather.do" target="_blank" rel="noopener noreferrer">南韓氣象廳 (KMA) 北韓天氣鏡像 ↗</a></span>
+          <span class="k">授權條款</span>
+          <span class="v">WMO 國際地面氣象電碼廣播常規</span>
+        </div>
+      </div>
+
+      <!-- 7. 不丹 NCHM -->
+      <div class="src-card">
+        <div class="src-head">
+          <div class="src-title">🇧🇹 不丹 (Bhutan)</div>
+          <span class="src-badge bt">NCHM ‧ 10 站</span>
+        </div>
+        <div class="src-meta">
+          <span class="k">主管機關</span>
+          <span class="v">不丹國家水文氣象中心 (NCHM)</span>
+          <span class="k">測站網絡</span>
+          <span class="v">喜馬拉雅高山及峽谷常規氣象觀測站 (44124~44150)</span>
+          <span class="k">更新頻率</span>
+          <span class="v">逐 3~6 小時更新</span>
+          <span class="k">資料門戶</span>
+          <span class="v"><a class="src-link" href="https://www.nchm.gov.bt/" target="_blank" rel="noopener noreferrer">NCHM 官方門戶 ↗</a></span>
+          <span class="k">授權條款</span>
+          <span class="v">不丹政府公共水文氣象開放數據</span>
+        </div>
+      </div>
+
+      <!-- 8. 緬甸 DMH -->
+      <div class="src-card">
+        <div class="src-head">
+          <div class="src-title">🇲🇲 緬甸 (Myanmar)</div>
+          <span class="src-badge mm">DMH ‧ 30 站</span>
+        </div>
+        <div class="src-meta">
+          <span class="k">主管機關</span>
+          <span class="v">緬甸交通與通訊部氣象水文局 (DMH)</span>
+          <span class="k">測站網絡</span>
+          <span class="v">全國主要省邦基準天氣觀測站 (48001~48099)</span>
+          <span class="k">更新頻率</span>
+          <span class="v">逐 3 小時國際廣播 (WMO GTS SYNOP)</span>
+          <span class="k">資料門戶</span>
+          <span class="v"><a class="src-link" href="https://www.moezala.gov.mm/" target="_blank" rel="noopener noreferrer">DMH 官方門戶 ↗</a></span>
+          <span class="k">授權條款</span>
+          <span class="v">WMO 國際氣象數據交換常規</span>
+        </div>
+      </div>
+
+      <!-- 9. 孟加拉 BMD -->
+      <div class="src-card">
+        <div class="src-head">
+          <div class="src-title">🇧🇩 孟加拉 (Bangladesh)</div>
+          <span class="src-badge bd">BMD ‧ 25 站</span>
+        </div>
+        <div class="src-meta">
+          <span class="k">主管機關</span>
+          <span class="v">孟加拉國氣象局 (BMD / বাংলাদেশ আবহাওয়া অধিদপ্তর)</span>
+          <span class="k">測站網絡</span>
+          <span class="v">全境八大專區綜觀氣象站 (41859~41998)</span>
+          <span class="k">更新頻率</span>
+          <span class="v">逐 3 小時國際廣播 (WMO GTS SYNOP)</span>
+          <span class="k">資料門戶</span>
+          <span class="v"><a class="src-link" href="https://bmd.gov.bd/" target="_blank" rel="noopener noreferrer">BMD 官方門戶 ↗</a></span>
+          <span class="k">授權條款</span>
+          <span class="v">孟加拉政府公共氣象開放數據</span>
+        </div>
+      </div>
+
+      <!-- 技術架構與快照說明 -->
+      <div class="src-notice">
+        <b>💡 離線快照與即時更新說明</b>：<br>
+        本頁面預先打包離線觀測數值快照（<code>asia_stations_data.js</code>），支援離線本機 <code>file://</code> 零跨域限制直接開啟。各測站點擊後彈出之卡片支援單站即時刷新，並可透過 <code>cors-proxy-worker.js</code> 轉發官方端點。
+      </div>
+    </div>
+  </details>
+
+  <!-- 操作與重設按鈕 -->
+  <div class="btns">
+    <button type="button" class="ghost" id="resetViewBtn">🔄 重設全區視野</button>
+  </div>
+</div>
+
+<!-- 左下角圖例 (Colorbar Legend) -->
+<div class="legend" id="legend">
+  <div class="lhead">
+    <div class="title" id="legTitle">氣溫 (Air Temperature)</div>
+    <button type="button" class="mini" id="legMini" title="收合圖例">−</button>
+  </div>
+  <div class="lbody">
+    <div class="bar" id="legBar"></div>
+    <div class="ticks" id="legTicks">
+      <span id="legMin">-20°C</span>
+      <span id="legMid">15°C</span>
+      <span id="legMax">40°C+</span>
+    </div>
+    <div style="margin-top:8px;font-size:11px;color:var(--muted);display:flex;justify-content:space-between">
+      <span>● 圓點顏色 = 觀測色階</span>
+      <span id="legUnit">單位：°C</span>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================================
+// 1. 地圖初始化與 9 大底圖圖層配置
+// ============================================================================
+const ASIA_CENTER = [25.0, 125.0];
+
+const map = L.map('map', {
+  center: ASIA_CENTER,
+  zoom: 5,
+  minZoom: 3,
+  maxZoom: 18,
+  zoomControl: false,
+  preferCanvas: true,
+  wheelDebounceTime: 40,
+  wheelPxPerZoomLevel: 120
+});
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+const BASES = {
+  dark: L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+    maxZoom: 20,
+    attribution: "&copy; OpenStreetMap &copy; CARTO",
+    crossOrigin: true
+  }),
+  osm: L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap contributors",
+    crossOrigin: true
+  }),
+  sat: L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+    maxZoom: 19,
+    attribution: "Tiles &copy; Esri World Imagery",
+    crossOrigin: true
+  }),
+  topo: L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
+    maxZoom: 17,
+    attribution: "&copy; OpenTopoMap",
+    crossOrigin: true
+  }),
+  light: L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+    maxZoom: 20,
+    attribution: "&copy; OpenStreetMap &copy; CARTO",
+    crossOrigin: true
+  }),
+  voyager: L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+    maxZoom: 20,
+    attribution: "&copy; OpenStreetMap &copy; CARTO",
+    crossOrigin: true
+  }),
+  // 台灣電子地圖 (國土測繪中心 NLSC WMTS)
+  emap: L.tileLayer("https://wmts.nlsc.gov.tw/wmts/EMAP/default/GoogleMapsCompatible/{z}/{y}/{x}", {
+    maxZoom: 20,
+    attribution: "&copy; 內政部國土測繪中心 (NLSC)",
+    crossOrigin: true
+  }),
+  emapgray: L.tileLayer("https://wmts.nlsc.gov.tw/wmts/EMAP01/default/GoogleMapsCompatible/{z}/{y}/{x}", {
+    maxZoom: 20,
+    attribution: "&copy; 內政部國土測繪中心 (NLSC 灰階)",
+    crossOrigin: true
+  }),
+  photomix: L.tileLayer("https://wmts.nlsc.gov.tw/wmts/PHOTO_MIX/default/GoogleMapsCompatible/{z}/{y}/{x}", {
+    maxZoom: 20,
+    attribution: "&copy; 國土測繪中心/TGOS 正射影像(混合)",
+    crossOrigin: true
+  })
+};
+
+// 預設載入 CARTO Dark
+let currentBase = BASES.dark;
+currentBase.addTo(map);
+
+const baseSel = document.getElementById('baseSel');
+baseSel.onchange = function() {
+  const chosen = BASES[this.value];
+  if (chosen && chosen !== currentBase) {
+    map.removeLayer(currentBase);
+    chosen.addTo(map);
+    currentBase = chosen;
+  }
+};
+
+// ============================================================================
+// 2. 氣象變數設定、色階 (RAMPS) 與色彩計算
+// ============================================================================
+const RAMPS = {
+  // 氣溫：參考 CWA 標準 20 色溫階（涵蓋嚴寒至酷暑 -30°C ~ 40°C）
+  temp: [
+    [-30, '#0096a0'],
+    [-20, '#00bcc4'],
+    [-10, '#00cea8'],
+    [0, '#56d880'],
+    [5, '#00b050'],
+    [10, '#5acd4b'],
+    [15, '#96da5f'],
+    [18, '#c8e987'],
+    [21, '#e4f3aa'],
+    [24, '#f5f8c3'],
+    [27, '#fcf7b4'],
+    [30, '#fef08c'],
+    [33, '#ffe164'],
+    [36, '#ffcd41'],
+    [38, '#ffaa28'],
+    [40, '#dc1212'],
+    [45, '#a500a5']
+  ],
+  // 相對濕度：CWA 標準 RAMP.humid
+  hum: [
+    [20, '#fff7bc'],
+    [50, '#7fcdbb'],
+    [75, '#41b6c4'],
+    [90, '#225ea8'],
+    [100, '#081d58']
+  ],
+  // 氣壓：CWA 標準 RAMP.pres (hPa)
+  press: [
+    [980, '#5e4fa2'],
+    [1000, '#3288bd'],
+    [1010, '#abdda4'],
+    [1015, '#fee08b'],
+    [1025, '#f46d43'],
+    [1040, '#9e0142']
+  ],
+  // 海拔高度：地形高程色階
+  alt: [
+    [0, '#15803d'],
+    [200, '#22c55e'],
+    [500, '#84cc16'],
+    [1200, '#eab308'],
+    [2200, '#ea580c'],
+    [3200, '#b91c1c'],
+    [4200, '#a855f7']
+  ],
+  // 降水量：CWA / NCL 標準雨量階（17色門檻漸層）
+  rain: [
+    [0, '#c1c1c1'],
+    [1, '#9bffff'],
+    [2, '#00cfff'],
+    [6, '#0198ff'],
+    [10, '#0165ff'],
+    [15, '#309901'],
+    [20, '#32ff00'],
+    [30, '#f8ff00'],
+    [40, '#ffcb00'],
+    [50, '#ff9a00'],
+    [70, '#fa0300'],
+    [90, '#cc0003'],
+    [110, '#a00000'],
+    [130, '#98009a'],
+    [150, '#c304cc'],
+    [200, '#f805f3'],
+    [300, '#fecbff']
+  ],
+  // 風速：CWA 標準 RAMP.wind (m/s)
+  wind: [
+    [0, '#edf8fb'],
+    [3, '#b2e2e2'],
+    [6, '#66c2a4'],
+    [10, '#2ca25f'],
+    [15, '#006d2c'],
+    [25, '#e31a1c']
+  ]
+};
+
+const VAR_METADATA = {
+  temp: { key: 'temp', label: '氣溫 (Air Temperature)', unit: '°C', min: -50, max: 50 },
+  hum: { key: 'hum', label: '相對濕度 (Relative Humidity)', unit: '%', min: 0, max: 100 },
+  press: { key: 'press', label: '氣壓 (Air Pressure)', unit: 'hPa', min: 800, max: 1100 },
+  alt: { key: 'elev', label: '海拔高度 (Elevation)', unit: 'm', min: -500, max: 9000 },
+  rain: { key: 'rain', label: '降水量 (Precipitation)', unit: 'mm', min: 0, max: 500 },
+  wind: { key: 'wind_spd', label: '地面風速 (Wind Speed)', unit: 'm/s', min: 0, max: 100 }
+};
+
+const TICK_SPECS = {
+  temp: { min: '-30°C', mid: '18°C', max: '40°C+' },
+  hum: { min: '20%', mid: '60%', max: '100%' },
+  press: { min: '980 hPa', mid: '1013 hPa', max: '1040+ hPa' },
+  alt: { min: '0 m', mid: '1200 m', max: '3500+ m' },
+  rain: { min: '0 mm', mid: '20 mm', max: '100+ mm' },
+  wind: { min: '0 m/s', mid: '8 m/s', max: '25+ m/s' }
+};
+
+function hexToRgb(hex) {
+  if (!hex || typeof hex !== 'string') return { r: 122, g: 138, b: 163 };
+  const clean = hex.replace('#', '');
+  if (clean.length === 3) {
+    const r = parseInt(clean[0] + clean[0], 16);
+    const g = parseInt(clean[1] + clean[1], 16);
+    const b = parseInt(clean[2] + clean[2], 16);
+    return { r, g, b };
+  }
+  const bigint = parseInt(clean, 16);
+  return {
+    r: (bigint >> 16) & 255,
+    g: (bigint >> 8) & 255,
+    b: bigint & 255
+  };
+}
+
+function rgbToHex(r, g, b) {
+  const clamp = v => Math.max(0, Math.min(255, Math.round(v)));
+  return '#' + ((1 << 24) + (clamp(r) << 16) + (clamp(g) << 8) + clamp(b)).toString(16).slice(1);
+}
+
+function interpolateColor(color1, color2, factor) {
+  const c1 = hexToRgb(color1);
+  const c2 = hexToRgb(color2);
+  const t = Math.max(0, Math.min(1, factor));
+  const r = c1.r + t * (c2.r - c1.r);
+  const g = c1.g + t * (c2.g - c1.g);
+  const b = c1.b + t * (c2.b - c1.b);
+  return rgbToHex(r, g, b);
+}
+
+function colorAtSmooth(ramp, val) {
+  if (val === null || val === undefined || isNaN(val)) {
+    return '#7a8aa3'; // 預設缺失觀測資料之深藍灰色
+  }
+  if (!ramp || ramp.length === 0) return '#7a8aa3';
+  if (val <= ramp[0][0]) return ramp[0][1];
+  if (val >= ramp[ramp.length - 1][0]) return ramp[ramp.length - 1][1];
+
+  for (let i = 0; i < ramp.length - 1; i++) {
+    const [v0, c0] = ramp[i];
+    const [v1, c1] = ramp[i + 1];
+    if (val >= v0 && val <= v1) {
+      const factor = (val - v0) / (v1 - v0);
+      return interpolateColor(c0, c1, factor);
+    }
+  }
+  return ramp[ramp.length - 1][1];
+}
+
+/**
+ * W3C YIQ Perceived Luminance Contrast Formula
+ * YIQ = (299*R + 587*G + 114*B) / 1000
+ * 明亮色底 (YIQ >= 155) 返回深色文字 (#0f172a)，深色底返回純白文字 (#ffffff)
+ */
+function getContrastTextColor(hexColor) {
+  if (!hexColor || typeof hexColor !== 'string') return '#ffffff';
+  const { r, g, b } = hexToRgb(hexColor);
+  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+  return yiq >= 155 ? '#0f172a' : '#ffffff';
+}
+
+function getContrastTextShadow(textColor) {
+  return textColor === '#0f172a'
+    ? '0 1px 1px rgba(255, 255, 255, 0.45)'
+    : '0 1px 2px rgba(0, 0, 0, 0.85)';
+}
+
+// ============================================================================
+// 3. 測站圓圈內部數值自動格式化
+// ============================================================================
+function formatValueInsideCircle(varKey, value) {
+  if (value === null || value === undefined || value === '' || isNaN(value)) {
+    return '—';
+  }
+  if (typeof value === 'string' && (value.trim() === '' || isNaN(Number(value)))) {
+    return '—';
+  }
+
+  const v = Number(value);
+  switch (varKey) {
+    case 'temp':
+      return Math.round(v) + '°';
+    case 'hum':
+      return String(Math.round(v));
+    case 'alt':
+    case 'elev':
+      if (Math.abs(v) >= 1000) {
+        return (v / 1000).toFixed(1) + 'k';
+      }
+      return String(Math.round(v));
+    case 'rain':
+      if (v === 0) return '0';
+      if (v < 10) return v.toFixed(1);
+      return String(Math.round(v));
+    case 'press':
+      return String(Math.round(v));
+    case 'wind':
+    case 'wind_spd':
+      return v.toFixed(1);
+    default:
+      return String(Math.round(v));
+  }
+}
+
+// ============================================================================
+// 4. 地區邊界定義 (REGION_BOUNDS) 與多層次篩選搜尋
+// ============================================================================
+const REGION_BOUNDS = {
+  TW: { south: 21.8, north: 26.4, west: 118.2, east: 122.1 },
+  TW_North: { south: 24.4, north: 25.3, west: 120.9, east: 122.1 },
+  TW_Central: { south: 23.5, north: 24.6, west: 120.2, east: 121.5 },
+  TW_South: { south: 21.8, north: 23.6, west: 120.0, east: 121.0 },
+  TW_East: { south: 22.2, north: 24.4, west: 120.8, east: 121.7 },
+  TW_Islands: { south: 23.1, north: 26.4, west: 118.2, east: 120.1 },
+  CN: { south: 18.1, north: 53.6, west: 73.5, east: 135.1 },
+  CN_North: { south: 34.5, north: 53.3, west: 97.1, east: 126.1 },
+  CN_Northeast: { south: 38.7, north: 53.6, west: 119.8, east: 135.1 },
+  CN_East: { south: 23.5, north: 38.4, west: 114.8, east: 123.0 },
+  CN_Central: { south: 24.6, north: 36.4, west: 108.3, east: 116.7 },
+  CN_South: { south: 18.1, north: 26.4, west: 104.4, east: 117.4 },
+  CN_Southwest: { south: 21.1, north: 34.3, west: 78.4, east: 110.2 },
+  CN_Northwest: { south: 31.7, north: 49.2, west: 73.5, east: 111.3 },
+  JP: { south: 24.0, north: 45.6, west: 122.9, east: 146.0 },
+  JP_Hokkaido: { south: 41.3, north: 45.6, west: 139.3, east: 145.9 },
+  JP_Tohoku: { south: 36.8, north: 41.6, west: 139.5, east: 142.1 },
+  JP_Kanto: { south: 34.9, north: 37.2, west: 138.4, east: 140.9 },
+  JP_Chubu: { south: 34.5, north: 38.0, west: 136.0, east: 139.2 },
+  JP_Kinki: { south: 33.4, north: 35.8, west: 134.2, east: 136.5 },
+  JP_Chugoku: { south: 33.9, north: 36.2, west: 130.8, east: 134.5 },
+  JP_Shikoku: { south: 32.7, north: 34.5, west: 132.0, east: 134.8 },
+  JP_Kyushu: { south: 30.9, north: 34.0, west: 129.5, east: 132.1 },
+  JP_Okinawa: { south: 24.0, north: 27.2, west: 122.9, east: 128.5 },
+  KR: { south: 33.1, north: 38.6, west: 124.6, east: 131.0 },
+  KR_Capital: { south: 36.9, north: 38.3, west: 126.3, east: 127.8 },
+  KR_Gangwon: { south: 37.0, north: 38.6, west: 127.5, east: 129.4 },
+  KR_Chungcheong: { south: 36.0, north: 37.1, west: 126.1, east: 128.0 },
+  KR_Jeolla: { south: 34.1, north: 36.1, west: 125.8, east: 127.9 },
+  KR_Gyeongsang: { south: 34.7, north: 37.2, west: 127.6, east: 129.6 },
+  KR_Jeju: { south: 33.1, north: 34.0, west: 126.1, east: 127.0 },
+  SEA: { south: -11.0, north: 21.5, west: 95.0, east: 141.0 },
+  PH: { south: 4.6, north: 21.2, west: 116.9, east: 126.6 },
+  VN: { south: 8.5, north: 23.4, west: 102.1, east: 109.5 },
+  TH: { south: 5.6, north: 20.5, west: 97.3, east: 105.7 },
+  MY: { south: 1.2, north: 7.4, west: 99.6, east: 119.3 },
+  ID: { south: -11.0, north: 6.0, west: 95.0, east: 141.0 },
+  SG: { south: 1.2, north: 1.5, west: 103.6, east: 104.1 },
+  LA: { south: 13.9, north: 22.5, west: 100.0, east: 107.7 },
+  KH: { south: 10.3, north: 14.7, west: 102.3, east: 107.6 },
+  KP: { south: 37.6, north: 43.1, west: 124.1, east: 130.7 },
+  BT: { south: 26.6, north: 28.4, west: 88.7, east: 92.2 },
+  MM: { south: 9.5, north: 28.5, west: 92.1, east: 101.2 },
+  BD: { south: 20.5, north: 26.7, west: 88.0, east: 92.7 }
+};
+
+function normalizeSearchString(str) {
+  if (!str || typeof str !== 'string') return '';
+  return str.normalize('NFC').toLowerCase().trim();
+}
+
+function matchesSearchQuery(station, query) {
+  if (!query) return true;
+  const q = normalizeSearchString(query);
+  if (!q) return true;
+
+  const id = normalizeSearchString(station.id);
+  const nameLocal = normalizeSearchString(station.name_local || station.name);
+  const nameEn = normalizeSearchString(station.name_en);
+  const country = normalizeSearchString(station.country_name || station.country);
+  const region = normalizeSearchString(station.region || station.prefecture || station.province);
+
+  return (
+    id.includes(q) ||
+    nameLocal.includes(q) ||
+    nameEn.includes(q) ||
+    country.includes(q) ||
+    region.includes(q)
+  );
+}
+
+const TW_SUBREGION_KEYWORDS = {
+  TW_North: ['基隆', '台北', '臺北', '新北', '桃園', '新竹', '宜蘭'],
+  TW_Central: ['苗栗', '台中', '臺中', '彰化', '南投', '雲林'],
+  TW_South: ['嘉義', '台南', '臺南', '高雄', '屏東'],
+  TW_East: ['花蓮', '台東', '臺東'],
+  TW_Islands: ['澎湖', '金門', '連江', '馬祖']
+};
+
+const CN_SUBREGION_KEYWORDS = {
+  CN_North: ['北京', '天津', '河北', '山西', '内蒙古', '內蒙古'],
+  CN_Northeast: ['辽宁', '遼寧', '吉林', '黑龙江', '黑龍江'],
+  CN_East: ['上海', '江苏', '江蘇', '浙江', '安徽', '福建', '江西', '山东', '山東'],
+  CN_Central: ['河南', '湖北', '湖南'],
+  CN_South: ['广东', '廣東', '广西', '廣西', '海南'],
+  CN_Southwest: ['重庆', '重慶', '四川', '贵州', '貴州', '云南', '雲南', '西藏'],
+  CN_Northwest: ['陕西', '陝西', '甘肃', '甘肅', '青海', '宁夏', '寧夏', '新疆']
+};
+
+const JP_SUBREGION_KEYWORDS = {
+  JP_Hokkaido: ['北海道'],
+  JP_Tohoku: ['青森', '秋田', '岩手', '宮城', '山形', '福島'],
+  JP_Kanto: ['茨城', '栃木', '群馬', '埼玉', '東京都', '千葉', '神奈川'],
+  JP_Chubu: ['新潟', '富山', '石川', '福井', '山梨', '長野', '岐阜', '靜岡', '愛知'],
+  JP_Kinki: ['三重', '滋賀', '京都府', '大阪', '兵庫', '奈良', '和歌山'],
+  JP_Chugoku: ['鳥取', '島根', '岡山', '廣島', '山口'],
+  JP_Shikoku: ['德島', '香川', '愛媛', '高知'],
+  JP_Kyushu: ['福岡', '佐賀', '長崎', '熊本', '大分', '宮崎', '鹿兒島'],
+  JP_Okinawa: ['沖繩']
+};
+
+const KR_SUBREGION_KEYWORDS = {
+  KR_Capital: ['首爾', '京畿', '仁川'],
+  KR_Gangwon: ['江原'],
+  KR_Chungcheong: ['忠清', '大田', '世宗'],
+  KR_Jeolla: ['全羅', '光州'],
+  KR_Gyeongsang: ['慶尚', '釜山', '大邱', '蔚山'],
+  KR_Jeju: ['濟州']
+};
+
+function matchesRegionFilter(station, regionKey) {
+  if (!regionKey) return true;
+
+  if (regionKey === 'SEA') {
+    return ['PH', 'VN', 'TH', 'MY', 'ID', 'SG', 'LA', 'KH'].includes(station.country);
+  }
+
+  if (regionKey.startsWith('TW_')) {
+    if (station.country !== 'TW') return false;
+    const keywords = TW_SUBREGION_KEYWORDS[regionKey];
+    if (!keywords) return true;
+    const reg = station.region || station.county || station.city || '';
+    return keywords.some(kw => reg.includes(kw));
+  }
+
+  if (regionKey.startsWith('CN_')) {
+    if (station.country !== 'CN') return false;
+    const keywords = CN_SUBREGION_KEYWORDS[regionKey];
+    if (!keywords) return true;
+    const reg = station.region || station.province || '';
+    return keywords.some(kw => reg.includes(kw));
+  }
+
+  if (regionKey.startsWith('JP_')) {
+    if (station.country !== 'JP') return false;
+    const keywords = JP_SUBREGION_KEYWORDS[regionKey];
+    if (!keywords) return true;
+    const reg = station.region || station.prefecture || '';
+    return keywords.some(kw => reg.includes(kw));
+  }
+
+  if (regionKey.startsWith('KR_')) {
+    if (station.country !== 'KR') return false;
+    const keywords = KR_SUBREGION_KEYWORDS[regionKey];
+    if (!keywords) return true;
+    const reg = station.region || station.province || '';
+    return keywords.some(kw => reg.includes(kw));
+  }
+
+  return station.country === regionKey;
+}
+
+// ============================================================================
+// 5. 極值與統計計算 (Dynamic Statistics Engine)
+// ============================================================================
+function calculateDynamicStats(stations, varKey = 'temp') {
+  const actualKey = varKey === 'alt' ? 'elev' : varKey === 'wind' ? 'wind_spd' : varKey;
+  const total = stations.length;
+
+  let validCount = 0;
+  let sum = 0;
+  let minVal = Infinity;
+  let minStation = null;
+  let maxVal = -Infinity;
+  let maxStation = null;
+
+  const countryCounts = {};
+
+  for (const s of stations) {
+    const c = s.country || 'UNKNOWN';
+    countryCounts[c] = (countryCounts[c] || 0) + 1;
+
+    const val = s[actualKey] ?? s.obs?.[actualKey];
+    if (val !== null && val !== undefined && !isNaN(val)) {
+      const num = Number(val);
+      validCount++;
+      sum += num;
+      if (num < minVal) {
+        minVal = num;
+        minStation = s.name_local || s.name_en || s.id;
+      }
+      if (num > maxVal) {
+        maxVal = num;
+        maxStation = s.name_local || s.name_en || s.id;
+      }
+    }
+  }
+
+  const coveragePct = total > 0 ? (validCount / total) * 100 : 0;
+  const avgVal = validCount > 0 ? sum / validCount : null;
+
+  return {
+    total,
+    validCount,
+    coveragePct,
+    minVal: isFinite(minVal) ? minVal : null,
+    minStation,
+    maxVal: isFinite(maxVal) ? maxVal : null,
+    maxStation,
+    avgVal,
+    countryCounts
+  };
+}
+
+// ============================================================================
+// 6. 單站資訊彈窗 HTML 建構 (Modal Popup)
+// ============================================================================
+const COMPASS_16 = ['北', '北北東', '東北', '東北東', '東', '東南東', '東南', '南南東', '南', '南南西', '西南', '西南西', '西', '西北西', '西北', '北北西'];
+function degToCompass(deg) {
+  if (deg === null || deg === undefined || isNaN(deg) || deg < 0) return '';
+  const idx = Math.floor((Number(deg) / 22.5) + 0.5) % 16;
+  return COMPASS_16[idx];
+}
+
+function getStationAgencyMeta(station) {
+  const cfg = window.ASIA_STATIONS_CONFIG || {};
+  const agencies = cfg.agencies || {};
+  const ctry = station.country;
+  
+  const regionKey = (ctry === 'TW' || ctry === 'CN' || ctry === 'JP' || ctry === 'KR') ? ctry : 'SEA';
+  
+  const SEA_SUB_AGENCIES = {
+    PH: { code: 'PAGASA', name: '菲律賓大氣地球物理和天文服務管理局' },
+    VN: { code: 'NCHMF',  name: '越南國家水文氣象預報中心' },
+    TH: { code: 'TMD',    name: '泰國氣象局' },
+    MY: { code: 'MET',    name: '馬來西亞氣象局' },
+    ID: { code: 'BMKG',   name: '印尼氣象氣候暨地球物理局' },
+    SG: { code: 'MSS',    name: '新加坡氣象局' },
+    LA: { code: 'DMH',    name: '寮國氣象水文局' },
+    KH: { code: 'DOM',    name: '柬埔寨氣象局' },
+    MM: { code: 'DMH',    name: '緬甸氣象水文局' },
+    BD: { code: 'BMD',    name: '孟加拉氣象局' }
+  };
+
+  const regional = agencies[regionKey] || {};
+  let agencyCode = regional.agency || ctry;
+  if (ctry === 'TW') {
+    agencyCode = 'CWA';
+  } else if (ctry === 'CN') {
+    agencyCode = 'CMA';
+  } else if (ctry === 'JP') {
+    agencyCode = 'JMA';
+  } else if (ctry === 'KR') {
+    agencyCode = 'KMA';
+  } else if (ctry === 'KP') {
+    agencyCode = 'SHMA';
+  } else if (ctry === 'BT') {
+    agencyCode = 'NCHM';
+  } else if (ctry === 'MM') {
+    agencyCode = 'DMH';
+  } else if (ctry === 'BD') {
+    agencyCode = 'BMD';
+  } else if (SEA_SUB_AGENCIES[ctry]) {
+    agencyCode = SEA_SUB_AGENCIES[ctry].code;
+  }
+
+  return {
+    regionKey,
+    cssClass: ctry.toLowerCase(),
+    agencyCode,
+    name: regional.name || '',
+    cycle: cfg.dataUpdateCycle?.[ctry] || cfg.dataUpdateCycle?.[regionKey] || regional.cycle || '10-min'
+  };
+}
+
+function buildStationPopupHtml(station, activeVar = 'temp') {
+  const s = station;
+  const varKey = activeVar === 'alt' ? 'elev' : activeVar === 'wind' ? 'wind_spd' : activeVar;
+  const val = s[varKey] ?? s.obs?.[varKey];
+  const formattedVal = formatValueInsideCircle(activeVar, val);
+  const ramp = RAMPS[activeVar] || RAMPS.temp;
+  const color = colorAtSmooth(ramp, val);
+  const meta = VAR_METADATA[activeVar] || VAR_METADATA.temp;
+
+  const flagMap = {
+    TW: '🇹🇼',
+    CN: '🇨🇳',
+    JP: '🇯🇵',
+    KR: '🇰🇷',
+    PH: '🇵🇭',
+    VN: '🇻🇳',
+    TH: '🇹🇭',
+    MY: '🇲🇾',
+    ID: '🇮🇩',
+    SG: '🇸🇬',
+    KP: '🇰🇵',
+    LA: '🇱🇦',
+    KH: '🇰🇭',
+    BT: '🇧🇹',
+    MM: '🇲🇲',
+    BD: '🇧🇩'
+  };
+  const flag = flagMap[s.country] || '🌏';
+  const agencyMeta = getStationAgencyMeta(s);
+
+  // 觀測要素抓取（支援扁平結構與嵌套 obs 結構）
+  const tempVal = s.temp ?? s.obs?.temp;
+  const humVal = s.hum ?? s.obs?.hum;
+  const rainVal = s.rain ?? s.obs?.rain;
+  const windVal = s.wind_spd ?? s.obs?.wind_spd;
+  const windDeg = s.wind_dir ?? s.obs?.wind_dir;
+  const windText = (s.wind_dir_text || (windDeg != null ? degToCompass(windDeg) : '') || '').trim();
+  const windFormatted = windVal != null
+    ? `${windVal} m/s${windText ? ' (' + windText + ')' : ''}`
+    : '—';
+  const pressVal = s.press ?? s.obs?.press;
+  const elevVal = s.elev ?? s.alt;
+  const weatherVal = s.weather ?? s.obs?.weather ?? '—';
+  const obsTimeVal = s.obs_time ?? s.obs?.time ?? '快照存檔';
+
+  const formatObsTimes = (rawTime, countryCode) => {
+    if (!rawTime || rawTime === '快照存檔' || rawTime === '—') {
+      return {
+        utc: 'UTC 時間：快照存檔 (未定時)',
+        local: '當地時間：—'
+      };
+    }
+    const d = new Date(rawTime);
+    if (isNaN(d.getTime())) {
+      return {
+        utc: `UTC 時間：${rawTime}`,
+        local: `當地時間：${rawTime}`
+      };
+    }
+
+    // 格式化 UTC 時間：YYYY-MM-DD HH:mm:ss UTC
+    const uY = d.getUTCFullYear();
+    const uM = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const uD = String(d.getUTCDate()).padStart(2, '0');
+    const uH = String(d.getUTCHours()).padStart(2, '0');
+    const uMin = String(d.getUTCMinutes()).padStart(2, '0');
+    const uSec = String(d.getUTCSeconds()).padStart(2, '0');
+    const utcStr = `${uY}-${uM}-${uD} ${uH}:${uMin}:${uSec} UTC`;
+
+    // 各國時區偏移表（小時）
+    const tzOffsets = {
+      TW: 8, CN: 8, PH: 8, MY: 8, SG: 8, ID: 7, // 印尼西部為 UTC+7
+      JP: 9, KR: 9, KP: 9,
+      VN: 7, TH: 7, LA: 7, KH: 7,
+      MM: 6.5, // 緬甸為 UTC+6:30
+      BD: 6,   // 孟加拉為 UTC+6
+      BT: 6
+    };
+    const offsetHours = tzOffsets[countryCode] ?? 8;
+    const locMs = d.getTime() + offsetHours * 3600000;
+    const locD = new Date(locMs);
+
+    const lY = locD.getUTCFullYear();
+    const lM = String(locD.getUTCMonth() + 1).padStart(2, '0');
+    const lD = String(locD.getUTCDate()).padStart(2, '0');
+    const lH = String(locD.getUTCHours()).padStart(2, '0');
+    const lMin = String(locD.getUTCMinutes()).padStart(2, '0');
+    const lSec = String(locD.getUTCSeconds()).padStart(2, '0');
+    const offsetLabel = offsetHours === 6.5 ? '+6:30' : (offsetHours >= 0 ? `+${offsetHours}` : String(offsetHours));
+    const localStr = `${lY}-${lM}-${lD} ${lH}:${lMin}:${lSec} (UTC${offsetLabel})`;
+
+    return {
+      utc: `UTC 時間：${utcStr}`,
+      local: `當地時間：${localStr}`
+    };
+  };
+
+  const times = formatObsTimes(obsTimeVal, s.country);
+
+  return `
+    <div class="pop">
+      <div class="pop-header">
+        <h3 class="pop-title">${flag} ${s.name_local || s.name || ''} <small>(${s.name_en || s.id})</small></h3>
+        <span class="badge ${agencyMeta.cssClass} src-badge ${agencyMeta.cssClass}">${agencyMeta.agencyCode}</span>
+      </div>
+      <div class="pop-var-banner" style="border-left: 4px solid ${color};">
+        <span class="var-lbl">${meta.label}</span>
+        <span class="var-val" style="color:${color}">${formattedVal} ${val != null ? meta.unit : ''}</span>
+      </div>
+      <div class="pop-meta-grid">
+        <div class="row"><span>站號 / 海拔</span><span>${s.id} ‧ ${elevVal != null ? elevVal + ' m' : '—'}</span></div>
+        <div class="row"><span>行政分區</span><span>${s.country} ‧ ${s.region || s.prefecture || s.province || '—'}</span></div>
+        <div class="row"><span>測站座標</span><span>${Number(s.lat).toFixed(4)}°N, ${Number(s.lon).toFixed(4)}°E</span></div>
+        <div class="row"><span>氣溫 / 濕度</span><span>${tempVal != null ? tempVal + '°C' : '—'} / ${humVal != null ? humVal + '%' : '—'}</span></div>
+        <div class="row"><span>降水 / 風速</span><span>${rainVal != null ? rainVal + ' mm' : '—'} / ${windFormatted}</span></div>
+        <div class="row"><span>氣壓 / 天氣</span><span>${pressVal != null ? pressVal + ' hPa' : '—'} ‧ ${weatherVal}</span></div>
+      </div>
+      <div class="pop-footer">
+        <div class="time-block">
+          <span class="time-utc">${times.utc}</span>
+          <span class="time-local">${times.local}</span>
+        </div>
+        <button type="button" class="refresh-single-btn" onclick="refreshStationLive('${s.id}')">🔄 即時更新測站實況</button>
+      </div>
+    </div>
+  `.trim();
+}
+
+// ============================================================================
+// 7. 單站即時連線更新 (Multi-Channel Live Refresh API Gateway)
+// ============================================================================
+window.refreshStationLive = async function(stationId) {
+  const station = allStations.find(s => s.id === stationId);
+  if (!station) return;
+
+  const btn = document.querySelector('.refresh-single-btn');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '⏳ 更新中…';
+  }
+
+  try {
+    const ctry = station.country;
+    let updated = false;
+
+    // 1. 台灣 CWA: 若有授權碼則呼叫 CWA REST API，否則 fallback 至 Open-Meteo
+    if (ctry === 'TW') {
+      const cwaKey = localStorage.getItem('cwa_api_key') || localStorage.getItem('cwaApiKey') || window.CWA_API_KEY;
+      if (cwaKey) {
+        try {
+          const rawId = station.raw_id || station.id.replace('TW_', '');
+          const cwaUrl = `https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-A0001-001?Authorization=${encodeURIComponent(cwaKey)}&StationId=${encodeURIComponent(rawId)}`;
+          const resp = await fetch(cwaUrl, { signal: AbortSignal.timeout(6000) });
+          if (resp.ok) {
+            const json = await resp.json();
+            const rec = json.records?.Station?.[0];
+            if (rec && rec.WeatherElement) {
+              const we = rec.WeatherElement;
+              if (we.AirTemperature !== undefined && we.AirTemperature !== -99) station.temp = Number(we.AirTemperature);
+              if (we.RelativeHumidity !== undefined && we.RelativeHumidity !== -99) station.hum = Number(we.RelativeHumidity);
+              if (we.Now?.Precipitation !== undefined && we.Now.Precipitation !== -99) station.rain = Number(we.Now.Precipitation);
+              if (we.WindSpeed !== undefined && we.WindSpeed !== -99) station.wind_spd = Number(we.WindSpeed);
+              if (we.WindDirection !== undefined && we.WindDirection !== -99) {
+                station.wind_dir = Number(we.WindDirection);
+                station.wind_dir_text = degToCompass(station.wind_dir);
+              }
+              if (we.AirPressure !== undefined && we.AirPressure !== -99) station.press = Number(we.AirPressure);
+              if (we.Weather) station.weather = we.Weather;
+              station.obs_time = rec.ObsTime?.DateTime || new Date().toISOString();
+              updated = true;
+            }
+          }
+        } catch (e) {
+          console.warn('CWA live fetch fallback to Open-Meteo:', e);
+        }
+      }
+    }
+
+    // 2. 中國 CMA: 透過 CORS 代理呼叫中央氣象台 NMC 實況接口
+    if (!updated && ctry === 'CN') {
+      const nmcCode = station.nmc_code || station.raw_id || station.id.replace('CN_', '');
+      if (nmcCode) {
+        try {
+          const nmcTarget = `http://www.nmc.cn/f/rest/real/${encodeURIComponent(nmcCode)}`;
+          const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(nmcTarget)}`;
+          const resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(6000) });
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data && data.station) {
+              if (data.weather?.temperature !== undefined && data.weather.temperature !== 9999) station.temp = Number(data.weather.temperature);
+              if (data.weather?.humidity !== undefined && data.weather.humidity !== 9999) station.hum = Number(data.weather.humidity);
+              if (data.weather?.rain !== undefined && data.weather.rain !== 9999) station.rain = Number(data.weather.rain);
+              if (data.wind?.speed !== undefined && data.wind.speed !== 9999) station.wind_spd = Number(data.wind.speed);
+              if (data.wind?.direct) station.wind_dir_text = data.wind.direct;
+              if (data.weather?.info) station.weather = data.weather.info;
+              if (data.weather?.feelst !== undefined) station.feelst = Number(data.weather.feelst);
+              station.obs_time = data.publish_time || new Date().toISOString();
+              updated = true;
+            }
+          }
+        } catch (e) {
+          console.warn('CMA NMC live fetch fallback to Open-Meteo:', e);
+        }
+      }
+    }
+
+    // 3. 通用 Open-Meteo 網關或 asia_stations_data.js 提供之 refreshStationObservation
+    if (!updated) {
+      if (typeof window.refreshStationObservation === 'function') {
+        try {
+          await window.refreshStationObservation(station);
+          updated = true;
+        } catch (e) {
+          console.warn('refreshStationObservation fallback to Open-Meteo current:', e);
+        }
+      }
+      if (!updated) {
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${station.lat}&longitude=${station.lon}&current=temperature_2m,relative_humidity_2m,precipitation,surface_pressure,wind_speed_10m,wind_direction_10m,weather_code&wind_speed_unit=ms`;
+        const resp = await fetch(url, { signal: AbortSignal.timeout(6500) });
+        if (resp.ok) {
+          const data = await resp.json();
+          const cur = data.current;
+          if (cur) {
+            const nowIso = new Date().toISOString();
+            station.temp = cur.temperature_2m;
+            station.hum = cur.relative_humidity_2m;
+            station.rain = cur.precipitation;
+            station.wind_spd = cur.wind_speed_10m;
+            station.wind_dir = cur.wind_direction_10m;
+            station.wind_dir_text = degToCompass(cur.wind_direction_10m);
+            station.press = cur.surface_pressure;
+            station.obs_time = cur.time || nowIso;
+            if (cur.weather_code !== undefined) {
+              const codeMap = { 0: '晴', 1: '晴時多雲', 2: '多雲', 3: '陰', 45: '霧', 51: '毛毛雨', 61: '小雨', 63: '中雨', 65: '大雨', 80: '陣雨', 95: '雷雨' };
+              station.weather = codeMap[cur.weather_code] || '陰';
+            }
+            updated = true;
+          }
+        }
+      }
+    }
+
+    // 更新快取與標記視圖
+    station.obs = Object.assign(station.obs || {}, {
+      temp: station.temp,
+      hum: station.hum,
+      rain: station.rain,
+      wind_spd: station.wind_spd,
+      wind_dir: station.wind_dir,
+      wind_dir_text: station.wind_dir_text,
+      press: station.press,
+      weather: station.weather,
+      time: station.obs_time
+    });
+
+    const cached = cachedMarkerObjects.get(station.id);
+    if (cached) {
+      cached.station = station;
+    }
+    refreshCachedMarkerVisuals();
+    updateStatistics(cachedFilteredStations);
+
+    // 更新當前已開啟之彈窗
+    const popupEl = document.querySelector('.leaflet-popup-content');
+    if (popupEl) {
+      popupEl.innerHTML = buildStationPopupHtml(station, varSel.value);
+    }
+    if (cached && cached.marker) {
+      cached.marker.setPopupContent(buildStationPopupHtml(station, varSel.value));
+    }
+  } catch (err) {
+    console.warn("Live fetch fallback for station:", stationId, err);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '🔄 即時更新';
+    }
+  }
+};
+
+// ============================================================================
+// 8. 高性能標記渲染、快取與視錐裁剪 (Frustum Culling & MarkerCluster)
+// ============================================================================
+const singleStationLayer = L.layerGroup();
+const clusterStationLayer = L.markerClusterGroup({
+  maxClusterRadius: 40,
+  showCoverageOnHover: false,
+  chunkedLoading: true, // 核心：避免 2,600+ 點群聚計算阻塞主執行緒
+  iconCreateFunction: function(cluster) {
+    const count = cluster.getChildCount();
+    let size = count < 25 ? 32 : count < 100 ? 38 : 46;
+    return L.divIcon({
+      html: `<div style="width:${size}px; height:${size}px; border-radius:50%; background:rgba(15,23,42,0.88); border:2px solid var(--accent); color:#fff; font-weight:700; font-size:11px; display:flex; align-items:center; justify-content:center; box-shadow:0 0 12px rgba(56,189,248,0.45);">${count}</div>`,
+      className: 'custom-cluster-wrapper',
+      iconSize: L.point(size, size)
+    });
+  }
+});
+
+let allStations = [];
+let cachedFilteredStations = [];
+const cachedMarkerObjects = new Map();
+let inViewportMarkerIds = new Set();
+
+const clusterToggle = document.getElementById('clusterToggle');
+const showValueLabel = document.getElementById('showValueLabel');
+const allStationsToggle = document.getElementById('allStationsToggle');
+const varSel = document.getElementById('varSel');
+const regionSel = document.getElementById('regionSel');
+const searchInput = document.getElementById('search');
+
+/**
+ * 判斷是否為基本氣象測站 (國家測站分級之基準台站)
+ * - 台灣 CWA：有人氣象站 (33 站) 為基本測站，其餘為自動氣象站
+ * - 中國 CMA：國家基準氣候站 (166 站) 與國家基本氣象站 (546 站) 為基本測站，其餘為一般氣象站
+ * - 日本 JMA：氣象廳官署 (152 站) 為基本測站，其餘為 AMeDAS 無人站
+ * - 南韓 KMA：ASOS 有人/基準氣象觀測所 (98 站) 為基本測站，其餘為 AWS 自動氣象站
+ * - 其他國家 (東南亞/南亞/北韓)：全部台站皆為 WMO 國際基準交換站 (SYNOP)，均視為基本測站
+ */
+function isBasicStation(s) {
+  const c = s.country;
+  const t = s.type || '';
+  if (c === 'TW') return t === '有人氣象站';
+  if (c === 'CN') return t === '基准站' || t === '基本站';
+  if (c === 'JP') return t === '官署';
+  if (c === 'KR') return t === 'ASOS';
+  return true;
+}
+
+function createStationMarker(station) {
+  const vKey = varSel.value;
+  const actualKey = vKey === 'alt' ? 'elev' : vKey === 'wind' ? 'wind_spd' : vKey;
+  const val = station[actualKey] ?? station.obs?.[actualKey];
+  const text = formatValueInsideCircle(vKey, val);
+  const ramp = RAMPS[vKey] || RAMPS.temp;
+  const color = colorAtSmooth(ramp, val);
+  const textColor = getContrastTextColor(color);
+  const textShadow = getContrastTextShadow(textColor);
+  const showLabel = showValueLabel.checked;
+  const size = showLabel ? 22 : 9;
+  const isCompact = typeof text === 'string' && text.length >= 3;
+  const fontSize = isCompact ? '8.5px' : '10px';
+
+  const html = showLabel ? `
+    <div class="stn-circle" style="
+      width: ${size}px; height: ${size}px;
+      background: ${color};
+      color: ${textColor};
+      text-shadow: ${textShadow};
+      font-size: ${fontSize};
+      border: none;
+    ">
+      ${text}
+    </div>
+  ` : `
+    <div class="stn-circle" style="
+      width: ${size}px; height: ${size}px;
+      background: ${color};
+      border: none;
+    "></div>
+  `;
+
+  const icon = L.divIcon({
+    className: 'stn-pill-icon',
+    html: html,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2]
+  });
+
+  const marker = L.marker([station.lat, station.lon], { icon: icon });
+  marker.bindPopup(() => buildStationPopupHtml(station, varSel.value), { maxWidth: 320 });
+  return marker;
+}
+
+function refreshCachedMarkerVisuals() {
+  const vKey = varSel.value;
+  const actualKey = vKey === 'alt' ? 'elev' : vKey === 'wind' ? 'wind_spd' : vKey;
+  const ramp = RAMPS[vKey] || RAMPS.temp;
+  const showLabel = showValueLabel.checked;
+  const size = showLabel ? 22 : 9;
+
+  cachedMarkerObjects.forEach(item => {
+    const station = item.station;
+    const val = station[actualKey] ?? station.obs?.[actualKey];
+    const text = formatValueInsideCircle(vKey, val);
+    const color = colorAtSmooth(ramp, val);
+    const textColor = getContrastTextColor(color);
+    const textShadow = getContrastTextShadow(textColor);
+    const isCompact = typeof text === 'string' && text.length >= 3;
+    const fontSize = isCompact ? '8.5px' : '10px';
+
+    const html = showLabel ? `
+      <div class="stn-circle" style="
+        width: ${size}px; height: ${size}px;
+        background: ${color};
+        color: ${textColor};
+        text-shadow: ${textShadow};
+        font-size: ${fontSize};
+        border: none;
+      ">
+        ${text}
+      </div>
+    ` : `
+      <div class="stn-circle" style="
+        width: ${size}px; height: ${size}px;
+        background: ${color};
+        border: none;
+      "></div>
+    `;
+
+    item.marker.setIcon(L.divIcon({
+      className: 'stn-pill-icon',
+      html: html,
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2]
+    }));
+  });
+}
+
+/**
+ * Viewport Frustum Culling 視錐裁剪演算法 (60 FPS 核心)
+ * bounds.pad(0.35) 預留 35% 緩衝區以防拖曳邊緣跳閃
+ */
+function updateViewportMarkers() {
+  const useCluster = clusterToggle.checked;
+  if (useCluster) return;
+
+  const bounds = map.getBounds().pad(0.35);
+  const neededIds = new Set();
+  const toAdd = [];
+
+  for (let i = 0; i < cachedFilteredStations.length; i++) {
+    const s = cachedFilteredStations[i];
+    if (bounds.contains([s.lat, s.lon])) {
+      neededIds.add(s.id);
+      if (!inViewportMarkerIds.has(s.id)) {
+        const marker = getOrCreateMarker(s);
+        if (marker) toAdd.push(marker);
+      }
+    }
+  }
+
+  inViewportMarkerIds.forEach(id => {
+    if (!neededIds.has(id)) {
+      const item = cachedMarkerObjects.get(id);
+      if (item) singleStationLayer.removeLayer(item.marker);
+    }
+  });
+
+  for (let k = 0; k < toAdd.length; k++) {
+    singleStationLayer.addLayer(toAdd[k]);
+  }
+
+  inViewportMarkerIds = neededIds;
+}
+
+// 35ms 防抖視錐裁剪 + requestAnimationFrame 消除平移縮放時的 DOM thrashing
+let viewportMoveTimer = null;
+function debouncedUpdateViewportMarkers() {
+  if (viewportMoveTimer) clearTimeout(viewportMoveTimer);
+  viewportMoveTimer = setTimeout(() => {
+    requestAnimationFrame(updateViewportMarkers);
+  }, 35);
+}
+
+map.on('moveend', debouncedUpdateViewportMarkers);
+map.on('zoomend', debouncedUpdateViewportMarkers);
+
+function handleClusterToggle() {
+  const enabled = clusterToggle.checked;
+  if (enabled) {
+    if (map.hasLayer(singleStationLayer)) map.removeLayer(singleStationLayer);
+    singleStationLayer.clearLayers();
+    inViewportMarkerIds.clear();
+
+    clusterStationLayer.clearLayers();
+    const markers = [];
+    cachedFilteredStations.forEach(s => {
+      const marker = getOrCreateMarker(s);
+      if (marker) markers.push(marker);
+    });
+    clusterStationLayer.addLayers(markers);
+    if (!map.hasLayer(clusterStationLayer)) map.addLayer(clusterStationLayer);
+  } else {
+    if (map.hasLayer(clusterStationLayer)) map.removeLayer(clusterStationLayer);
+    clusterStationLayer.clearLayers();
+
+    if (!map.hasLayer(singleStationLayer)) map.addLayer(singleStationLayer);
+    updateViewportMarkers();
+  }
+}
+clusterToggle.onchange = handleClusterToggle;
+
+showValueLabel.onchange = function() {
+  refreshCachedMarkerVisuals();
+};
+
+// ============================================================================
+// 9. 動態圖例 (Legend) 與統計卡片更新 (Statistics Card)
+// ============================================================================
+function generateCssGradient(ramp) {
+  const minVal = ramp[0][0];
+  const maxVal = ramp[ramp.length - 1][0];
+  const stops = ramp.map(([val, color]) => {
+    const pct = (((val - minVal) / (maxVal - minVal)) * 100).toFixed(1);
+    return `${color} ${pct}%`;
+  });
+  return `linear-gradient(to right, ${stops.join(', ')})`;
+}
+
+function updateLegend() {
+  const vKey = varSel.value;
+  const meta = VAR_METADATA[vKey];
+  const ramp = RAMPS[vKey] || RAMPS.temp;
+  const tickSpec = TICK_SPECS[vKey];
+
+  document.getElementById('legTitle').textContent = meta.label;
+  document.getElementById('legBar').style.background = generateCssGradient(ramp);
+  document.getElementById('legMin').textContent = tickSpec.min;
+  document.getElementById('legMid').textContent = tickSpec.mid;
+  document.getElementById('legMax').textContent = tickSpec.max;
+  document.getElementById('legUnit').textContent = `單位：${meta.unit}`;
+}
+
+function updateStatistics(stations) {
+  const vKey = varSel.value;
+  const meta = VAR_METADATA[vKey];
+  const stats = calculateDynamicStats(stations, vKey);
+
+  document.getElementById('stCnt').textContent = `${stats.total.toLocaleString()} 站`;
+  document.getElementById('stObsCount').textContent = `${stats.validCount.toLocaleString()} 站 (${stats.coveragePct.toFixed(1)}%)`;
+
+  if (stats.minVal !== null && stats.maxVal !== null) {
+    document.getElementById('stMinMax').textContent = `最低: ${stats.minVal}${meta.unit} (${stats.minStation}) / 最高: ${stats.maxVal}${meta.unit} (${stats.maxStation})`;
+  } else {
+    document.getElementById('stMinMax').textContent = '—';
+  }
+
+  document.getElementById('stAvg').textContent = stats.avgVal !== null
+    ? `${stats.avgVal.toFixed(1)} ${meta.unit}`
+    : '—';
+
+  // 國家分佈 Chips
+  const breakdownEl = document.getElementById('stBreakdown');
+  const flagMap = {
+    TW: '🇹🇼', CN: '🇨🇳', JP: '🇯🇵', KR: '🇰🇷',
+    PH: '🇵🇭', VN: '🇻🇳', TH: '🇹🇭', MY: '🇲🇾', ID: '🇮🇩', SG: '🇸🇬',
+    KP: '🇰🇵', LA: '🇱🇦', KH: '🇰🇭', BT: '🇧🇹',
+    MM: '🇲🇲', BD: '🇧🇩'
+  };
+  const chipsHtml = Object.entries(stats.countryCounts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([c, count]) => `<span style="background:rgba(255,255,255,0.06); padding:2px 6px; border-radius:4px;">${flagMap[c] || ''} ${c}: ${count}</span>`)
+    .join(' ');
+  breakdownEl.innerHTML = chipsHtml;
+}
+
+// 變數切換
+varSel.onchange = function() {
+  updateLegend();
+  refreshCachedMarkerVisuals();
+  updateStatistics(cachedFilteredStations);
+};
+
+// ============================================================================
+// 10. 搜尋與地區連動篩選 (150ms Debounced Filtering)
+// ============================================================================
+let searchTimer = null;
+
+function applyFilters() {
+  const regVal = regionSel.value;
+  const query = searchInput.value;
+  const showAll = allStationsToggle && allStationsToggle.checked;
+
+  cachedFilteredStations = allStations.filter(s => {
+    // 1. 地區與搜尋詞過濾
+    if (!matchesRegionFilter(s, regVal) || !matchesSearchQuery(s, query)) {
+      return false;
+    }
+    // 2. 測站級別過濾：
+    //    - 若已選取特定國家/地區 (regVal !== '')，則顯示該國/區所有測站
+    //    - 若在「全部資料 (亞洲全區 regVal === '')」的狀況下：
+    //      - 若勾選「顯示全亞洲所有測站 (showAll)」，則顯示所有 5,794 測站
+    //      - 預設 (showAll 為 false) 僅顯示基本測站 (有人站/官署/ASOS/基準站/SYNOP)
+    if (!regVal && !showAll && !isBasicStation(s)) {
+      return false;
+    }
+    return true;
+  });
+
+  if (clusterToggle.checked) {
+    clusterStationLayer.clearLayers();
+    const markers = [];
+    cachedFilteredStations.forEach(s => {
+      const marker = getOrCreateMarker(s);
+      if (marker) markers.push(marker);
+    });
+    clusterStationLayer.addLayers(markers);
+  } else {
+    singleStationLayer.clearLayers();
+    inViewportMarkerIds.clear();
+    updateViewportMarkers();
+  }
+
+  updateStatistics(cachedFilteredStations);
+}
+
+searchInput.oninput = function() {
+  if (searchTimer) clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    applyFilters();
+  }, 150);
+};
+
+if (allStationsToggle) {
+  allStationsToggle.onchange = function() {
+    applyFilters();
+  };
+}
+
+regionSel.onchange = function() {
+  const regVal = this.value;
+  if (!regVal) {
+    map.setView(ASIA_CENTER, 5);
+  } else if (REGION_BOUNDS[regVal]) {
+    const b = REGION_BOUNDS[regVal];
+    map.fitBounds([[b.south, b.west], [b.north, b.east]], { padding: [40, 40], maxZoom: 9 });
+  }
+  applyFilters();
+};
+
+// ============================================================================
+// 11. UI 面板與按鈕互動
+// ============================================================================
+const panel = document.getElementById('panel');
+const panelTab = document.getElementById('panelTab');
+const panelCloseBtn = document.getElementById('panelCloseBtn');
+const legend = document.getElementById('legend');
+const legMini = document.getElementById('legMini');
+const resetViewBtn = document.getElementById('resetViewBtn');
+const obsTime = document.getElementById('obsTime');
+const loader = document.getElementById('loader');
+
+function togglePanel() {
+  const isCollapsed = panel.classList.toggle("collapsed");
+  panelTab.classList.toggle("collapsed", isCollapsed);
+  panelTab.textContent = isCollapsed ? "◀" : "▶";
+}
+panelTab.onclick = togglePanel;
+panelCloseBtn.onclick = togglePanel;
+
+legMini.onclick = function() {
+  const isCol = legend.classList.toggle("collapsed");
+  this.textContent = isCol ? "+" : "−";
+};
+
+resetViewBtn.onclick = function() {
+  regionSel.value = "";
+  searchInput.value = "";
+  map.setView(ASIA_CENTER, 5);
+  applyFilters();
+};
+
+// ============================================================================
+// 12. 批次即時數據更新引擎與 2 分鐘定時自動更新 (Auto-Refresh & Batch Update Engine)
+// ============================================================================
+let autoRefreshTimer = null;
+let countdownTimer = null;
+const AUTO_REFRESH_INTERVAL_SEC = 120; // 2 分鐘 (120 秒)
+let remainingCountdown = AUTO_REFRESH_INTERVAL_SEC;
+let isBatchUpdating = false;
+
+const autoRefreshToggle = document.getElementById('autoRefreshToggle');
+const autoRefreshCountdown = document.getElementById('autoRefreshCountdown');
+const manualRefreshAllBtn = document.getElementById('manualRefreshAllBtn');
+
+/**
+ * 批次透過 Open-Meteo 多座標 API 快速刷新測站實況
+ * @param {Array} stationsToUpdate 需更新之測站列表
+ */
+async function refreshStationsBatch(stationsToUpdate) {
+  if (!stationsToUpdate || stationsToUpdate.length === 0) return 0;
+  let updatedCount = 0;
+
+  // 1. 對於台灣 CWA (若有 KEY) 優先嘗試個別更新；若無 KEY 或其他國家則分批呼叫 Open-Meteo
+  const BATCH_CHUNK = 40; // Open-Meteo 一次可支援 50 個地點
+  for (let i = 0; i < stationsToUpdate.length; i += BATCH_CHUNK) {
+    const chunk = stationsToUpdate.slice(i, i + BATCH_CHUNK);
+    const lats = chunk.map(s => s.lat).join(',');
+    const lons = chunk.map(s => s.lon).join(',');
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,relative_humidity_2m,precipitation,surface_pressure,wind_speed_10m,wind_direction_10m,weather_code&wind_speed_unit=ms`;
+
+    try {
+      const resp = await fetch(url, { signal: AbortSignal.timeout(9000) });
+      if (resp.ok) {
+        const data = await resp.json();
+        const results = Array.isArray(data) ? data : [data];
+
+        for (let j = 0; j < chunk.length; j++) {
+          const st = chunk[j];
+          const cur = results[j]?.current;
+          if (cur) {
+            st.temp = cur.temperature_2m;
+            st.hum = cur.relative_humidity_2m;
+            st.rain = cur.precipitation;
+            st.wind_spd = cur.wind_speed_10m;
+            st.wind_dir = cur.wind_direction_10m;
+            st.wind_dir_text = degToCompass(cur.wind_direction_10m);
+            if (cur.surface_pressure) st.press = cur.surface_pressure;
+            st.obs_time = cur.time || new Date().toISOString();
+            if (cur.weather_code !== undefined) {
+              const codeMap = { 0: '晴', 1: '晴時多雲', 2: '多雲', 3: '陰', 45: '霧', 51: '毛毛雨', 61: '小雨', 63: '中雨', 65: '大雨', 80: '陣雨', 95: '雷雨' };
+              st.weather = codeMap[cur.weather_code] || '多雲';
+            }
+            if (st.obs) {
+              Object.assign(st.obs, {
+                temp: st.temp,
+                hum: st.hum,
+                rain: st.rain,
+                wind_spd: st.wind_spd,
+                wind_dir: st.wind_dir,
+                wind_dir_text: st.wind_dir_text,
+                press: st.press,
+                weather: st.weather,
+                time: st.obs_time
+              });
+            }
+            updatedCount++;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Batch weather update chunk skipped:", err);
+    }
+  }
+
+  return updatedCount;
+}
+
+/**
+ * 執行即時更新：優先更新目前視圖可視測站，隨後在背景漸進式更新所有篩選測站
+ */
+async function triggerRealtimeDataRefresh(silent = false) {
+  if (isBatchUpdating) return;
+  isBatchUpdating = true;
+
+  if (manualRefreshAllBtn) {
+    manualRefreshAllBtn.disabled = true;
+    manualRefreshAllBtn.textContent = '⏳ 正在更新即時實況…';
+  }
+
+  try {
+    // 取得當前視圖中的可視測站 (優先更新，立竿見影)
+    const bounds = map.getBounds().pad(0.35);
+    const visibleList = cachedFilteredStations.filter(s => bounds.contains([s.lat, s.lon]));
+    const targetList = visibleList.length > 0 ? visibleList : cachedFilteredStations.slice(0, 100);
+
+    const count = await refreshStationsBatch(targetList);
+    refreshCachedMarkerVisuals();
+    updateStatistics(cachedFilteredStations);
+
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+    obsTime.textContent = `🕒 資料狀態：${timeStr} 已更新 ${count} 站實況`;
+
+    // 背景更新其餘測站 (非同步安靜更新，不阻塞 UI)
+    const otherStations = cachedFilteredStations.filter(s => !targetList.includes(s));
+    if (otherStations.length > 0) {
+      setTimeout(async () => {
+        await refreshStationsBatch(otherStations.slice(0, 300));
+        refreshCachedMarkerVisuals();
+        updateStatistics(cachedFilteredStations);
+      }, 500);
+    }
+  } catch (e) {
+    console.error("Auto refresh error:", e);
+  } finally {
+    isBatchUpdating = false;
+    remainingCountdown = AUTO_REFRESH_INTERVAL_SEC;
+    updateCountdownDisplay();
+    if (manualRefreshAllBtn) {
+      manualRefreshAllBtn.disabled = false;
+      manualRefreshAllBtn.textContent = '⚡ 立即更新可視測站實況';
+    }
+  }
+}
+
+function updateCountdownDisplay() {
+  if (!autoRefreshCountdown) return;
+  if (!autoRefreshToggle.checked) {
+    autoRefreshCountdown.textContent = '已暫停';
+    autoRefreshCountdown.style.color = 'var(--muted)';
+    return;
+  }
+  const min = Math.floor(remainingCountdown / 60);
+  const sec = String(remainingCountdown % 60).padStart(2, '0');
+  autoRefreshCountdown.textContent = `${min}:${sec}`;
+  autoRefreshCountdown.style.color = 'var(--accent)';
+}
+
+function startAutoRefreshLoop() {
+  stopAutoRefreshLoop();
+  remainingCountdown = AUTO_REFRESH_INTERVAL_SEC;
+  updateCountdownDisplay();
+
+  countdownTimer = setInterval(() => {
+    if (!autoRefreshToggle.checked) return;
+    remainingCountdown--;
+    if (remainingCountdown <= 0) {
+      remainingCountdown = AUTO_REFRESH_INTERVAL_SEC;
+      triggerRealtimeDataRefresh();
+    }
+    updateCountdownDisplay();
+  }, 1000);
+}
+
+function stopAutoRefreshLoop() {
+  if (countdownTimer) {
+    clearInterval(countdownTimer);
+    countdownTimer = null;
+  }
+  updateCountdownDisplay();
+}
+
+if (autoRefreshToggle) {
+  autoRefreshToggle.onchange = function() {
+    if (this.checked) {
+      startAutoRefreshLoop();
+    } else {
+      stopAutoRefreshLoop();
+    }
+  };
+}
+
+if (manualRefreshAllBtn) {
+  manualRefreshAllBtn.onclick = function() {
+    triggerRealtimeDataRefresh();
+  };
+}
+
+// ============================================================================
+// 13. 應用啟動與資料載入 (Offline 0ms Bundled + JSON Fallback + Chunked Lazy Init)
+// ============================================================================
+function getOrCreateMarker(station) {
+  let item = cachedMarkerObjects.get(station.id);
+  if (!item) {
+    const m = createStationMarker(station);
+    item = { id: station.id, station: station, marker: m };
+    cachedMarkerObjects.set(station.id, item);
+  }
+  return item.marker;
+}
+
+function initDashboard(stations) {
+  allStations = stations;
+
+  // 初始化過濾（預設亞洲全區僅呈現基本測站，未勾選「顯示全亞洲所有測站」）
+  const showAll = allStationsToggle && allStationsToggle.checked;
+  cachedFilteredStations = stations.filter(s => showAll || isBasicStation(s));
+
+  updateLegend();
+  updateStatistics(cachedFilteredStations);
+
+  // 1. 優先立即渲染目前可視範圍內的測站標記（零卡頓瞬間呈現）
+  const bounds = map.getBounds().pad(0.35);
+  const initialViewportStations = [];
+  const remainingStations = [];
+
+  for (let i = 0; i < cachedFilteredStations.length; i++) {
+    const s = cachedFilteredStations[i];
+    if (bounds.contains([s.lat, s.lon])) {
+      initialViewportStations.push(s);
+    } else {
+      remainingStations.push(s);
+    }
+  }
+
+  // 即時創建並掛載可視區測站
+  initialViewportStations.forEach(s => {
+    getOrCreateMarker(s);
+  });
+  handleClusterToggle();
+
+  obsTime.textContent = `🕒 資料狀態：已載入 ${cachedFilteredStations.length.toLocaleString()} 站點 (總資料庫 ${stations.length.toLocaleString()} 站)`;
+  loader.style.display = 'none';
+
+  // 2. 利用 requestIdleCallback / setTimeout 分批於背景非同步預熱剩餘測站標記
+  let cursor = 0;
+  const CHUNK_SIZE = 350;
+
+  function processChunk() {
+    const end = Math.min(cursor + CHUNK_SIZE, remainingStations.length);
+    for (let i = cursor; i < end; i++) {
+      getOrCreateMarker(remainingStations[i]);
+    }
+    cursor = end;
+    if (cursor < remainingStations.length) {
+      if (window.requestIdleCallback) {
+        requestIdleCallback(processChunk, { timeout: 100 });
+      } else {
+        setTimeout(processChunk, 16);
+      }
+    }
+  }
+
+  if (window.requestIdleCallback) {
+    requestIdleCallback(processChunk, { timeout: 100 });
+  } else {
+    setTimeout(processChunk, 16);
+  }
+
+  // 3. 核心功能：網頁載入後立即執行一次即時全區/可視測站資料更新
+  setTimeout(() => {
+    triggerRealtimeDataRefresh();
+    startAutoRefreshLoop();
+  }, 1000);
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  if (window.ASIA_STATIONS_DATA && Array.isArray(window.ASIA_STATIONS_DATA)) {
+    initDashboard(window.ASIA_STATIONS_DATA);
+  } else {
+    fetch('asia_stations_data.json')
+      .then(r => r.json())
+      .then(data => initDashboard(data))
+      .catch(err => {
+        console.error('Failed to load asia stations dataset:', err);
+        obsTime.textContent = '⚠️ 無法載入測站資料快照';
+        loader.style.display = 'none';
+      });
+  }
+});
+</script>
+</body>
+</html>
