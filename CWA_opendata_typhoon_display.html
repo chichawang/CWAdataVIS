@@ -1,0 +1,2265 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>熱帶氣旋路徑視覺化 GIS 系統｜四分區暴風範圍 × 路徑動畫播放 (W-C0034-005)</title>
+<!-- cwadatavis-icon -->
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" href="favicon.ico" sizes="48x48">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#0e1217">
+<!-- cwadatavis-icon -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;800&family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#0b1018;
+    --card:rgba(19, 25, 38, 0.78);
+    --card-solid:#131926;
+    --line:rgba(255, 255, 255, 0.12);
+    --txt:#f8f9fa;
+    --muted:#9aa0a6;
+    --accent:#8ab4f8;
+    --accent-dark:#1a73e8;
+    --chip:rgba(255, 255, 255, 0.08);
+    --panelW:350px;
+    --r15-col:#ff8fb0;
+    --r25-col:#e8447a;
+    --fcst-col:#fdd663;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:"Roboto","Noto Sans TC",system-ui,-apple-system,sans-serif;
+    background:var(--bg);color:var(--txt);font-size:13.5px;overflow:hidden;-webkit-font-smoothing:antialiased}
+  body{display:flex;flex-direction:column;height:100vh;height:100dvh}
+
+  /* ===== 頂部工具列 ===== */
+  #topbar{flex:0 0 auto;z-index:1500;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;
+    padding:9px 18px;background:rgba(18,24,36,0.82);backdrop-filter:blur(24px) saturate(1.8);
+    -webkit-backdrop-filter:blur(24px) saturate(1.8);border-bottom:1px solid var(--line);
+    box-shadow:0 4px 20px rgba(0,0,0,0.35), inset 0 -1px 0 rgba(255,255,255,0.05)}
+  #topbar .home-btn{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;
+    border-radius:10px;background:rgba(255,255,255,0.06);border:1px solid var(--line);color:var(--txt);
+    text-decoration:none;transition:all .2s}
+  #topbar .home-btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(138,180,248,0.12)}
+  #topbar h1{font-size:16px;margin:0;white-space:nowrap;font-weight:800;letter-spacing:-0.2px;color:#ffffff;
+    display:flex;align-items:center;gap:7px}
+  #topbar .badge-ds{font-size:11px;padding:2px 8px;border-radius:99px;background:rgba(255,159,67,0.16);
+    border:1px solid rgba(255,159,67,0.4);color:#ff9f43;font-weight:700}
+  #topbar .sp{flex:1}
+  #topbar .src-grp{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  #topbar button, .btn{padding:7px 13px;background:var(--accent);color:#041e49;border:none;border-radius:18px;
+    font-size:12px;cursor:pointer;font-weight:700;transition:all .2s ease;display:inline-flex;align-items:center;gap:5px;
+    font-family:inherit;white-space:nowrap}
+  #topbar button.ghost, .btn.ghost{background:rgba(255,255,255,0.05);border:1px solid var(--line);color:var(--txt);font-weight:600}
+  #topbar button:hover, .btn:hover{background:#a8c7fa;box-shadow:0 2px 10px rgba(138,180,248,0.3)}
+  #topbar button.ghost:hover, .btn.ghost:hover{background:rgba(255,255,255,0.1);border-color:var(--accent);color:var(--accent)}
+  #topbar button.active-src{background:rgba(129,201,149,0.2);border:1px solid #81c995;color:#81c995}
+  #sentTime{color:var(--muted);font-size:11.5px;white-space:nowrap}
+
+  /* ===== 主畫面區 ===== */
+  #mainWrap{flex:1;min-height:0;position:relative;display:flex;overflow:hidden}
+  #map{flex:1;height:100%;background:#070b12;z-index:1}
+
+  /* Leaflet 彈窗與標籤美化 */
+  .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:rgba(19,25,38,0.95);backdrop-filter:blur(16px);
+    -webkit-backdrop-filter:blur(16px);color:var(--txt);border:1px solid var(--line);border-radius:16px;
+    box-shadow:0 12px 36px rgba(0,0,0,0.55)}
+  .leaflet-popup-content{margin:13px 15px;font-size:12.5px;line-height:1.55;min-width:240px}
+  .leaflet-tooltip.ty-tip{background:rgba(15,21,34,0.92);border:1px solid rgba(255,255,255,0.18);
+    color:#f8f9fa;border-radius:8px;padding:4px 8px;font-size:11.5px;font-weight:600;
+    box-shadow:0 4px 14px rgba(0,0,0,0.45)}
+  .leaflet-tooltip-top.ty-tip::before{border-top-color:rgba(15,21,34,0.92)}
+  .pop h3{margin:0 0 7px;font-size:14.5px;font-weight:800;color:#fff;display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .pop .row{display:flex;justify-content:space-between;gap:14px;padding:2.5px 0;border-top:1px solid rgba(255,255,255,0.07)}
+  .pop .row:first-of-type{border-top:none}
+  .pop .k{color:var(--muted)}
+  .pop .v{font-weight:600;color:#fff;text-align:right}
+  .pop .quad-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:5px;padding:6px;
+    background:rgba(255,255,255,0.04);border-radius:8px;border:1px solid rgba(255,255,255,0.08);font-size:11px}
+  .pop .quad-grid div{display:flex;justify-content:space-between;padding:1px 4px}
+  .pop .quad-grid b{color:#ff8fb0}
+  .pop .quad-grid.r25 b{color:#ff5c8d}
+
+  .tyicon,.lbl-icon,.quad-lbl-icon{background:none!important;border:none!important}
+  .tyicon svg{animation:tyspin 5.5s linear infinite;transform-origin:50% 50%;filter:drop-shadow(0 0 1.5px rgba(255,255,255,0.95)) drop-shadow(0 0 3px rgba(0,0,0,0.85)) drop-shadow(0 0 6px rgba(0,0,0,0.45))}
+  @keyframes tyspin{from{transform:rotate(0deg)}to{transform:rotate(-360deg)}}
+  .tau-tag{display:inline-block;padding:1px 5px;border-radius:5px;background:rgba(14,18,26,0.85);
+    border:1px solid rgba(255,255,255,0.22);color:#e6edf6;font-size:10px;font-weight:700;
+    white-space:nowrap;box-shadow:0 2px 5px rgba(0,0,0,0.5)}
+  .quad-map-tag{display:inline-block;padding:1.5px 5.5px;border-radius:5px;background:rgba(14,18,26,0.88);
+    border:1px solid rgba(255,143,176,0.55);color:#ffd6e4;font-size:10px;font-weight:700;
+    white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.65);pointer-events:none;transform:translate(-50%,-50%)}
+  .quad-map-tag.r25{border-color:rgba(232,68,122,0.8);color:#ff9ebb;background:rgba(28,12,20,0.9)}
+
+  /* ===== 左側控制與分析面版 ===== */
+  #sidePanel{position:absolute;top:0;left:0;bottom:0;width:var(--panelW);z-index:1000;
+    background:rgba(18,24,36,0.76);backdrop-filter:blur(22px) saturate(1.7);-webkit-backdrop-filter:blur(22px) saturate(1.7);
+    border-right:1px solid var(--line);box-shadow:8px 0 32px rgba(0,0,0,0.45);
+    display:flex;flex-direction:column;transition:transform .25s cubic-bezier(.4,0,.2,1)}
+  #sidePanel.collapsed{transform:translateX(-100%)}
+  #panelToggle{position:absolute;top:50%;left:var(--panelW);transform:translateY(-50%);z-index:1001;
+    width:24px;height:60px;padding:0;background:rgba(18,24,36,0.82);backdrop-filter:blur(16px);
+    border:1px solid var(--line);border-left:none;border-radius:0 10px 10px 0;color:var(--muted);
+    cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;
+    transition:left .25s cubic-bezier(.4,0,.2,1);box-shadow:4px 0 14px rgba(0,0,0,0.3)}
+  #panelToggle:hover{color:var(--accent);border-color:var(--accent)}
+  #panelToggle.collapsed{left:0}
+
+  .panel-scroll{flex:1;overflow-y:auto;padding:14px 14px 28px}
+  .panel-scroll::-webkit-scrollbar{width:5px}
+  .panel-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.2);border-radius:4px}
+
+  .sec-card{background:rgba(255,255,255,0.035);border:1px solid var(--line);border-radius:14px;
+    margin-bottom:11px;overflow:hidden}
+  .sec-head{display:flex;align-items:center;gap:7px;padding:9px 12px;background:rgba(255,255,255,0.04);
+    font-size:12.5px;font-weight:700;color:#e6edf6;cursor:pointer;user-select:none}
+  .sec-head:hover{background:rgba(255,255,255,0.07)}
+  .sec-head .material-symbols-outlined{font-size:17px;color:var(--accent)}
+  .sec-head .arw{margin-left:auto;font-size:10px;color:var(--muted);transition:transform .2s}
+  .sec-card.closed .sec-head .arw{transform:rotate(-90deg)}
+  .sec-card.closed .sec-body{display:none}
+  .sec-body{padding:11px 12px;border-top:1px solid rgba(255,255,255,0.06)}
+
+  /* 颱風選擇卡 */
+  .storm-list{display:flex;flex-direction:column;gap:7px}
+  .storm-item{padding:9px 11px;border-radius:11px;border:1px solid rgba(255,255,255,0.1);
+    background:rgba(255,255,255,0.03);cursor:pointer;transition:all .18s;display:flex;align-items:flex-start;gap:9px}
+  .storm-item:hover{background:rgba(138,180,248,0.1);border-color:rgba(138,180,248,0.35)}
+  .storm-item.active{background:rgba(138,180,248,0.16);border-color:var(--accent);box-shadow:0 0 14px rgba(138,180,248,0.2)}
+  .storm-item .st-ico{font-size:20px;line-height:1.1;margin-top:2px}
+  .storm-item .st-info{flex:1;min-width:0}
+  .storm-item .st-title{font-weight:800;font-size:13.5px;color:#fff;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .storm-item .st-sub{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.45}
+  .cat-pill{display:inline-block;padding:1px 7px;border-radius:99px;font-size:10.5px;font-weight:700;color:#0b1018}
+
+  /* 當前時刻儀表板 KPI */
+  .kpi-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin-bottom:9px}
+  .kpi-box{background:rgba(12,17,28,0.65);border:1px solid rgba(255,255,255,0.09);border-radius:10px;padding:7px 9px}
+  .kpi-box .k-lbl{font-size:10.5px;color:var(--muted)}
+  .kpi-box .k-val{font-size:15px;font-weight:800;color:#fff;margin-top:1px}
+  .kpi-box .k-unit{font-size:10.5px;font-weight:500;color:var(--muted);margin-left:3px}
+  .move-banner{padding:7px 10px;border-radius:9px;background:rgba(138,180,248,0.1);border:1px solid rgba(138,180,248,0.25);
+    font-size:11.5px;color:#d2e3fc;line-height:1.45;margin-top:6px}
+
+  /* 四分區暴風強度範圍視覺化雷達盤 (Quadrant Compass Widget) */
+  .quad-wrap{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .quad-canvas-box{position:relative;width:230px;height:230px;background:radial-gradient(circle, rgba(30,41,66,0.55) 0%, rgba(12,17,28,0.85) 75%);
+    border-radius:50%;border:1px solid rgba(255,255,255,0.14);box-shadow:inset 0 0 24px rgba(0,0,0,0.6)}
+  #quadRadarCanvas{width:100%;height:100%;display:block}
+  .quad-table{width:100%;border-collapse:collapse;font-size:11.5px}
+  .quad-table th,.quad-table td{padding:5px 6px;text-align:center;border-bottom:1px solid rgba(255,255,255,0.07)}
+  .quad-table th{color:var(--muted);font-weight:600;font-size:11px;background:rgba(255,255,255,0.03)}
+  .quad-table td.dir-col{font-weight:700;color:#e6edf6;text-align:left;padding-left:8px}
+  .quad-table td.r15-val{color:#ff8fb0;font-weight:700}
+  .quad-table td.r25-val{color:#ff5c8d;font-weight:700}
+  .quad-badge-row{display:flex;justify-content:space-between;width:100%;gap:6px;font-size:11px}
+  .quad-badge{flex:1;padding:5px 8px;border-radius:8px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);text-align:center}
+
+  /* 圖層開關與選項 */
+  .ckrow{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;color:var(--txt);cursor:pointer;user-select:none}
+  .ckrow input[type=checkbox]{width:15px;height:15px;accent-color:var(--accent);margin:0;cursor:pointer}
+  .form-lbl{display:block;font-size:11px;color:var(--muted);margin:8px 0 4px;font-weight:600}
+  select.full-sel, input.full-inp{width:100%;padding:7px 9px;background:rgba(12,17,28,0.75);color:var(--txt);
+    border:1px solid var(--line);border-radius:9px;font-size:12px;outline:none;font-family:inherit}
+  select.full-sel:focus, input.full-inp:focus{border-color:var(--accent)}
+
+  /* 強度時序圖 */
+  .chart-wrap{position:relative;height:155px;width:100%;margin-top:4px}
+
+  /* ===== 底部動畫播放控制列 (Animation Player Bar) ===== */
+  #playerBar{position:absolute;left:calc(var(--panelW) + 20px);right:260px;bottom:16px;z-index:1000;
+    background:rgba(18,24,36,0.84);backdrop-filter:blur(24px) saturate(1.8);-webkit-backdrop-filter:blur(24px) saturate(1.8);
+    border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:10px 18px;
+    box-shadow:0 12px 38px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.12);
+    display:flex;flex-direction:column;gap:7px;transition:left .25s cubic-bezier(.4,0,.2,1)}
+  #playerBar.panel-closed{left:20px}
+  .pl-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .pl-btns{display:flex;align-items:center;gap:5px}
+  .pl-btn{width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,0.16);
+    background:rgba(255,255,255,0.07);color:var(--txt);cursor:pointer;display:inline-flex;
+    align-items:center;justify-content:center;transition:all .18s;padding:0}
+  .pl-btn:hover{background:rgba(138,180,248,0.2);border-color:var(--accent);color:var(--accent)}
+  .pl-btn.play-main{width:40px;height:40px;background:var(--accent);color:#041e49;border-color:var(--accent);
+    box-shadow:0 0 16px rgba(138,180,248,0.4)}
+  .pl-btn.play-main:hover{background:#a8c7fa;transform:scale(1.05)}
+  .pl-btn .material-symbols-outlined{font-size:20px}
+  .pl-btn.play-main .material-symbols-outlined{font-size:24px}
+
+  .pl-info{flex:1;min-width:180px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .pl-time-badge{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13.5px;font-weight:800;color:#fdd663;
+    background:rgba(253,214,99,0.12);border:1px solid rgba(253,214,99,0.3);padding:3px 10px;border-radius:8px}
+  .pl-phase-tag{font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px}
+  .pl-phase-tag.obs{background:rgba(41,197,224,0.18);color:#29c5e0;border:1px solid rgba(41,197,224,0.4)}
+  .pl-phase-tag.now{background:rgba(129,201,149,0.22);color:#81c995;border:1px solid rgba(129,201,149,0.5)}
+  .pl-phase-tag.fcst{background:rgba(253,214,99,0.2);color:#fdd663;border:1px solid rgba(253,214,99,0.45)}
+  .pl-stat-txt{font-size:12px;color:var(--txt);font-weight:600}
+
+  .pl-controls-right{display:flex;align-items:center;gap:8px;margin-left:auto}
+  .pl-speed{padding:4px 8px;border-radius:8px;background:rgba(255,255,255,0.07);border:1px solid var(--line);
+    color:var(--txt);font-size:11.5px;font-weight:700;cursor:pointer;outline:none}
+  .pl-chk{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:var(--muted);cursor:pointer;user-select:none}
+  .pl-chk input{accent-color:var(--accent);margin:0}
+
+  .pl-slider-wrap{display:flex;flex-direction:column;gap:3px}
+  .pl-slider-row{position:relative;display:flex;align-items:center;height:20px}
+  #timeSlider{width:100%;height:6px;accent-color:var(--accent);cursor:pointer;margin:0}
+  .pl-ticks{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);padding:0 2px}
+
+  /* ===== 右下角圖例 ===== */
+  #legendBox{position:absolute;right:14px;bottom:16px;z-index:1000;width:232px;
+    background:rgba(18,24,36,0.82);backdrop-filter:blur(22px) saturate(1.7);-webkit-backdrop-filter:blur(22px) saturate(1.7);
+    border:1px solid var(--line);border-radius:16px;padding:11px 13px;font-size:11px;line-height:1.55;
+    box-shadow:0 8px 32px rgba(0,0,0,0.45)}
+  #legendBox .lg-head{display:flex;align-items:center;justify-content:space-between;font-weight:700;font-size:12px;color:#fff;cursor:pointer;user-select:none}
+  #legendBox.collapsed .lg-body{display:none}
+  #legendBox .lg-body{margin-top:8px;border-top:1px solid rgba(255,255,255,0.08);padding-top:7px}
+  .lg-row{display:flex;align-items:center;gap:7px;margin:3.5px 0}
+  .lg-dot{width:10px;height:10px;border-radius:50%;flex:0 0 auto;border:1px solid rgba(0,0,0,0.5)}
+  .lg-swatch{width:18px;height:10px;border-radius:3px;flex:0 0 auto}
+
+  /* ===== API 與資料來源設定彈窗 ===== */
+  #apiModal{position:fixed;inset:0;z-index:3000;background:rgba(6,10,18,0.76);backdrop-filter:blur(10px);
+    display:none;align-items:center;justify-content:center;padding:16px}
+  #apiModal.open{display:flex}
+  .modal-card{width:min(520px,100%);background:#151d2e;border:1px solid rgba(255,255,255,0.16);
+    border-radius:20px;padding:22px 24px;box-shadow:0 20px 60px rgba(0,0,0,0.65)}
+  .modal-card h2{margin:0 0 6px;font-size:17px;color:#fff;display:flex;align-items:center;gap:8px}
+  .modal-card p{margin:0 0 14px;font-size:12px;color:var(--muted);line-height:1.6}
+  .modal-card code{background:rgba(255,255,255,0.08);padding:2px 5px;border-radius:4px;font-size:11px;color:#fdd663;word-break:break-all}
+
+  /* Toast 提示 */
+  #toast{position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:3500;
+    background:rgba(23,32,50,0.95);border:1px solid var(--accent);color:#fff;padding:8px 16px;
+    border-radius:99px;font-size:12.5px;font-weight:600;box-shadow:0 8px 28px rgba(0,0,0,0.5);
+    display:none;align-items:center;gap:7px}
+
+  @media(max-width:960px){
+    :root{--panelW:310px}
+    #playerBar{left:14px;right:14px;bottom:12px}
+    #legendBox{bottom:136px;right:12px;width:200px}
+    #sidePanel{z-index:1200}
+    #panelToggle{z-index:1201}
+  }
+  @media(max-width:600px){
+    #topbar h1{font-size:14px}
+    #topbar .badge-ds{display:none}
+    #legendBox{display:none}
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════ 頂部工具列 ══════════════ -->
+<div id="topbar">
+  <a class="home-btn" href="index.html" title="返回首頁">
+    <span class="material-symbols-outlined" style="font-size:19px">home</span>
+  </a>
+  <h1>
+    <span>🌀 熱帶氣旋路徑視覺化 GIS</span>
+    <span class="badge-ds">W-C0034-005</span>
+  </h1>
+  <span id="sentTime">發布時間：載入中…</span>
+  <div class="sp"></div>
+  <div class="src-grp">
+    <button type="button" id="btnFetchApi" class="ghost" title="從中央氣象署 Open Data API 即時抓取 W-C0034-005">
+      <span class="material-symbols-outlined" style="font-size:16px">cloud_download</span>線上 API 抓取
+    </button>
+    <button type="button" id="btnUploadJson" class="ghost" title="匯入本機 W-C0034-005 JSON 檔案">
+      <span class="material-symbols-outlined" style="font-size:16px">upload_file</span>匯入 JSON
+    </button>
+    <input type="file" id="fileInput" accept=".json,application/json" style="display:none">
+    <button type="button" id="btnApiConfig" class="ghost" title="設定 API 授權碼與端點">
+      <span class="material-symbols-outlined" style="font-size:16px">key</span>API 設定
+    </button>
+  </div>
+</div>
+
+<!-- ══════════════ 主畫面：地圖＋側欄＋動畫播放器 ══════════════ -->
+<div id="mainWrap">
+  <div id="map"></div>
+
+  <button type="button" id="panelToggle" title="收合 / 展開分析面板">◀</button>
+
+  <!-- 左側控制與四分區風速分析面板 -->
+  <div id="sidePanel">
+    <div class="panel-scroll">
+
+      <!-- 1. 熱帶氣旋清單 -->
+      <div class="sec-card" id="secStorms">
+        <div class="sec-head">
+          <span class="material-symbols-outlined">cyclone</span>
+          <span>熱帶氣旋系統選擇</span>
+          <span id="stormCountTag" style="margin-left:auto;font-size:11px;color:var(--accent)">0 系統</span>
+          <span class="arw">▼</span>
+        </div>
+        <div class="sec-body">
+          <div class="storm-list" id="stormList"></div>
+          <div style="display:flex;gap:6px;margin-top:9px">
+            <button type="button" class="btn ghost" id="btnFitTrack" style="flex:1;justify-content:center">
+              <span class="material-symbols-outlined" style="font-size:15px">fit_screen</span>縮放至全路徑
+            </button>
+            <button type="button" class="btn ghost" id="btnFocusCenter" style="flex:1;justify-content:center">
+              <span class="material-symbols-outlined" style="font-size:15px">my_location</span>對準當前中心
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. 風速四分區強度範圍 (Quadrant Wind Radii) -->
+      <div class="sec-card" id="secQuadrant">
+        <div class="sec-head">
+          <span class="material-symbols-outlined">radar</span>
+          <span>風速四分區強度範圍 (NE/SE/SW/NW)</span>
+          <span class="arw">▼</span>
+        </div>
+        <div class="sec-body">
+          <div class="quad-wrap">
+            <div class="quad-badge-row">
+              <div class="quad-badge">
+                <div style="color:var(--muted);font-size:10px">七級風平均半徑 (15m/s)</div>
+                <div id="qAvg15" style="color:#ff8fb0;font-weight:800;font-size:14px">— km</div>
+              </div>
+              <div class="quad-badge">
+                <div style="color:var(--muted);font-size:10px">十級風平均半徑 (25m/s)</div>
+                <div id="qAvg25" style="color:#ff5c8d;font-weight:800;font-size:14px">— km</div>
+              </div>
+            </div>
+
+            <!-- 四象限雷達極座標圖 -->
+            <div class="quad-canvas-box">
+              <canvas id="quadRadarCanvas" width="460" height="460"></canvas>
+            </div>
+
+            <!-- 四象限明細表 -->
+            <table class="quad-table">
+              <thead>
+                <tr>
+                  <th style="text-align:left;padding-left:8px">象限分區 (方位)</th>
+                  <th>七級風 (≥15m/s)</th>
+                  <th>十級風 (≥25m/s)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="dir-col">↗ 東北象限 (NE, 0°–90°)</td>
+                  <td class="r15-val" id="qNE15">—</td>
+                  <td class="r25-val" id="qNE25">—</td>
+                </tr>
+                <tr>
+                  <td class="dir-col">↘ 東南象限 (SE, 90°–180°)</td>
+                  <td class="r15-val" id="qSE15">—</td>
+                  <td class="r25-val" id="qSE25">—</td>
+                </tr>
+                <tr>
+                  <td class="dir-col">↙ 西南象限 (SW, 180°–270°)</td>
+                  <td class="r15-val" id="qSW15">—</td>
+                  <td class="r25-val" id="qSW25">—</td>
+                </tr>
+                <tr>
+                  <td class="dir-col">↖ 西北象限 (NW, 270°–360°)</td>
+                  <td class="r15-val" id="qNW15">—</td>
+                  <td class="r25-val" id="qNW25">—</td>
+                </tr>
+              </tbody>
+            </table>
+            <div id="quadNote" style="font-size:11px;color:var(--muted);line-height:1.45;text-align:center">
+              地圖與雷達盤同步隨時間軸動態呈現四象限不對稱暴風半徑扇形。
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. 當前時刻定位與強度儀表板 -->
+      <div class="sec-card" id="secCurrent">
+        <div class="sec-head">
+          <span class="material-symbols-outlined">speed</span>
+          <span>當前播放時刻定位與強度</span>
+          <span class="arw">▼</span>
+        </div>
+        <div class="sec-body">
+          <div class="kpi-grid">
+            <div class="kpi-box">
+              <div class="k-lbl">近中心最大風速</div>
+              <div class="k-val"><span id="kpiWind">—</span><span class="k-unit">m/s</span></div>
+            </div>
+            <div class="kpi-box">
+              <div class="k-lbl">瞬間最大陣風</div>
+              <div class="k-val"><span id="kpiGust">—</span><span class="k-unit">m/s</span></div>
+            </div>
+            <div class="kpi-box">
+              <div class="k-lbl">中心氣壓</div>
+              <div class="k-val"><span id="kpiPres">—</span><span class="k-unit">hPa</span></div>
+            </div>
+            <div class="kpi-box">
+              <div class="k-lbl">中心經緯度座標</div>
+              <div class="k-val" id="kpiCoord" style="font-size:13px">—</div>
+            </div>
+          </div>
+          <div class="move-banner" id="kpiMove">移向移速：—</div>
+        </div>
+      </div>
+
+      <!-- 4. 風速與氣壓強度演變時序圖 -->
+      <div class="sec-card" id="secChart">
+        <div class="sec-head">
+          <span class="material-symbols-outlined">monitoring</span>
+          <span>強度演變時序圖 (風速 / 氣壓)</span>
+          <span class="arw">▼</span>
+        </div>
+        <div class="sec-body">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:10.5px;margin-bottom:5px;padding:3px 8px;background:rgba(255,255,255,0.04);border-radius:6px;border:1px solid rgba(255,255,255,0.08)">
+            <span style="color:#6ee7b7;font-weight:700">━ 實線＋綠底：過去觀測 (OBS)</span>
+            <span style="color:#fcd34d;font-weight:700">┄ 虛線＋橘底：未來預報 (FCST)</span>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="intensityChart"></canvas>
+          </div>
+          <div style="font-size:10.5px;color:var(--muted);margin-top:4px;text-align:center">
+            點擊圖表上任一時間點可直接跳轉至該時刻
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. GIS 圖層與視覺化設定 -->
+      <div class="sec-card" id="secLayers">
+        <div class="sec-head">
+          <span class="material-symbols-outlined">layers</span>
+          <span>GIS 圖層與四分區顯示設定</span>
+          <span class="arw">▼</span>
+        </div>
+        <div class="sec-body">
+          <label class="ckrow"><input type="checkbox" id="ckQuad15" checked> 顯示七級風 (15m/s) 四分區扇形範圍</label>
+          <label class="ckrow"><input type="checkbox" id="ckQuad25" checked> 顯示十級風 (25m/s) 四分區扇形範圍</label>
+          <label class="ckrow"><input type="checkbox" id="ckQuadCross" checked> 顯示四象限十字分割線 (NE/SE/SW/NW)</label>
+          <label class="ckrow"><input type="checkbox" id="ckQuadLabels"> 顯示地圖上四象限風圈半徑數值標籤</label>
+          <label class="ckrow"><input type="checkbox" id="ckSwath" checked> 顯示歷史暴風圈累計掃掠包絡帶</label>
+          <label class="ckrow"><input type="checkbox" id="ckPastTrack" checked> 顯示過去觀測路徑與定位點</label>
+          <label class="ckrow"><input type="checkbox" id="ckFcstTrack" checked> 顯示未來預報路徑與定位點</label>
+          <label class="ckrow"><input type="checkbox" id="ckHourlyFcst" checked> 啟用預報逐時內插 (Hourly Track)</label>
+          <label class="ckrow"><input type="checkbox" id="ckProb70" checked> 顯示 70% 暴風侵襲潛勢外包框與機率圓</label>
+          <label class="ckrow"><input type="checkbox" id="ckOtherStorms" checked> 同時顯示其他活動中熱帶氣旋</label>
+
+          <label class="form-lbl">底圖樣式</label>
+          <select id="baseMapSel" class="full-sel">
+            <option value="osm" selected>OpenStreetMap 標準街道圖</option>
+            <option value="dark">CARTO 深色專業氣象底圖</option>
+            <option value="sat">Esri 全球衛星影像</option>
+            <option value="topo">OpenTopoMap 地形等高線圖</option>
+            <option value="light">CARTO 淺色底圖</option>
+          </select>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════ 底部時間軸動畫播放器 ══════════════ -->
+  <div id="playerBar">
+    <div class="pl-top">
+      <div class="pl-btns">
+        <button type="button" class="pl-btn" id="btnFirst" title="跳至起點 (Home)">
+          <span class="material-symbols-outlined">first_page</span>
+        </button>
+        <button type="button" class="pl-btn" id="btnPrev" title="上一個定位點 (←)">
+          <span class="material-symbols-outlined">chevron_left</span>
+        </button>
+        <button type="button" class="pl-btn play-main" id="btnPlay" title="播放 / 暫停動畫 (Space)">
+          <span class="material-symbols-outlined" id="playIcon">play_arrow</span>
+        </button>
+        <button type="button" class="pl-btn" id="btnNext" title="下一個定位點 (→)">
+          <span class="material-symbols-outlined">chevron_right</span>
+        </button>
+        <button type="button" class="pl-btn" id="btnNow" title="跳至最新實況定位時間">
+          <span class="material-symbols-outlined">today</span>
+        </button>
+        <button type="button" class="pl-btn" id="btnLast" title="跳至預報終點 (End)">
+          <span class="material-symbols-outlined">last_page</span>
+        </button>
+      </div>
+
+      <div class="pl-info">
+        <span class="pl-time-badge" id="plTimeTxt">—</span>
+        <span class="pl-phase-tag obs" id="plPhaseTag">觀測定位</span>
+        <span class="pl-stat-txt" id="plStatTxt">—</span>
+      </div>
+
+      <div class="pl-controls-right">
+        <label class="pl-chk" title="播放時地圖鏡頭自動跟隨颱風中心">
+          <input type="checkbox" id="ckFollow"> 鏡頭跟隨
+        </label>
+        <label class="pl-chk" title="播完後自動從頭循環播放">
+          <input type="checkbox" id="ckLoop" checked> 循環
+        </label>
+        <select id="speedSel" class="pl-speed" title="動畫播放速度">
+          <option value="900">0.5x 慢速</option>
+          <option value="500" selected>1.0x 正常</option>
+          <option value="250">2.0x 快速</option>
+          <option value="110">4.0x 極速</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="pl-slider-wrap">
+      <div class="pl-slider-row">
+        <input type="range" id="timeSlider" min="0" max="0" value="0">
+      </div>
+      <div class="pl-ticks">
+        <span id="tickStart">起點</span>
+        <span id="tickNow" style="color:#81c995;font-weight:700">▲ 最新實況定位</span>
+        <span id="tickEnd">預報終點</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ 右下角圖例 ══════════════ -->
+  <div id="legendBox">
+    <div class="lg-head" id="lgToggle">
+      <span>🎨 颱風強度與四分區風圈圖例</span>
+      <span class="arw">▼</span>
+    </div>
+    <div class="lg-body">
+      <div style="font-weight:700;color:#cfe0f5;margin-bottom:4px">中心強度分級（最大風速 m/s）</div>
+      <div class="lg-row"><span class="lg-dot" style="background:#dc2626;border:1.5px solid #fff"></span>強烈颱風 (STY, ≥ 51.0 m/s)</div>
+      <div class="lg-row"><span class="lg-dot" style="background:#ea580c;border:1.5px solid #fff"></span>中度颱風 (TY, 32.7–50.9 m/s)</div>
+      <div class="lg-row"><span class="lg-dot" style="background:#16a34a;border:1.5px solid #fff"></span>輕度颱風 (TS, 17.2–32.6 m/s)</div>
+      <div class="lg-row"><span class="lg-dot" style="background:#0284c7;border:1.5px solid #fff"></span>熱帶性低氣壓 (TD, &lt; 17.2 m/s)</div>
+
+      <div style="font-weight:700;color:#cfe0f5;margin:7px 0 4px;border-top:1px solid rgba(255,255,255,0.08);padding-top:6px">路徑與四分區強度範圍 (NE/SE/SW/NW)</div>
+      <div class="lg-row">
+        <span class="lg-swatch" style="background:transparent;border-top:3px solid #16a34a;height:0;align-self:center"></span>
+        <span>過去觀測路徑 (彩色實線＋白邊)</span>
+      </div>
+      <div class="lg-row">
+        <span class="lg-swatch" style="background:transparent;border-top:2.5px dashed #1e293b;background-color:rgba(255,255,255,0.7);height:4px;align-self:center"></span>
+        <span>未來預報路徑 (深藍黑虛線＋白光暈)</span>
+      </div>
+      <div class="lg-row">
+        <span class="lg-swatch" style="background:rgba(225,29,72,0.18);border:1.8px solid #e11d48"></span>
+        <span>七級風四象限扇形 (≥15 m/s)</span>
+      </div>
+      <div class="lg-row">
+        <span class="lg-swatch" style="background:rgba(159,18,57,0.34);border:1.8px solid #881337"></span>
+        <span>十級風四象限扇形 (≥25 m/s)</span>
+      </div>
+      <div class="lg-row">
+        <span class="lg-swatch" style="background:rgba(245,158,11,0.18);border:1.8px dashed #d97706"></span>
+        <span>預報 70% 侵襲潛勢外包框與機率圓</span>
+      </div>
+      <div class="lg-row">
+        <span class="lg-swatch" style="background:rgba(225,29,72,0.08);border:1px dotted #e11d48"></span>
+        <span>歷史七級暴風圈掃掠包絡區</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ API 設定彈窗 ══════════════ -->
+<div id="apiModal">
+  <div class="modal-card">
+    <h2><span class="material-symbols-outlined" style="color:var(--accent)">settings_ethernet</span>資料來源與 CWA API 設定</h2>
+    <p>
+      本頁面支援直接介接中央氣象署開放資料平臺 <b>W-C0034-005（熱帶氣旋路徑）</b> 檔案型 API（<code>fileapi</code>）與資料集 API（<code>datastore</code>），並內建範例快照資料（薔琵颱風 CHAMPI 完整四象限風圈觀測與預報）。
+    </p>
+    <label class="form-lbl">CWA API 授權碼 (Authorization Key)</label>
+    <input type="text" id="inpApiKey" class="full-inp" value="rdec-key-123-45678-011121314" placeholder="rdec-key-123-45678-011121314 或 CWA-XXXX...">
+    <label class="form-lbl" style="margin-top:10px">完整來源網址預覽</label>
+    <div style="margin-bottom:14px">
+      <code id="apiUrlPreview">https://opendata.cwa.gov.tw/fileapi/v1/opendataapi/W-C0034-005?Authorization=rdec-key-123-45678-011121314&amp;format=JSON</code>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button type="button" class="btn ghost" id="btnResetKey">還原預設示範金鑰</button>
+      <button type="button" class="btn ghost" id="btnCloseModal">取消</button>
+      <button type="button" class="btn" id="btnSaveAndFetch">儲存並立即抓取 API</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+"use strict";
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   內建範例資料快照 (取自 W-C0034-005.json：薔琵颱風 CHAMPI & TD34)
+   確保在無網路、無活動颱風季節或 file:// 離線開啟時，仍可完整體驗四分區風圈與動畫！
+   ═══════════════════════════════════════════════════════════════════════════ */
+const EMBEDDED_SNAPSHOT = {"cwaopendata":{"@xmlns":"urn:cwa:gov:tw:cwacommon:0.1","Identifier":"CWA-TropicalCyclone_20261023094113","Sender":"fss@wfc.cwa.gov.tw","Sent":"2026-10-23T09:41:13+08:00","Status":"Actual","MsgType":"Update","Scope":"Public","Dataset":{"TropicalCyclones":{"TropicalCyclone":[{"Year":"2026","TyphoonName":"CHAMPI","CwaTyphoonName":"薔琵","CwaTdNo":"33","CwaTyNo":"29","AnalysisData":{"Fix":[{"DateTime":"2026-10-14T08:00:00+08:00","CoordinateLongitude":"160.3","CoordinateLatitude":"9.5","MaxWindSpeed":"12","MaxGustSpeed":"20","Pressure":"1004","MovingSpeed":"4","MovingDirection":"W","Circle15ms":null,"Circle25ms":null},{"DateTime":"2026-10-14T14:00:00+08:00","CoordinateLongitude":"161.1","CoordinateLatitude":"8.8","MaxWindSpeed":"12","MaxGustSpeed":"20","Pressure":"1004","MovingSpeed":"20","MovingDirection":"SE","Circle15ms":null,"Circle25ms":null},{"DateTime":"2026-10-14T20:00:00+08:00","CoordinateLongitude":"161.5","CoordinateLatitude":"9.6","MaxWindSpeed":"12","MaxGustSpeed":"20","Pressure":"1004","MovingSpeed":"16","MovingDirection":"NNE","Circle15ms":null,"Circle25ms":null},{"DateTime":"2026-10-15T02:00:00+08:00","CoordinateLongitude":"160.4","CoordinateLatitude":"10.4","MaxWindSpeed":"15","MaxGustSpeed":"23","Pressure":"1000","MovingSpeed":"25","MovingDirection":"NW","Circle15ms":null,"Circle25ms":null},{"DateTime":"2026-10-15T08:00:00+08:00","CoordinateLongitude":"159.5","CoordinateLatitude":"10.8","MaxWindSpeed":"15","MaxGustSpeed":"23","Pressure":"1000","MovingSpeed":"18","MovingDirection":"WNW","Circle15ms":null,"Circle25ms":null},{"DateTime":"2026-10-15T14:00:00+08:00","CoordinateLongitude":"158.6","CoordinateLatitude":"11.0","MaxWindSpeed":"18","MaxGustSpeed":"25","Pressure":"998","MovingSpeed":"17","MovingDirection":"WNW","Circle15ms":{"Radius":"80","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"60"},{"@dir":"SE","#text":"60"},{"@dir":"SW","#text":"100"},{"@dir":"NW","#text":"100"}]}},"Circle25ms":null},{"DateTime":"2026-10-15T20:00:00+08:00","CoordinateLongitude":"157.1","CoordinateLatitude":"10.8","MaxWindSpeed":"20","MaxGustSpeed":"28","Pressure":"995","MovingSpeed":"28","MovingDirection":"W","Circle15ms":{"Radius":"100","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"90"},{"@dir":"SE","#text":"90"},{"@dir":"SW","#text":"110"},{"@dir":"NW","#text":"110"}]}},"Circle25ms":null},{"DateTime":"2026-10-16T02:00:00+08:00","CoordinateLongitude":"156.1","CoordinateLatitude":"11.2","MaxWindSpeed":"20","MaxGustSpeed":"28","Pressure":"995","MovingSpeed":"20","MovingDirection":"WNW","Circle15ms":{"Radius":"100","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"90"},{"@dir":"SE","#text":"90"},{"@dir":"SW","#text":"110"},{"@dir":"NW","#text":"110"}]}},"Circle25ms":null},{"DateTime":"2026-10-16T08:00:00+08:00","CoordinateLongitude":"154.6","CoordinateLatitude":"11.3","MaxWindSpeed":"23","MaxGustSpeed":"30","Pressure":"990","MovingSpeed":"27","MovingDirection":"W","Circle15ms":{"Radius":"120","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"140"},{"@dir":"SE","#text":"100"},{"@dir":"SW","#text":"100"},{"@dir":"NW","#text":"140"}]}},"Circle25ms":null},{"DateTime":"2026-10-16T14:00:00+08:00","CoordinateLongitude":"152.8","CoordinateLatitude":"11.2","MaxWindSpeed":"28","MaxGustSpeed":"35","Pressure":"980","MovingSpeed":"33","MovingDirection":"W","Circle15ms":{"Radius":"150","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"160"},{"@dir":"SE","#text":"140"},{"@dir":"SW","#text":"140"},{"@dir":"NW","#text":"160"}]}},"Circle25ms":null},{"DateTime":"2026-10-16T20:00:00+08:00","CoordinateLongitude":"151.4","CoordinateLatitude":"11.5","MaxWindSpeed":"30","MaxGustSpeed":"38","Pressure":"975","MovingSpeed":"26","MovingDirection":"WNW","Circle15ms":{"Radius":"150","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"160"},{"@dir":"SE","#text":"140"},{"@dir":"SW","#text":"140"},{"@dir":"NW","#text":"160"}]}},"Circle25ms":{"Radius":"60","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"70"},{"@dir":"SE","#text":"50"},{"@dir":"SW","#text":"50"},{"@dir":"NW","#text":"70"}]}}},{"DateTime":"2026-10-17T02:00:00+08:00","CoordinateLongitude":"150.2","CoordinateLatitude":"11.9","MaxWindSpeed":"35","MaxGustSpeed":"45","Pressure":"965","MovingSpeed":"23","MovingDirection":"WNW","Circle15ms":{"Radius":"180","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"200"},{"@dir":"SE","#text":"160"},{"@dir":"SW","#text":"150"},{"@dir":"NW","#text":"200"}]}},"Circle25ms":{"Radius":"80","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"90"},{"@dir":"SE","#text":"70"},{"@dir":"SW","#text":"70"},{"@dir":"NW","#text":"90"}]}}},{"DateTime":"2026-10-17T08:00:00+08:00","CoordinateLongitude":"148.5","CoordinateLatitude":"12.3","MaxWindSpeed":"40","MaxGustSpeed":"50","Pressure":"950","MovingSpeed":"32","MovingDirection":"WNW","Circle15ms":{"Radius":"180","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"200"},{"@dir":"SE","#text":"160"},{"@dir":"SW","#text":"150"},{"@dir":"NW","#text":"200"}]}},"Circle25ms":{"Radius":"80","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"90"},{"@dir":"SE","#text":"70"},{"@dir":"SW","#text":"70"},{"@dir":"NW","#text":"90"}]}}},{"DateTime":"2026-10-17T14:00:00+08:00","CoordinateLongitude":"147.2","CoordinateLatitude":"12.5","MaxWindSpeed":"45","MaxGustSpeed":"55","Pressure":"940","MovingSpeed":"24","MovingDirection":"W","Circle15ms":{"Radius":"180","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"200"},{"@dir":"SE","#text":"160"},{"@dir":"SW","#text":"150"},{"@dir":"NW","#text":"200"}]}},"Circle25ms":{"Radius":"80","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"90"},{"@dir":"SE","#text":"70"},{"@dir":"SW","#text":"70"},{"@dir":"NW","#text":"90"}]}}},{"DateTime":"2026-10-17T20:00:00+08:00","CoordinateLongitude":"146.1","CoordinateLatitude":"12.7","MaxWindSpeed":"51","MaxGustSpeed":"63","Pressure":"925","MovingSpeed":"20","MovingDirection":"W","Circle15ms":{"Radius":"180","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"200"},{"@dir":"SE","#text":"160"},{"@dir":"SW","#text":"150"},{"@dir":"NW","#text":"200"}]}},"Circle25ms":{"Radius":"80","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"90"},{"@dir":"SE","#text":"70"},{"@dir":"SW","#text":"70"},{"@dir":"NW","#text":"90"}]}}},{"DateTime":"2026-10-18T02:00:00+08:00","CoordinateLongitude":"144.8","CoordinateLatitude":"13.1","MaxWindSpeed":"53","MaxGustSpeed":"65","Pressure":"915","MovingSpeed":"25","MovingDirection":"WNW","Circle15ms":{"Radius":"200","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"200"},{"@dir":"SE","#text":"210"},{"@dir":"SW","#text":"200"},{"@dir":"NW","#text":"190"}]}},"Circle25ms":{"Radius":"80","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"80"},{"@dir":"SE","#text":"80"},{"@dir":"SW","#text":"80"},{"@dir":"NW","#text":"90"}]}}},{"DateTime":"2026-10-18T08:00:00+08:00","CoordinateLongitude":"143.6","CoordinateLatitude":"13.0","MaxWindSpeed":"55","MaxGustSpeed":"68","Pressure":"915","MovingSpeed":"22","MovingDirection":"W","Circle15ms":{"Radius":"200","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"220"},{"@dir":"SE","#text":"210"},{"@dir":"SW","#text":"180"},{"@dir":"NW","#text":"200"}]}},"Circle25ms":{"Radius":"100","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"100"},{"@dir":"SE","#text":"100"},{"@dir":"SW","#text":"90"},{"@dir":"NW","#text":"100"}]}}},{"DateTime":"2026-10-18T14:00:00+08:00","CoordinateLongitude":"142.4","CoordinateLatitude":"13.2","MaxWindSpeed":"53","MaxGustSpeed":"65","Pressure":"918","MovingSpeed":"22","MovingDirection":"W","Circle15ms":{"Radius":"200","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"220"},{"@dir":"SE","#text":"210"},{"@dir":"SW","#text":"180"},{"@dir":"NW","#text":"200"}]}},"Circle25ms":{"Radius":"100","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"100"},{"@dir":"SE","#text":"100"},{"@dir":"SW","#text":"90"},{"@dir":"NW","#text":"100"}]}}},{"DateTime":"2026-10-18T20:00:00+08:00","CoordinateLongitude":"141.5","CoordinateLatitude":"13.6","MaxWindSpeed":"51","MaxGustSpeed":"63","Pressure":"925","MovingSpeed":"18","MovingDirection":"WNW","Circle15ms":{"Radius":"200","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"220"},{"@dir":"SE","#text":"210"},{"@dir":"SW","#text":"180"},{"@dir":"NW","#text":"200"}]}},"Circle25ms":{"Radius":"100","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"100"},{"@dir":"SE","#text":"100"},{"@dir":"SW","#text":"90"},{"@dir":"NW","#text":"100"}]}}},{"DateTime":"2026-10-19T02:00:00+08:00","CoordinateLongitude":"140.3","CoordinateLatitude":"13.7","MaxWindSpeed":"51","MaxGustSpeed":"63","Pressure":"925","MovingSpeed":"22","MovingDirection":"W","Circle15ms":{"Radius":"200","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"220"},{"@dir":"SE","#text":"210"},{"@dir":"SW","#text":"180"},{"@dir":"NW","#text":"200"}]}},"Circle25ms":{"Radius":"100","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"100"},{"@dir":"SE","#text":"100"},{"@dir":"SW","#text":"90"},{"@dir":"NW","#text":"100"}]}}},{"DateTime":"2026-10-19T08:00:00+08:00","CoordinateLongitude":"139.2","CoordinateLatitude":"14.0","MaxWindSpeed":"53","MaxGustSpeed":"65","Pressure":"915","MovingSpeed":"21","MovingDirection":"WNW","Circle15ms":{"Radius":"220","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"240"},{"@dir":"SE","#text":"230"},{"@dir":"SW","#text":"200"},{"@dir":"NW","#text":"220"}]}},"Circle25ms":{"Radius":"100","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"100"},{"@dir":"SE","#text":"100"},{"@dir":"SW","#text":"100"},{"@dir":"NW","#text":"100"}]}}},{"DateTime":"2026-10-19T14:00:00+08:00","CoordinateLongitude":"138.4","CoordinateLatitude":"14.3","MaxWindSpeed":"55","MaxGustSpeed":"68","Pressure":"910","MovingSpeed":"15","MovingDirection":"WNW","Circle15ms":{"Radius":"250","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"270"},{"@dir":"SE","#text":"250"},{"@dir":"SW","#text":"230"},{"@dir":"NW","#text":"250"}]}},"Circle25ms":{"Radius":"100","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"100"},{"@dir":"SE","#text":"100"},{"@dir":"SW","#text":"100"},{"@dir":"NW","#text":"100"}]}}},{"DateTime":"2026-10-19T20:00:00+08:00","CoordinateLongitude":"137.5","CoordinateLatitude":"14.9","MaxWindSpeed":"55","MaxGustSpeed":"68","Pressure":"910","MovingSpeed":"20","MovingDirection":"NW","Circle15ms":{"Radius":"250","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"280"},{"@dir":"SE","#text":"250"},{"@dir":"SW","#text":"220"},{"@dir":"NW","#text":"250"}]}},"Circle25ms":{"Radius":"120","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"150"},{"@dir":"SE","#text":"110"},{"@dir":"SW","#text":"110"},{"@dir":"NW","#text":"120"}]}}},{"DateTime":"2026-10-20T02:00:00+08:00","CoordinateLongitude":"136.6","CoordinateLatitude":"15.4","MaxWindSpeed":"55","MaxGustSpeed":"68","Pressure":"910","MovingSpeed":"19","MovingDirection":"WNW","Circle15ms":{"Radius":"250","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"280"},{"@dir":"SE","#text":"250"},{"@dir":"SW","#text":"200"},{"@dir":"NW","#text":"250"}]}},"Circle25ms":{"Radius":"120","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"150"},{"@dir":"SE","#text":"120"},{"@dir":"SW","#text":"90"},{"@dir":"NW","#text":"120"}]}}},{"DateTime":"2026-10-20T08:00:00+08:00","CoordinateLongitude":"135.6","CoordinateLatitude":"16.0","MaxWindSpeed":"55","MaxGustSpeed":"68","Pressure":"910","MovingSpeed":"21","MovingDirection":"WNW","Circle15ms":{"Radius":"250","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"280"},{"@dir":"SE","#text":"250"},{"@dir":"SW","#text":"200"},{"@dir":"NW","#text":"250"}]}},"Circle25ms":{"Radius":"120","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"150"},{"@dir":"SE","#text":"120"},{"@dir":"SW","#text":"90"},{"@dir":"NW","#text":"120"}]}}},{"DateTime":"2026-10-20T14:00:00+08:00","CoordinateLongitude":"134.3","CoordinateLatitude":"16.4","MaxWindSpeed":"55","MaxGustSpeed":"68","Pressure":"910","MovingSpeed":"24","MovingDirection":"WNW","Circle15ms":{"Radius":"250","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"280"},{"@dir":"SE","#text":"250"},{"@dir":"SW","#text":"200"},{"@dir":"NW","#text":"250"}]}},"Circle25ms":{"Radius":"120","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"150"},{"@dir":"SE","#text":"120"},{"@dir":"SW","#text":"90"},{"@dir":"NW","#text":"120"}]}}},{"DateTime":"2026-10-20T20:00:00+08:00","CoordinateLongitude":"133.0","CoordinateLatitude":"16.9","MaxWindSpeed":"60","MaxGustSpeed":"75","Pressure":"895","MovingSpeed":"25","MovingDirection":"WNW","Circle15ms":{"Radius":"280","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"310"},{"@dir":"SE","#text":"290"},{"@dir":"SW","#text":"240"},{"@dir":"NW","#text":"270"}]}},"Circle25ms":{"Radius":"120","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"130"},{"@dir":"SE","#text":"130"},{"@dir":"SW","#text":"110"},{"@dir":"NW","#text":"120"}]}}},{"DateTime":"2026-10-21T02:00:00+08:00","CoordinateLongitude":"131.4","CoordinateLatitude":"17.4","MaxWindSpeed":"60","MaxGustSpeed":"75","Pressure":"895","MovingSpeed":"30","MovingDirection":"WNW","Circle15ms":{"Radius":"280","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"310"},{"@dir":"SE","#text":"290"},{"@dir":"SW","#text":"240"},{"@dir":"NW","#text":"270"}]}},"Circle25ms":{"Radius":"120","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"130"},{"@dir":"SE","#text":"130"},{"@dir":"SW","#text":"110"},{"@dir":"NW","#text":"120"}]}}},{"DateTime":"2026-10-21T08:00:00+08:00","CoordinateLongitude":"130.1","CoordinateLatitude":"18.1","MaxWindSpeed":"60","MaxGustSpeed":"75","Pressure":"895","MovingSpeed":"26","MovingDirection":"WNW","Circle15ms":{"Radius":"280","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"310"},{"@dir":"SE","#text":"290"},{"@dir":"SW","#text":"240"},{"@dir":"NW","#text":"270"}]}},"Circle25ms":{"Radius":"120","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"130"},{"@dir":"SE","#text":"130"},{"@dir":"SW","#text":"110"},{"@dir":"NW","#text":"120"}]}}},{"DateTime":"2026-10-21T14:00:00+08:00","CoordinateLongitude":"128.9","CoordinateLatitude":"18.7","MaxWindSpeed":"58","MaxGustSpeed":"73","Pressure":"900","MovingSpeed":"24","MovingDirection":"WNW","Circle15ms":{"Radius":"280","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"310"},{"@dir":"SE","#text":"290"},{"@dir":"SW","#text":"250"},{"@dir":"NW","#text":"280"}]}},"Circle25ms":{"Radius":"120","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"130"},{"@dir":"SE","#text":"130"},{"@dir":"SW","#text":"110"},{"@dir":"NW","#text":"120"}]}}},{"DateTime":"2026-10-21T20:00:00+08:00","CoordinateLongitude":"127.9","CoordinateLatitude":"19.3","MaxWindSpeed":"55","MaxGustSpeed":"68","Pressure":"910","MovingSpeed":"21","MovingDirection":"WNW","Circle15ms":{"Radius":"280","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"310"},{"@dir":"SE","#text":"270"},{"@dir":"SW","#text":"230"},{"@dir":"NW","#text":"300"}]}},"Circle25ms":{"Radius":"140","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"160"},{"@dir":"SE","#text":"140"},{"@dir":"SW","#text":"100"},{"@dir":"NW","#text":"160"}]}}},{"DateTime":"2026-10-21T23:00:00+08:00","CoordinateLongitude":"127.4","CoordinateLatitude":"19.5","MaxWindSpeed":"55","MaxGustSpeed":"68","Pressure":"910","MovingSpeed":"19","MovingDirection":"WNW","Circle15ms":{"Radius":"280","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"310"},{"@dir":"SE","#text":"270"},{"@dir":"SW","#text":"230"},{"@dir":"NW","#text":"300"}]}},"Circle25ms":{"Radius":"140","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"160"},{"@dir":"SE","#text":"140"},{"@dir":"SW","#text":"100"},{"@dir":"NW","#text":"160"}]}}},{"DateTime":"2026-10-22T02:00:00+08:00","CoordinateLongitude":"126.9","CoordinateLatitude":"19.8","MaxWindSpeed":"53","MaxGustSpeed":"65","Pressure":"915","MovingSpeed":"21","MovingDirection":"WNW","Circle15ms":{"Radius":"280","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"310"},{"@dir":"SE","#text":"270"},{"@dir":"SW","#text":"230"},{"@dir":"NW","#text":"300"}]}},"Circle25ms":{"Radius":"140","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"130"},{"@dir":"SE","#text":"170"},{"@dir":"SW","#text":"130"},{"@dir":"NW","#text":"130"}]}}},{"DateTime":"2026-10-22T05:00:00+08:00","CoordinateLongitude":"126.4","CoordinateLatitude":"20.1","MaxWindSpeed":"51","MaxGustSpeed":"63","Pressure":"925","MovingSpeed":"21","MovingDirection":"WNW","Circle15ms":{"Radius":"280","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"310"},{"@dir":"SE","#text":"270"},{"@dir":"SW","#text":"230"},{"@dir":"NW","#text":"300"}]}},"Circle25ms":{"Radius":"140","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"130"},{"@dir":"SE","#text":"170"},{"@dir":"SW","#text":"130"},{"@dir":"NW","#text":"130"}]}}},{"DateTime":"2026-10-22T08:00:00+08:00","CoordinateLongitude":"126.0","CoordinateLatitude":"20.3","MaxWindSpeed":"51","MaxGustSpeed":"63","Pressure":"925","MovingSpeed":"16","MovingDirection":"WNW","Circle15ms":{"Radius":"300","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"330"},{"@dir":"SE","#text":"300"},{"@dir":"SW","#text":"250"},{"@dir":"NW","#text":"330"}]}},"Circle25ms":{"Radius":"150","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"150"},{"@dir":"SE","#text":"170"},{"@dir":"SW","#text":"130"},{"@dir":"NW","#text":"150"}]}}},{"DateTime":"2026-10-22T11:00:00+08:00","CoordinateLongitude":"125.7","CoordinateLatitude":"20.6","MaxWindSpeed":"51","MaxGustSpeed":"63","Pressure":"925","MovingSpeed":"15","MovingDirection":"NW","Circle15ms":{"Radius":"320","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"350"},{"@dir":"SE","#text":"300"},{"@dir":"SW","#text":"290"},{"@dir":"NW","#text":"350"}]}},"Circle25ms":{"Radius":"160","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"160"},{"@dir":"SE","#text":"160"},{"@dir":"SW","#text":"160"},{"@dir":"NW","#text":"160"}]}}},{"DateTime":"2026-10-22T12:00:00+08:00","CoordinateLongitude":"125.6","CoordinateLatitude":"20.7","MaxWindSpeed":"51","MaxGustSpeed":"63","Pressure":"925","MovingSpeed":"15","MovingDirection":"NW","Circle15ms":{"Radius":"320","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"350"},{"@dir":"SE","#text":"300"},{"@dir":"SW","#text":"290"},{"@dir":"NW","#text":"350"}]}},"Circle25ms":{"Radius":"160","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"160"},{"@dir":"SE","#text":"160"},{"@dir":"SW","#text":"160"},{"@dir":"NW","#text":"160"}]}}},{"DateTime":"2026-10-22T13:00:00+08:00","CoordinateLongitude":"125.5","CoordinateLatitude":"20.8","MaxWindSpeed":"51","MaxGustSpeed":"63","Pressure":"925","MovingSpeed":"15","MovingDirection":"NW","Circle15ms":{"Radius":"320","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"350"},{"@dir":"SE","#text":"300"},{"@dir":"SW","#text":"290"},{"@dir":"NW","#text":"350"}]}},"Circle25ms":{"Radius":"160","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"160"},{"@dir":"SE","#text":"160"},{"@dir":"SW","#text":"160"},{"@dir":"NW","#text":"160"}]}}},{"DateTime":"2026-10-22T14:00:00+08:00","CoordinateLongitude":"125.4","CoordinateLatitude":"20.9","MaxWindSpeed":"51","MaxGustSpeed":"63","Pressure":"925","MovingSpeed":"15","MovingDirection":"NW","Circle15ms":{"Radius":"320","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"350"},{"@dir":"SE","#text":"300"},{"@dir":"SW","#text":"290"},{"@dir":"NW","#text":"350"}]}},"Circle25ms":{"Radius":"160","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"160"},{"@dir":"SE","#text":"160"},{"@dir":"SW","#text":"160"},{"@dir":"NW","#text":"160"}]}}},{"DateTime":"2026-10-22T15:00:00+08:00","CoordinateLongitude":"125.3","CoordinateLatitude":"21.0","MaxWindSpeed":"51","MaxGustSpeed":"63","Pressure":"925","MovingSpeed":"15","MovingDirection":"NW","Circle15ms":{"Radius":"320","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"350"},{"@dir":"SE","#text":"300"},{"@dir":"SW","#text":"290"},{"@dir":"NW","#text":"350"}]}},"Circle25ms":{"Radius":"160","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"160"},{"@dir":"SE","#text":"160"},{"@dir":"SW","#text":"160"},{"@dir":"NW","#text":"160"}]}}},{"DateTime":"2026-10-22T16:00:00+08:00","CoordinateLongitude":"125.2","CoordinateLatitude":"21.0","MaxWindSpeed":"51","MaxGustSpeed":"63","Pressure":"925","MovingSpeed":"10","MovingDirection":"W","Circle15ms":{"Radius":"320","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"350"},{"@dir":"SE","#text":"300"},{"@dir":"SW","#text":"290"},{"@dir":"NW","#text":"350"}]}},"Circle25ms":{"Radius":"160","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"160"},{"@dir":"SE","#text":"160"},{"@dir":"SW","#text":"160"},{"@dir":"NW","#text":"160"}]}}},{"DateTime":"2026-10-22T17:00:00+08:00","CoordinateLongitude":"125.1","CoordinateLatitude":"21.1","MaxWindSpeed":"48","MaxGustSpeed":"58","Pressure":"930","MovingSpeed":"15","MovingDirection":"NW","Circle15ms":{"Radius":"320","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"350"},{"@dir":"SE","#text":"300"},{"@dir":"SW","#text":"290"},{"@dir":"NW","#text":"350"}]}},"Circle25ms":{"Radius":"160","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"160"},{"@dir":"SE","#text":"160"},{"@dir":"SW","#text":"160"},{"@dir":"NW","#text":"160"}]}}},{"DateTime":"2026-10-22T18:00:00+08:00","CoordinateLongitude":"125.0","CoordinateLatitude":"21.1","MaxWindSpeed":"48","MaxGustSpeed":"58","Pressure":"930","MovingSpeed":"10","MovingDirection":"W","Circle15ms":{"Radius":"320","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"350"},{"@dir":"SE","#text":"300"},{"@dir":"SW","#text":"290"},{"@dir":"NW","#text":"350"}]}},"Circle25ms":{"Radius":"160","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"160"},{"@dir":"SE","#text":"160"},{"@dir":"SW","#text":"160"},{"@dir":"NW","#text":"160"}]}}},{"DateTime":"2026-10-22T19:00:00+08:00","CoordinateLongitude":"125.0","CoordinateLatitude":"21.2","MaxWindSpeed":"48","MaxGustSpeed":"58","Pressure":"930","MovingSpeed":"11","MovingDirection":"N","Circle15ms":{"Radius":"320","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"350"},{"@dir":"SE","#text":"300"},{"@dir":"SW","#text":"290"},{"@dir":"NW","#text":"350"}]}},"Circle25ms":{"Radius":"160","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"160"},{"@dir":"SE","#text":"160"},{"@dir":"SW","#text":"160"},{"@dir":"NW","#text":"160"}]}}},{"DateTime":"2026-10-22T20:00:00+08:00","CoordinateLongitude":"124.9","CoordinateLatitude":"21.2","MaxWindSpeed":"45","MaxGustSpeed":"55","Pressure":"940","MovingSpeed":"10","MovingDirection":"W","Circle15ms":{"Radius":"320","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"350"},{"@dir":"SE","#text":"300"},{"@dir":"SW","#text":"290"},{"@dir":"NW","#text":"350"}]}},"Circle25ms":{"Radius":"140","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"140"},{"@dir":"SE","#text":"140"},{"@dir":"SW","#text":"140"},{"@dir":"NW","#text":"140"}]}}},{"DateTime":"2026-10-22T21:00:00+08:00","CoordinateLongitude":"124.8","CoordinateLatitude":"21.3","MaxWindSpeed":"45","MaxGustSpeed":"55","Pressure":"940","MovingSpeed":"15","MovingDirection":"NW","Circle15ms":{"Radius":"320","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"350"},{"@dir":"SE","#text":"300"},{"@dir":"SW","#text":"290"},{"@dir":"NW","#text":"350"}]}},"Circle25ms":{"Radius":"140","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"140"},{"@dir":"SE","#text":"140"},{"@dir":"SW","#text":"140"},{"@dir":"NW","#text":"140"}]}}},{"DateTime":"2026-10-22T22:00:00+08:00","CoordinateLongitude":"124.7","CoordinateLatitude":"21.4","MaxWindSpeed":"45","MaxGustSpeed":"55","Pressure":"940","MovingSpeed":"15","MovingDirection":"NW","Circle15ms":{"Radius":"320","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"350"},{"@dir":"SE","#text":"300"},{"@dir":"SW","#text":"290"},{"@dir":"NW","#text":"350"}]}},"Circle25ms":{"Radius":"140","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"140"},{"@dir":"SE","#text":"140"},{"@dir":"SW","#text":"140"},{"@dir":"NW","#text":"140"}]}}},{"DateTime":"2026-10-22T23:00:00+08:00","CoordinateLongitude":"124.6","CoordinateLatitude":"21.5","MaxWindSpeed":"43","MaxGustSpeed":"53","Pressure":"945","MovingSpeed":"15","MovingDirection":"NW","Circle15ms":{"Radius":"320","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"350"},{"@dir":"SE","#text":"300"},{"@dir":"SW","#text":"290"},{"@dir":"NW","#text":"350"}]}},"Circle25ms":{"Radius":"140","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"140"},{"@dir":"SE","#text":"140"},{"@dir":"SW","#text":"140"},{"@dir":"NW","#text":"140"}]}}},{"DateTime":"2026-10-23T00:00:00+08:00","CoordinateLongitude":"124.5","CoordinateLatitude":"21.6","MaxWindSpeed":"43","MaxGustSpeed":"53","Pressure":"945","MovingSpeed":"15","MovingDirection":"NW","Circle15ms":{"Radius":"320","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"350"},{"@dir":"SE","#text":"300"},{"@dir":"SW","#text":"290"},{"@dir":"NW","#text":"350"}]}},"Circle25ms":{"Radius":"140","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"140"},{"@dir":"SE","#text":"140"},{"@dir":"SW","#text":"140"},{"@dir":"NW","#text":"140"}]}}},{"DateTime":"2026-10-23T01:00:00+08:00","CoordinateLongitude":"124.4","CoordinateLatitude":"21.7","MaxWindSpeed":"43","MaxGustSpeed":"53","Pressure":"945","MovingSpeed":"15","MovingDirection":"NW","Circle15ms":{"Radius":"320","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"350"},{"@dir":"SE","#text":"300"},{"@dir":"SW","#text":"290"},{"@dir":"NW","#text":"350"}]}},"Circle25ms":{"Radius":"140","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"140"},{"@dir":"SE","#text":"140"},{"@dir":"SW","#text":"140"},{"@dir":"NW","#text":"140"}]}}},{"DateTime":"2026-10-23T02:00:00+08:00","CoordinateLongitude":"124.3","CoordinateLatitude":"21.8","MaxWindSpeed":"43","MaxGustSpeed":"53","Pressure":"945","MovingSpeed":"15","MovingDirection":"NW","Circle15ms":{"Radius":"320","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"350"},{"@dir":"SE","#text":"300"},{"@dir":"SW","#text":"290"},{"@dir":"NW","#text":"350"}]}},"Circle25ms":{"Radius":"140","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"140"},{"@dir":"SE","#text":"140"},{"@dir":"SW","#text":"140"},{"@dir":"NW","#text":"140"}]}}},{"DateTime":"2026-10-23T03:00:00+08:00","CoordinateLongitude":"124.3","CoordinateLatitude":"21.9","MaxWindSpeed":"43","MaxGustSpeed":"53","Pressure":"945","MovingSpeed":"11","MovingDirection":"N","Circle15ms":{"Radius":"320","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"350"},{"@dir":"SE","#text":"300"},{"@dir":"SW","#text":"290"},{"@dir":"NW","#text":"350"}]}},"Circle25ms":{"Radius":"140","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"140"},{"@dir":"SE","#text":"140"},{"@dir":"SW","#text":"140"},{"@dir":"NW","#text":"140"}]}}},{"DateTime":"2026-10-23T04:00:00+08:00","CoordinateLongitude":"124.2","CoordinateLatitude":"22.0","MaxWindSpeed":"43","MaxGustSpeed":"53","Pressure":"945","MovingSpeed":"15","MovingDirection":"NW","Circle15ms":{"Radius":"320","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"350"},{"@dir":"SE","#text":"300"},{"@dir":"SW","#text":"290"},{"@dir":"NW","#text":"350"}]}},"Circle25ms":{"Radius":"140","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"140"},{"@dir":"SE","#text":"140"},{"@dir":"SW","#text":"140"},{"@dir":"NW","#text":"140"}]}}},{"DateTime":"2026-10-23T05:00:00+08:00","CoordinateLongitude":"124.1","CoordinateLatitude":"22.2","MaxWindSpeed":"43","MaxGustSpeed":"53","Pressure":"945","MovingSpeed":"24","MovingDirection":"NNW","Circle15ms":{"Radius":"320","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"350"},{"@dir":"SE","#text":"310"},{"@dir":"SW","#text":"270"},{"@dir":"NW","#text":"330"}]}},"Circle25ms":{"Radius":"120","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"120"},{"@dir":"SE","#text":"120"},{"@dir":"SW","#text":"120"},{"@dir":"NW","#text":"120"}]}}},{"DateTime":"2026-10-23T06:00:00+08:00","CoordinateLongitude":"124.0","CoordinateLatitude":"22.3","MaxWindSpeed":"43","MaxGustSpeed":"53","Pressure":"945","MovingSpeed":"15","MovingDirection":"NW","Circle15ms":{"Radius":"320","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"350"},{"@dir":"SE","#text":"310"},{"@dir":"SW","#text":"270"},{"@dir":"NW","#text":"330"}]}},"Circle25ms":{"Radius":"120","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"120"},{"@dir":"SE","#text":"120"},{"@dir":"SW","#text":"120"},{"@dir":"NW","#text":"120"}]}}},{"DateTime":"2026-10-23T07:00:00+08:00","CoordinateLongitude":"124.0","CoordinateLatitude":"22.4","MaxWindSpeed":"43","MaxGustSpeed":"53","Pressure":"945","MovingSpeed":"11","MovingDirection":"N","Circle15ms":{"Radius":"320","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"350"},{"@dir":"SE","#text":"310"},{"@dir":"SW","#text":"270"},{"@dir":"NW","#text":"330"}]}},"Circle25ms":{"Radius":"120","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"120"},{"@dir":"SE","#text":"120"},{"@dir":"SW","#text":"120"},{"@dir":"NW","#text":"120"}]}}},{"DateTime":"2026-10-23T08:00:00+08:00","CoordinateLongitude":"123.9","CoordinateLatitude":"22.6","MaxWindSpeed":"43","MaxGustSpeed":"53","Pressure":"945","MovingSpeed":"24","MovingDirection":"NNW","MovingPrediction":[{"@lang":"zh-hant","#text":"以每小時16轉11公里速度，向西北轉北進行"},{"@lang":"en-us","#text":"NW TURNING NORTH 16 KM/HR BECOMING 11 KM/HR"}],"Circle15ms":{"Radius":"320","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"350"},{"@dir":"SE","#text":"310"},{"@dir":"SW","#text":"270"},{"@dir":"NW","#text":"330"}]}},"Circle25ms":{"Radius":"120","QuadrantRadii":{"Radius":[{"@dir":"NE","#text":"120"},{"@dir":"SE","#text":"120"},{"@dir":"SW","#text":"120"},{"@dir":"NW","#text":"120"}]}}}]},"ForecastData":{"Fix":[{"InitialTime":"2026-10-23T08:00:00+08:00","ForecastHour":"6","CoordinateLongitude":"123.4","CoordinateLatitude":"23.4","MaxWindSpeed":"43","MaxGustSpeed":"53","Pressure":"945","MovingSpeed":"19","MovingDirection":"NNW","Circle15ms":{"Radius":"320"},"Circle25ms":{"Radius":"120"},"Radius70PercentProbability":"30"},{"InitialTime":"2026-10-23T08:00:00+08:00","ForecastHour":"12","CoordinateLongitude":"122.8","CoordinateLatitude":"24.1","MaxWindSpeed":"43","MaxGustSpeed":"53","Pressure":"945","MovingSpeed":"16","MovingDirection":"NW","Circle15ms":{"Radius":"320"},"Circle25ms":{"Radius":"120"},"Radius70PercentProbability":"40"},{"InitialTime":"2026-10-23T08:00:00+08:00","ForecastHour":"18","CoordinateLongitude":"122.5","CoordinateLatitude":"24.6","MaxWindSpeed":"38","MaxGustSpeed":"48","Pressure":"960","MovingSpeed":"11","MovingDirection":"NNW","Circle15ms":{"Radius":"320"},"Circle25ms":{"Radius":"100"},"Radius70PercentProbability":"80"},{"InitialTime":"2026-10-23T08:00:00+08:00","ForecastHour":"24","CoordinateLongitude":"122.6","CoordinateLatitude":"25.2","MaxWindSpeed":"33","MaxGustSpeed":"43","Pressure":"970","MovingSpeed":"11","MovingDirection":"N","Circle15ms":{"Radius":"280"},"Circle25ms":{"Radius":"90"},"Radius70PercentProbability":"90"},{"InitialTime":"2026-10-23T08:00:00+08:00","ForecastHour":"36","CoordinateLongitude":"122.9","CoordinateLatitude":"26.7","MaxWindSpeed":"28","MaxGustSpeed":"35","Pressure":"980","MovingSpeed":"14","MovingDirection":"N","Circle15ms":{"Radius":"250"},"Circle25ms":null,"Radius70PercentProbability":"100"},{"InitialTime":"2026-10-23T08:00:00+08:00","ForecastHour":"48","CoordinateLongitude":"124.0","CoordinateLatitude":"28.9","MaxWindSpeed":"23","MaxGustSpeed":"30","Pressure":"988","MovingSpeed":"22","MovingDirection":"NNE","Circle15ms":{"Radius":"180"},"Circle25ms":null,"Radius70PercentProbability":"150"},{"InitialTime":"2026-10-23T08:00:00+08:00","ForecastHour":"72","CoordinateLongitude":"127.6","CoordinateLatitude":"31.5","MaxWindSpeed":"18","MaxGustSpeed":"25","Pressure":"998","MovingSpeed":"19","MovingDirection":"NE","Circle15ms":{"Radius":"120"},"Circle25ms":null,"Radius70PercentProbability":"210"},{"InitialTime":"2026-10-23T08:00:00+08:00","ForecastHour":"96","CoordinateLongitude":"132.8","CoordinateLatitude":"32.8","Pressure":"998","MovingSpeed":"21","MovingDirection":"ENE","Circle15ms":null,"Circle25ms":null,"Radius70PercentProbability":"360","StateTransfer":[{"@lang":"zh-hant","#text":"變性為溫帶氣旋"},{"@lang":"en-us","#text":"BECOMING EXTRATROPICAL LOW"}]}]}},{"Year":"2026","CwaTdNo":"34","AnalysisData":{"Fix":{"DateTime":"2026-10-23T08:00:00+08:00","CoordinateLongitude":"166.5","CoordinateLatitude":"11.0","MaxWindSpeed":"15","MaxGustSpeed":"23","Pressure":"1004","Circle15ms":null,"Circle25ms":null}},"ForecastData":{"Fix":[{"InitialTime":"2026-10-23T08:00:00+08:00","ForecastHour":"6","CoordinateLongitude":"166.3","CoordinateLatitude":"10.8","MaxWindSpeed":"15","MaxGustSpeed":"23","Pressure":"1004","MovingSpeed":"5","MovingDirection":"SW","Circle15ms":null,"Circle25ms":null,"Radius70PercentProbability":"50"},{"InitialTime":"2026-10-23T08:00:00+08:00","ForecastHour":"12","CoordinateLongitude":"166.6","CoordinateLatitude":"10.5","MaxWindSpeed":"15","MaxGustSpeed":"23","Pressure":"1004","MovingSpeed":"8","MovingDirection":"SE","Circle15ms":null,"Circle25ms":null,"Radius70PercentProbability":"100"},{"InitialTime":"2026-10-23T08:00:00+08:00","ForecastHour":"18","CoordinateLongitude":"166.9","CoordinateLatitude":"10.5","MaxWindSpeed":"15","MaxGustSpeed":"23","Pressure":"1004","MovingSpeed":"5","MovingDirection":"E","Circle15ms":null,"Circle25ms":null,"Radius70PercentProbability":"120"},{"InitialTime":"2026-10-23T08:00:00+08:00","ForecastHour":"24","CoordinateLongitude":"166.9","CoordinateLatitude":"10.6","MaxWindSpeed":"18","MaxGustSpeed":"25","Pressure":"1002","MovingSpeed":"2","MovingDirection":"N","Circle15ms":{"Radius":"80"},"Circle25ms":null,"Radius70PercentProbability":"140","StateTransfer":[{"@lang":"zh-hant","#text":"有發展為輕度颱風的趨勢"},{"@lang":"en-us","#text":"BECOMING TROPICAL STORM"}]},{"InitialTime":"2026-10-23T08:00:00+08:00","ForecastHour":"36","CoordinateLongitude":"167.0","CoordinateLatitude":"11.1","MaxWindSpeed":"20","MaxGustSpeed":"28","Pressure":"998","MovingSpeed":"5","MovingDirection":"N","Circle15ms":{"Radius":"100"},"Circle25ms":null,"Radius70PercentProbability":"150"},{"InitialTime":"2026-10-23T08:00:00+08:00","ForecastHour":"48","CoordinateLongitude":"167.0","CoordinateLatitude":"12.3","MaxWindSpeed":"25","MaxGustSpeed":"33","Pressure":"992","MovingSpeed":"11","MovingDirection":"N","Circle15ms":{"Radius":"120"},"Circle25ms":null,"Radius70PercentProbability":"180"},{"InitialTime":"2026-10-23T08:00:00+08:00","ForecastHour":"72","CoordinateLongitude":"166.8","CoordinateLatitude":"15.0","MaxWindSpeed":"38","MaxGustSpeed":"48","Pressure":"975","MovingSpeed":"12","MovingDirection":"N","Circle15ms":{"Radius":"150"},"Circle25ms":{"Radius":"50"},"Radius70PercentProbability":"330"},{"InitialTime":"2026-10-23T08:00:00+08:00","ForecastHour":"96","CoordinateLongitude":"168.5","CoordinateLatitude":"15.7","MaxWindSpeed":"43","MaxGustSpeed":"55","Pressure":"970","MovingSpeed":"8","MovingDirection":"ENE","Circle15ms":{"Radius":"180"},"Circle25ms":{"Radius":"60"},"Radius70PercentProbability":"350"},{"InitialTime":"2026-10-23T08:00:00+08:00","ForecastHour":"120","CoordinateLongitude":"168.8","CoordinateLatitude":"15.8","MaxWindSpeed":"45","MaxGustSpeed":"55","Pressure":"965","MovingSpeed":"1","MovingDirection":"ENE","Circle15ms":{"Radius":"200"},"Circle25ms":{"Radius":"70"},"Radius70PercentProbability":"540"}]}}]}}}};
+
+const $ = id => document.getElementById(id);
+const LS_KEY = "cwa_tc_vis_apikey";
+const DEFAULT_KEY = "rdec-key-123-45678-011121314";
+let apiKey = localStorage.getItem(LS_KEY) || DEFAULT_KEY;
+
+/* ─────────── 提示訊息 ─────────── */
+let toastTimer = null;
+function showToast(msg, isWarn=false){
+  const el = $("toast");
+  el.style.borderColor = isWarn ? "#ffa726" : "#8ab4f8";
+  el.innerHTML = msg;
+  el.style.display = "inline-flex";
+  if(toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>{ el.style.display = "none"; }, 3600);
+}
+
+/* ─────────── 地圖初始化 ─────────── */
+const BASEMAPS = {
+  dark:  {u:"https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=cb1_325q_1_8b5e6f905ab09a4799809661", a:"© OpenStreetMap © CARTO"},
+  osm:   {u:(location.protocol==="file:"?"https://wsrv.nl/?url=https://tile.openstreetmap.org/{z}/{x}/{y}.png":"https://tile.openstreetmap.org/{z}/{x}/{y}.png"), a:"© OpenStreetMap contributors"},
+  sat:   {u:"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", a:"© Esri World Imagery"},
+  topo:  {u:"https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", a:"© OpenStreetMap, OpenTopoMap"},
+  light: {u:"https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_325q_1_8b5e6f905ab09a4799809661", a:"© OpenStreetMap © CARTO"}
+};
+
+const map = L.map("map", {
+  center: [21.5, 135.0],
+  zoom: 5,
+  minZoom: 3,
+  maxZoom: 14,
+  zoomControl: false
+});
+L.control.zoom({position:"topright"}).addTo(map);
+L.control.scale({imperial:false, position:"bottomright"}).addTo(map);
+
+let baseTile = null;
+let curBasemapKey = "osm";
+function isDarkBasemap(){
+  return curBasemapKey === "dark" || curBasemapKey === "sat";
+}
+function setBasemap(k){
+  curBasemapKey = k || "osm";
+  const b = BASEMAPS[curBasemapKey] || BASEMAPS.osm;
+  if(baseTile) map.removeLayer(baseTile);
+  baseTile = L.tileLayer(b.u, {attribution:b.a, maxZoom:18}).addTo(map);
+}
+setBasemap("osm");
+$("baseMapSel").onchange = e => {
+  setBasemap(e.target.value);
+  renderStaticTrack();
+  renderActiveFrame();
+};
+
+/* 圖層群組（依繪製層級由底至頂排列） */
+const layOtherStorms = L.layerGroup().addTo(map);
+const laySwath       = L.layerGroup().addTo(map);
+const layProbCone    = L.layerGroup().addTo(map);
+const layTracks      = L.layerGroup().addTo(map);
+const layQuadWind    = L.layerGroup().addTo(map);
+const layPoints      = L.layerGroup().addTo(map);
+const layActiveHead  = L.layerGroup().addTo(map);
+
+/* ─────────── 地球球面幾何計算與四象限扇形生成 ─────────── */
+const DEG2RAD = Math.PI / 180;
+const RAD2DEG = 180 / Math.PI;
+const EARTH_R = 6371.0; // km
+
+/**
+ * 根據中心經緯度 (lat, lon)、方位角 brgDeg (0=北, 90=東, 180=南, 270=西) 與距離 distKm (km)
+ * 計算球面目標點經緯度 [lat, lon]
+ */
+function destPoint(lat, lon, brgDeg, distKm){
+  if(!distKm || distKm <= 0) return [lat, lon];
+  const angDist = distKm / EARTH_R;
+  const brg = brgDeg * DEG2RAD;
+  const lat1 = lat * DEG2RAD;
+  const lon1 = lon * DEG2RAD;
+
+  const sinLat1 = Math.sin(lat1), cosLat1 = Math.cos(lat1);
+  const sinAng = Math.sin(angDist), cosAng = Math.cos(angDist);
+
+  const sinLat2 = sinLat1 * cosAng + cosLat1 * sinAng * Math.cos(brg);
+  const lat2 = Math.asin(Math.max(-1, Math.min(1, sinLat2)));
+  const y = Math.sin(brg) * sinAng * cosLat1;
+  const x = cosAng - sinLat1 * sinLat2;
+  const lon2 = lon1 + Math.atan2(y, x);
+
+  return [lat2 * RAD2DEG, lon2 * RAD2DEG];
+}
+
+/**
+ * 產生單一象限的扇形多邊形座標陣列 (由中心出發 -> 沿起迄方位角圓弧 -> 回到中心)
+ */
+function makeQuadrantSector(lat, lon, startDeg, endDeg, radiusKm, stepDeg=3){
+  if(!radiusKm || radiusKm <= 0) return null;
+  const pts = [[lat, lon]];
+  for(let a = startDeg; a <= endDeg; a += stepDeg){
+    pts.push(destPoint(lat, lon, a, radiusKm));
+  }
+  return pts;
+}
+
+/**
+ * 產生四象限完整外圍閉合多邊形（用於外框線與面積填色，呈現真實氣象局階梯狀四象限暴風圈）
+ */
+function makeFullQuadrantPolygon(lat, lon, qObj, stepDeg=3){
+  if(!qObj) return null;
+  const ne = qObj.NE ?? qObj.avg ?? 0;
+  const se = qObj.SE ?? qObj.avg ?? 0;
+  const sw = qObj.SW ?? qObj.avg ?? 0;
+  const nw = qObj.NW ?? qObj.avg ?? 0;
+  if(ne<=0 && se<=0 && sw<=0 && nw<=0) return null;
+
+  const pts = [];
+  const quads = [
+    {s:0,   e:90,  r:ne},
+    {s:90,  e:180, r:se},
+    {s:180, e:270, r:sw},
+    {s:270, e:360, r:nw}
+  ];
+  quads.forEach(q => {
+    if(q.r > 0){
+      for(let a = q.s; a <= q.e; a += stepDeg){
+        pts.push(destPoint(lat, lon, a, q.r));
+      }
+    } else {
+      pts.push([lat, lon]);
+    }
+  });
+  return pts;
+}
+
+function tyBearing(lat1, lon1, lat2, lon2){
+  const phi1 = lat1 * DEG2RAD, phi2 = lat2 * DEG2RAD;
+  const dlam = (lon2 - lon1) * DEG2RAD;
+  const y = Math.sin(dlam) * Math.cos(phi2);
+  const x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(dlam);
+  return (Math.atan2(y, x) * RAD2DEG + 360) % 360;
+}
+
+function slerpLL(ll1, ll2, f){
+  if(f <= 0) return [ll1[0], ll1[1]];
+  if(f >= 1) return [ll2[0], ll2[1]];
+  const p1 = ll1[0] * DEG2RAD, l1 = ll1[1] * DEG2RAD;
+  const p2 = ll2[0] * DEG2RAD, l2 = ll2[1] * DEG2RAD;
+  const v1 = [Math.cos(p1) * Math.cos(l1), Math.cos(p1) * Math.sin(l1), Math.sin(p1)];
+  const v2 = [Math.cos(p2) * Math.cos(l2), Math.cos(p2) * Math.sin(l2), Math.sin(p2)];
+  let dot = v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2];
+  dot = Math.max(-1, Math.min(1, dot));
+  const theta = Math.acos(dot);
+  if(Math.abs(theta) < 1e-7) return [ll1[0], ll1[1]];
+  const s = Math.sin(theta);
+  const a = Math.sin((1 - f) * theta) / s;
+  const b = Math.sin(f * theta) / s;
+  const vx = a * v1[0] + b * v2[0];
+  const vy = a * v1[1] + b * v2[1];
+  const vz = a * v1[2] + b * v2[2];
+  const hyp = Math.sqrt(vx * vx + vy * vy);
+  const lat = Math.atan2(vz, hyp) * RAD2DEG;
+  let lng = Math.atan2(vy, vx) * RAD2DEG;
+  return [lat, lng];
+}
+
+function interpQuad(q0, q1, f){
+  if(!q0 && !q1) return null;
+  if(!q0) return { ...q1 };
+  if(!q1) return { ...q0 };
+  const res = { hasQuad: Boolean(q0.hasQuad || q1.hasQuad) };
+  const keys = ["NE", "SE", "SW", "NW", "avg"];
+  keys.forEach(k => {
+    const v0 = q0[k], v1 = q1[k];
+    if(v0 != null && v1 != null) res[k] = Math.round(v0 + f * (v1 - v0));
+    else res[k] = v0 ?? v1 ?? 0;
+  });
+  return res;
+}
+
+function buildHourlyForecast(lastObs, forecastFixes){
+  if(!forecastFixes || !forecastFixes.length) return [];
+  const keyframes = [];
+  if(lastObs){
+    keyframes.push({
+      type: "fcst",
+      tau: 0,
+      initTime: lastObs.time,
+      time: lastObs.time,
+      timestamp: lastObs.timestamp,
+      lat: lastObs.lat,
+      lon: lastObs.lon,
+      ws: lastObs.ws,
+      gs: lastObs.gs,
+      pr: lastObs.pr,
+      mvSpd: lastObs.mvSpd,
+      mvDir: lastObs.mvDir,
+      mvPred: lastObs.mvPred,
+      c15: lastObs.c15,
+      c25: lastObs.c25,
+      r70: 0,
+      stateTransfer: lastObs.stateTransfer,
+      isKey: true,
+      isInterp: false
+    });
+  }
+  forecastFixes.forEach(f => {
+    keyframes.push({ ...f, isKey: true, isInterp: false });
+  });
+
+  keyframes.sort((a,b) => a.tau - b.tau);
+  if(keyframes.length <= 1) return forecastFixes;
+
+  const maxTau = keyframes[keyframes.length - 1].tau;
+  const hourly = [];
+
+  for(let h = 1; h <= maxTau; h++){
+    const exact = keyframes.find(k => k.tau === h);
+    if(exact && exact.tau > 0){
+      hourly.push({ ...exact });
+      continue;
+    }
+    let idx = 0;
+    while(idx < keyframes.length - 1 && keyframes[idx + 1].tau < h) idx++;
+    const k0 = keyframes[idx], k1 = keyframes[idx + 1];
+    if(!k1){
+      hourly.push({ ...k0, tau: h, isInterp: true, isKey: false });
+      continue;
+    }
+    const span = k1.tau - k0.tau;
+    const f = span > 0 ? (h - k0.tau) / span : 0;
+    const [lat, lon] = slerpLL([k0.lat, k0.lon], [k1.lat, k1.lon], f);
+    const ws = (k0.ws != null && k1.ws != null) ? +(k0.ws + f * (k1.ws - k0.ws)).toFixed(1) : (k0.ws ?? k1.ws);
+    const gs = (k0.gs != null && k1.gs != null) ? +(k0.gs + f * (k1.gs - k0.gs)).toFixed(1) : (k0.gs ?? k1.gs);
+    const pr = (k0.pr != null && k1.pr != null) ? Math.round(k0.pr + f * (k1.pr - k0.pr)) : (k0.pr ?? k1.pr);
+    const mvSpd = (k0.mvSpd != null && k1.mvSpd != null) ? +(k0.mvSpd + f * (k1.mvSpd - k0.mvSpd)).toFixed(1) : (k0.mvSpd ?? k1.mvSpd);
+    const r70 = Math.round((k0.r70 || 0) + f * ((k1.r70 || 0) - (k0.r70 || 0)));
+    const c15 = interpQuad(k0.c15, k1.c15, f);
+    const c25 = interpQuad(k0.c25, k1.c25, f);
+    const timeTs = (k0.timestamp && k1.timestamp) ? (k0.timestamp + f * (k1.timestamp - k0.timestamp)) : ((k0.timestamp || Date.now()) + h * 3600e3);
+    let validIso = "";
+    try { validIso = new Date(timeTs).toISOString(); } catch(e) { validIso = new Date().toISOString(); }
+
+    hourly.push({
+      type: "fcst",
+      tau: h,
+      initTime: k0.initTime || k1.initTime,
+      time: validIso,
+      timestamp: timeTs,
+      lat,
+      lon,
+      ws, gs, pr, mvSpd,
+      mvDir: k0.mvDir || k1.mvDir || "",
+      mvPred: k1.mvPred || k0.mvPred || "",
+      c15, c25,
+      r70,
+      stateTransfer: k1.stateTransfer || k0.stateTransfer || "",
+      isInterp: true,
+      isKey: false
+    });
+  }
+  return hourly;
+}
+
+function buildConeEnvelope(S){
+  if(!S) return null;
+  const lastObs = S.analysisFixes[S.analysisFixes.length - 1];
+  const fc = S.hourlyForecastFixes || S.forecastFixes || [];
+  if(!fc.length) return null;
+
+  const valid = [];
+  if(lastObs){
+    valid.push({ lat: lastObs.lat, lon: lastObs.lon, r70: 0 });
+  }
+  fc.forEach(f => {
+    valid.push({ lat: f.lat, lon: f.lon, r70: f.r70 || 0 });
+  });
+
+  if(valid.length < 2) return null;
+  const maxR = Math.max(...valid.map(p => p.r70 || 0));
+  if(maxR <= 0) return null;
+
+  const N = valid.length;
+  const leftSide = [], rightSide = [];
+  for(let i = 0; i < N; i++){
+    const cur = valid[i];
+    const r = cur.r70 || 0;
+    let brg;
+    if(i === 0) brg = tyBearing(valid[0].lat, valid[0].lon, valid[1].lat, valid[1].lon);
+    else if(i === N - 1) brg = tyBearing(valid[N - 2].lat, valid[N - 2].lon, valid[N - 1].lat, valid[N - 1].lon);
+    else brg = tyBearing(valid[i - 1].lat, valid[i - 1].lon, valid[i + 1].lat, valid[i + 1].lon);
+    const pLeft = r > 0 ? destPoint(cur.lat, cur.lon, brg - 90, r) : [cur.lat, cur.lon];
+    const pRight = r > 0 ? destPoint(cur.lat, cur.lon, brg + 90, r) : [cur.lat, cur.lon];
+    leftSide.push(pLeft);
+    rightSide.push(pRight);
+  }
+
+  const endPoint = valid[N - 1];
+  const endR = endPoint.r70 || 0;
+  const endBrg = tyBearing(valid[N - 2].lat, valid[N - 2].lon, endPoint.lat, endPoint.lon);
+  const endArc = [];
+  if(endR > 0){
+    for(let a = -85; a <= 85; a += 5){
+      endArc.push(destPoint(endPoint.lat, endPoint.lon, endBrg + a, endR));
+    }
+  }
+
+  return leftSide.concat(endArc, rightSide.slice().reverse());
+}
+
+/* ─────────── CWA 強度分類與颱風圖示（針對淺色街道圖強化飽和度與明度對比） ─────────── */
+function tyCat(ws){
+  if(ws == null || isNaN(ws)) return {name:"溫帶氣旋 / 未知", short:"LOW", color:"#475569", lv:0};
+  if(ws < 17.2)  return {name:"熱帶性低氣壓", short:"TD",  color:"#0284c7", lv:1};
+  if(ws < 32.7)  return {name:"輕度颱風",     short:"TS",  color:"#16a34a", lv:2};
+  if(ws < 51.0)  return {name:"中度颱風",     short:"TY",  color:"#ea580c", lv:3};
+  return                {name:"強烈颱風",     short:"STY", color:"#dc2626", lv:4};
+}
+
+function tyIconSVG(col, size=34){
+  const color = col || '#d33';
+  const delay = -((performance.now() / 1000) % 5.5).toFixed(3);
+  return `<span class="tyicon-color-span" style="color:${color};display:inline-block;line-height:0">
+  <svg viewBox="0 0 100 100" width="${size}" height="${size}" role="img" aria-label="颱風" style="animation-delay:${delay}s">
+    <g fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round">
+      <path d="M88 12C72 10 62 20 50 20C33.4 20 20 33.4 20 50C20 60 24 68 30 72C24 78 18 84 12 88C28 90 38 80 50 80C66.6 80 80 66.6 80 50C80 40 76 32 70 28C76 22 82 16 88 12Z"/>
+      <circle cx="50" cy="50" r="11"/>
+    </g>
+  </svg>
+</span>`;
+}
+
+function fmtDateTime(isoStr, withTag=true){
+  if(!isoStr) return "—";
+  const d = new Date(isoStr);
+  if(isNaN(d)) return String(isoStr);
+  const Y = d.getFullYear();
+  const M = String(d.getMonth()+1).padStart(2,"0");
+  const D = String(d.getDate()).padStart(2,"0");
+  const h = String(d.getHours()).padStart(2,"0");
+  const m = String(d.getMinutes()).padStart(2,"0");
+  return `${Y}/${M}/${D} ${h}:${m}${withTag ? " (Local Time)" : ""}`;
+}
+
+function fmtShortTime(isoStr){
+  if(!isoStr) return "";
+  const d = new Date(isoStr);
+  if(isNaN(d)) return "";
+  const M = String(d.getMonth()+1).padStart(2,"0");
+  const D = String(d.getDate()).padStart(2,"0");
+  const h = String(d.getHours()).padStart(2,"0");
+  return `${M}/${D} ${h}時`;
+}
+
+/* ─────────── 解析 W-C0034-005 JSON（同時支援 fileapi 與 datastore 格式） ─────────── */
+const keyMatch = (obj, regex) => {
+  if(!obj || typeof obj !== "object") return undefined;
+  for(const k of Object.keys(obj)){
+    if(regex.test(k)) return obj[k];
+  }
+  return undefined;
+};
+const toNum = v => {
+  const n = parseFloat(v);
+  return isFinite(n) ? n : null;
+};
+
+function parseCircleRadii(circleObj){
+  if(!circleObj || typeof circleObj !== "object") return null;
+  const avg = toNum(keyMatch(circleObj, /^radius$/i));
+  const qWrap = keyMatch(circleObj, /quadrant_?radii/i);
+  let rArr = qWrap ? keyMatch(qWrap, /^radius$/i) : null;
+  if(rArr && !Array.isArray(rArr)) rArr = [rArr];
+
+  const q = {avg: avg, NE: avg, SE: avg, SW: avg, NW: avg, hasQuad: false};
+  if(Array.isArray(rArr) && rArr.length){
+    rArr.forEach(item => {
+      if(!item || typeof item !== "object") return;
+      const dir = String(item["@dir"] || item.dir || item.direction || "").toUpperCase().trim();
+      const val = toNum(item["#text"] ?? item.value ?? item.radius ?? item.text);
+      if(dir && val != null && (dir==="NE" || dir==="SE" || dir==="SW" || dir==="NW")){
+        q[dir] = val;
+        q.hasQuad = true;
+      }
+    });
+  }
+  if(q.avg == null && q.hasQuad){
+    const vals = [q.NE, q.SE, q.SW, q.NW].filter(v => v != null);
+    if(vals.length) q.avg = Math.round(vals.reduce((a,b)=>a+b,0)/vals.length);
+  }
+  if(q.avg == null && !q.hasQuad) return null;
+  return q;
+}
+
+function parseCoords(fix){
+  const c = keyMatch(fix, /^coordinates?$/i);
+  if(typeof c === "string"){
+    const p = c.split(",").map(parseFloat);
+    if(p.length >= 2 && isFinite(p[0]) && isFinite(p[1])){
+      return p[0] > 60 ? [p[1], p[0]] : [p[0], p[1]];
+    }
+  }
+  const lat = toNum(keyMatch(fix, /latitude/i));
+  const lon = toNum(keyMatch(fix, /longitude/i));
+  return (lat != null && lon != null) ? [lat, lon] : null;
+}
+
+function extractLangText(arrOrObj){
+  if(!arrOrObj) return "";
+  if(typeof arrOrObj === "string") return arrOrObj;
+  const arr = Array.isArray(arrOrObj) ? arrOrObj : [arrOrObj];
+  const zh = arr.find(x => x && /zh/i.test(x["@lang"] || x.lang || ""));
+  if(zh) return zh["#text"] || zh.text || zh.value || "";
+  const first = arr[0];
+  return (first && (first["#text"] || first.text || first.value)) || "";
+}
+
+function parseW0034005(json){
+  // 1. 取得發報時間
+  const cwaRoot = json?.cwaopendata || json;
+  const sentTime = cwaRoot?.Sent || cwaRoot?.sent || json?.records?.issueTime || "";
+
+  // 2. 取得 TropicalCyclone 陣列（相容 fileapi 與 datastore）
+  let tcList = cwaRoot?.Dataset?.TropicalCyclones?.TropicalCyclone
+            || json?.records?.tropicalCyclones?.tropicalCyclone
+            || keyMatch(keyMatch(cwaRoot?.Dataset || json?.records || {}, /tropical_?cyclones/i) || {}, /tropical_?cyclone$/i)
+            || [];
+  if(tcList && !Array.isArray(tcList)) tcList = [tcList];
+
+  const storms = [];
+  tcList.forEach((tc, idx) => {
+    const year = keyMatch(tc, /^year$/i) || "";
+    const tyName = keyMatch(tc, /^typhoon_?name$/i) || "";
+    const cwaName = keyMatch(tc, /cwa_?typhoon_?name/i) || "";
+    const tdNo = keyMatch(tc, /cwa_?td_?no/i) || "";
+    const tyNo = keyMatch(tc, /cwa_?ty_?no/i) || "";
+
+    const normFix = section => {
+      if(!section) return [];
+      let f = keyMatch(section, /^fix(es)?$/i) || [];
+      if(f && !Array.isArray(f)) f = [f];
+      return f;
+    };
+
+    // 解析過去與實況定位 (AnalysisData.Fix)
+    const rawAnalysis = normFix(keyMatch(tc, /analysis_?data/i));
+    const analysisFixes = rawAnalysis.map(f => {
+      const ll = parseCoords(f);
+      if(!ll) return null;
+      const dt = keyMatch(f, /^date_?time$|fix_?time/i);
+      const ws = toNum(keyMatch(f, /max_?wind_?speed/i));
+      const gs = toNum(keyMatch(f, /max_?gust_?speed/i));
+      const pr = toNum(keyMatch(f, /^pressure$/i));
+      const mvSpd = toNum(keyMatch(f, /moving_?speed/i));
+      const mvDir = keyMatch(f, /moving_?direction/i) || "";
+      const mvPred = extractLangText(keyMatch(f, /moving_?prediction/i));
+      const c15 = parseCircleRadii(keyMatch(f, /circle_?15_?ms|of_?15/i));
+      const c25 = parseCircleRadii(keyMatch(f, /circle_?25_?ms|of_?25/i));
+      return {
+        type: "obs",
+        tau: 0,
+        time: dt,
+        timestamp: dt ? new Date(dt).getTime() : 0,
+        lat: ll[0],
+        lon: ll[1],
+        ws, gs, pr, mvSpd, mvDir, mvPred,
+        c15, c25,
+        r70: null,
+        stateTransfer: ""
+      };
+    }).filter(Boolean);
+
+    analysisFixes.sort((a,b) => a.timestamp - b.timestamp);
+    if(analysisFixes.length){
+      analysisFixes[analysisFixes.length - 1].type = "now";
+    }
+
+    // 解析預報定位 (ForecastData.Fix)
+    const rawForecast = normFix(keyMatch(tc, /forecast_?data/i));
+    const lastObs = analysisFixes[analysisFixes.length - 1];
+    const forecastFixes = rawForecast.map(f => {
+      const ll = parseCoords(f);
+      if(!ll) return null;
+      const initTime = keyMatch(f, /initial_?time|init_?time/i) || (lastObs ? lastObs.time : "");
+      const tau = toNum(keyMatch(f, /forecast_?hour|^tau$/i)) || 0;
+      const initTs = initTime ? new Date(initTime).getTime() : (lastObs ? lastObs.timestamp : Date.now());
+      const validTs = initTs + tau * 3600 * 1000;
+      const validIso = new Date(validTs).toISOString();
+
+      const ws = toNum(keyMatch(f, /max_?wind_?speed/i));
+      const gs = toNum(keyMatch(f, /max_?gust_?speed/i));
+      const pr = toNum(keyMatch(f, /^pressure$/i));
+      const mvSpd = toNum(keyMatch(f, /moving_?speed/i));
+      const mvDir = keyMatch(f, /moving_?direction/i) || "";
+      const c15 = parseCircleRadii(keyMatch(f, /circle_?15_?ms|of_?15/i));
+      const c25 = parseCircleRadii(keyMatch(f, /circle_?25_?ms|of_?25/i));
+      const r70 = toNum(keyMatch(f, /radius_?70_?percent|probability/i));
+      const stTrans = extractLangText(keyMatch(f, /state_?transfer/i));
+
+      return {
+        type: "fcst",
+        tau,
+        initTime,
+        time: validIso,
+        timestamp: validTs,
+        lat: ll[0],
+        lon: ll[1],
+        ws, gs, pr, mvSpd, mvDir,
+        mvPred: stTrans,
+        c15, c25,
+        r70,
+        stateTransfer: stTrans
+      };
+    }).filter(Boolean);
+
+    forecastFixes.sort((a,b) => a.tau - b.tau);
+
+    const hourlyForecastFixes = buildHourlyForecast(lastObs, forecastFixes);
+    const useHourly = ($("ckHourlyFcst") ? $("ckHourlyFcst").checked : true);
+    const activeFcst = useHourly ? hourlyForecastFixes : forecastFixes;
+    const timeline = [...analysisFixes, ...activeFcst];
+    if(!timeline.length) return;
+
+    const nowIdx = analysisFixes.length ? analysisFixes.length - 1 : 0;
+    const titleZh = cwaName ? `${cwaName}颱風` : (tdNo ? `熱帶性低氣壓 TD${tdNo}` : `熱帶氣旋 #${idx+1}`);
+    const titleEn = tyName || (tyNo ? `TY#${tyNo}` : `TD#${tdNo}`);
+
+    storms.push({
+      id: `tc_${idx}_${tyNo || tdNo || tyName}`,
+      year, tyName, cwaName, tdNo, tyNo,
+      titleZh, titleEn,
+      analysisFixes,
+      forecastFixes,
+      hourlyForecastFixes,
+      timeline,
+      nowIdx
+    });
+  });
+
+  return {sentTime, storms};
+}
+
+function updateTimelineMode(){
+  const useHourly = ($("ckHourlyFcst") ? $("ckHourlyFcst").checked : true);
+  appData.storms.forEach(st => {
+    const activeFcst = useHourly ? (st.hourlyForecastFixes || st.forecastFixes) : st.forecastFixes;
+    st.timeline = [...st.analysisFixes, ...activeFcst];
+  });
+  const S = currentStorm();
+  if(S){
+    selectStorm(curStormIdx, false);
+  }
+}
+
+/* ─────────── 全域狀態 ─────────── */
+let appData = {sentTime:"", storms:[]};
+let curStormIdx = 0;
+let curFrameIdx = 0;
+let animTimer = null;
+let isPlaying = false;
+let intensityChart = null;
+
+function currentStorm(){
+  return appData.storms[curStormIdx] || null;
+}
+
+/* ─────────── 繪製左側四分區風速雷達盤 (Canvas Polar Compass) ─────────── */
+function drawQuadrantRadar(fix){
+  const canvas = $("quadRadarCanvas");
+  if(!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const W = canvas.width, H = canvas.height;
+  const cx = W / 2, cy = H / 2;
+  const maxR = (Math.min(W, H) / 2) - 36;
+
+  ctx.clearRect(0, 0, W, H);
+
+  const c15 = fix?.c15 || null;
+  const c25 = fix?.c25 || null;
+
+  // 決定雷達盤最大刻度 km
+  const allVals = [
+    c15?.NE, c15?.SE, c15?.SW, c15?.NW, c15?.avg,
+    c25?.NE, c25?.SE, c25?.SW, c25?.NW, c25?.avg,
+    200
+  ].filter(v => v != null && v > 0);
+  const rawMax = Math.max(...allVals);
+  const scaleMaxKm = Math.ceil(rawMax / 100) * 100; // 例如 350 -> 400km
+
+  // 1. 畫同心圓距離網格
+  const rings = 4;
+  ctx.lineWidth = 1;
+  for(let i = 1; i <= rings; i++){
+    const r = (maxR / rings) * i;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = i === rings ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.09)";
+    ctx.stroke();
+
+    const kmVal = Math.round((scaleMaxKm / rings) * i);
+    ctx.fillStyle = "rgba(154,160,166,0.75)";
+    ctx.font = "600 18px Roboto, sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText(`${kmVal}km`, cx + 5, cy - r + 18);
+  }
+
+  // 2. 畫十字象限分割軸 (N-S, E-W)
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - maxR - 8); ctx.lineTo(cx, cy + maxR + 8);
+  ctx.moveTo(cx - maxR - 8, cy); ctx.lineTo(cx + maxR + 8, cy);
+  ctx.strokeStyle = "rgba(255,255,255,0.22)";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // 3. 繪製四象限扇形 helper (Canvas 0度在正右方E，故地理方位角 deg 轉 Canvas 弧度為 (deg - 90) * DEG2RAD)
+  const drawQuadSectors = (qObj, fillCol, strokeCol) => {
+    if(!qObj) return;
+    const quads = [
+      {dir:"NE", s:-90, e:0,   val: qObj.NE ?? qObj.avg ?? 0, midAngle:-45},
+      {dir:"SE", s:0,   e:90,  val: qObj.SE ?? qObj.avg ?? 0, midAngle:45},
+      {dir:"SW", s:90,  e:180, val: qObj.SW ?? qObj.avg ?? 0, midAngle:135},
+      {dir:"NW", s:180, e:270, val: qObj.NW ?? qObj.avg ?? 0, midAngle:225}
+    ];
+    quads.forEach(q => {
+      if(!q.val || q.val <= 0) return;
+      const rPx = Math.min(maxR, (q.val / scaleMaxKm) * maxR);
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, rPx, q.s * DEG2RAD, q.e * DEG2RAD, false);
+      ctx.closePath();
+      ctx.fillStyle = fillCol;
+      ctx.fill();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = strokeCol;
+      ctx.stroke();
+    });
+  };
+
+  // 先畫 15m/s 七級風四象限，再疊加 25m/s 十級風四象限
+  drawQuadSectors(c15, "rgba(255, 143, 176, 0.28)", "#ff8fb0");
+  drawQuadSectors(c25, "rgba(232, 68, 122, 0.42)", "#ff477e");
+
+  // 4. 在四個象限標註象限名稱與半徑數值
+  const quadLabels = [
+    {dir:"NE 東北", angle:-45, r15:c15?.NE, r25:c25?.NE},
+    {dir:"SE 東南", angle:45,  r15:c15?.SE, r25:c25?.SE},
+    {dir:"SW 西南", angle:135, r15:c15?.SW, r25:c25?.SW},
+    {dir:"NW 西北", angle:225, r15:c15?.NW, r25:c25?.NW}
+  ];
+  ctx.textAlign = "center";
+  quadLabels.forEach(q => {
+    const rad = q.angle * DEG2RAD;
+    const lx = cx + Math.cos(rad) * (maxR * 0.66);
+    const ly = cy + Math.sin(rad) * (maxR * 0.66);
+    ctx.font = "700 20px 'Noto Sans TC', sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.fillText(q.dir, lx, ly - 6);
+
+    ctx.font = "700 19px Roboto, sans-serif";
+    ctx.fillStyle = "#ff8fb0";
+    const txt15 = q.r15 ? `${q.r15}km` : "—";
+    ctx.fillText(txt15, lx, ly + 18);
+  });
+
+  // 5. 方位標記 N / E / S / W
+  ctx.font = "800 22px Roboto, sans-serif";
+  ctx.fillStyle = "#8ab4f8";
+  ctx.textAlign = "center";
+  ctx.fillText("N 北", cx, 24);
+  ctx.fillText("S 南", cx, H - 10);
+  ctx.fillText("E", W - 16, cy + 7);
+  ctx.fillText("W", 16, cy + 7);
+
+  // 6. 中心颱風眼點
+  const cat = tyCat(fix?.ws);
+  ctx.beginPath();
+  ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+  ctx.fillStyle = cat.color;
+  ctx.fill();
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = "#0b1018";
+  ctx.stroke();
+
+  // 更新表格數值
+  $("qAvg15").textContent = c15?.avg ? `${c15.avg} km` : "無暴風圈";
+  $("qAvg25").textContent = c25?.avg ? `${c25.avg} km` : "無十級風圈";
+
+  const fmtCell = (obj, dir) => {
+    if(!obj || obj[dir] == null) return "—";
+    return `${obj[dir]} km`;
+  };
+  $("qNE15").textContent = fmtCell(c15, "NE");
+  $("qSE15").textContent = fmtCell(c15, "SE");
+  $("qSW15").textContent = fmtCell(c15, "SW");
+  $("qNW15").textContent = fmtCell(c15, "NW");
+
+  $("qNE25").textContent = fmtCell(c25, "NE");
+  $("qSE25").textContent = fmtCell(c25, "SE");
+  $("qSW25").textContent = fmtCell(c25, "SW");
+  $("qNW25").textContent = fmtCell(c25, "NW");
+
+  if(fix?.type === "fcst" && c15 && !c15.hasQuad){
+    $("quadNote").innerHTML = `<span style="color:#fdd663">預報時段 (+${fix.tau}h) 氣象署僅提供對稱暴風半徑，四象限均以 ${c15.avg} km 繪製。</span>`;
+  } else if(c15?.hasQuad){
+    $("quadNote").innerHTML = `實況定位具備<b>四分區不對稱強度範圍</b>（最大象限：${Math.max(c15.NE,c15.SE,c15.SW,c15.NW)} km）。`;
+  } else {
+    $("quadNote").innerHTML = `此時間點風速未達七級風（15 m/s）門檻，尚無暴風半徑。`;
+  }
+}
+
+/* ─────────── 建立定位點詳細 Popup HTML ─────────── */
+function buildFixPopup(storm, fix, idx){
+  const cat = tyCat(fix.ws);
+  const phaseLabel = fix.type === "fcst" ? (fix.isInterp ? `預報 (+${fix.tau}h 逐時內插)` : `預報 (+${fix.tau}h)`) : (fix.type === "now" ? "最新實況定位" : "過去觀測定位");
+  let h = `<div class="pop">
+    <h3>
+      <span>🌀 ${storm.titleZh} <small style="color:#9aa0a6;font-weight:500">${storm.titleEn}</small></span>
+      <span class="cat-pill" style="background:${cat.color}">${cat.short}</span>
+    </h3>
+    <div class="row"><span class="k">定位性質</span><span class="v" style="color:${fix.type==='fcst'?'#fdd663':'#81c995'}">${phaseLabel}</span></div>
+    <div class="row"><span class="k">時間 (Local Time)</span><span class="v">${fmtDateTime(fix.time, false)}</span></div>
+    <div class="row"><span class="k">中心座標</span><span class="v">${fix.lat.toFixed(1)}°N, ${fix.lon.toFixed(1)}°E</span></div>
+    <div class="row"><span class="k">強度分類</span><span class="v" style="color:${cat.color}">${cat.name}</span></div>
+    <div class="row"><span class="k">最大風速 / 陣風</span><span class="v">${fix.ws ?? '—'} / ${fix.gs ?? '—'} m/s</span></div>
+    <div class="row"><span class="k">中心氣壓</span><span class="v">${fix.pr ? fix.pr + ' hPa' : '—'}</span></div>`;
+
+  if(fix.mvDir || fix.mvSpd != null){
+    h += `<div class="row"><span class="k">移向 / 移速</span><span class="v">${fix.mvDir || '—'} / ${fix.mvSpd != null ? fix.mvSpd + ' km/h' : '—'}</span></div>`;
+  }
+  if(fix.r70){
+    h += `<div class="row"><span class="k">70% 機率圓半徑</span><span class="v" style="color:#fdd663">${fix.r70} km</span></div>`;
+  }
+
+  if(fix.c15){
+    h += `<div style="margin-top:6px;font-size:11px;color:#ff8fb0;font-weight:700">七級風暴風半徑 (15m/s)：平均 ${fix.c15.avg} km</div>
+      <div class="quad-grid">
+        <div><span>↗ 東北 NE</span><b>${fix.c15.NE} km</b></div>
+        <div><span>↘ 東南 SE</span><b>${fix.c15.SE} km</b></div>
+        <div><span>↙ 西南 SW</span><b>${fix.c15.SW} km</b></div>
+        <div><span>↖ 西北 NW</span><b>${fix.c15.NW} km</b></div>
+      </div>`;
+  }
+  if(fix.c25){
+    h += `<div style="margin-top:5px;font-size:11px;color:#ff5c8d;font-weight:700">十級風暴風半徑 (25m/s)：平均 ${fix.c25.avg} km</div>
+      <div class="quad-grid r25">
+        <div><span>↗ 東北 NE</span><b>${fix.c25.NE} km</b></div>
+        <div><span>↘ 東南 SE</span><b>${fix.c25.SE} km</b></div>
+        <div><span>↙ 西南 SW</span><b>${fix.c25.SW} km</b></div>
+        <div><span>↖ 西北 NW</span><b>${fix.c25.NW} km</b></div>
+      </div>`;
+  }
+  if(fix.mvPred){
+    h += `<div style="margin-top:6px;padding:5px 7px;background:rgba(138,180,248,0.1);border-radius:6px;font-size:11px;color:#d2e3fc">${fix.mvPred}</div>`;
+  }
+  h += `</div>`;
+  return h;
+}
+
+/* ─────────── 繪製靜態背景軌跡、歷史暴風圈包絡與預報潛勢區 ─────────── */
+function renderStaticTrack(){
+  layOtherStorms.clearLayers();
+  laySwath.clearLayers();
+  layProbCone.clearLayers();
+  layTracks.clearLayers();
+  layPoints.clearLayers();
+
+  const S = currentStorm();
+  if(!S) return;
+  const darkMap = isDarkBasemap();
+
+  // 1. 其他非選中熱帶氣旋（淡化背景顯示）
+  if($("ckOtherStorms").checked){
+    appData.storms.forEach((other, idx) => {
+      if(idx === curStormIdx) return;
+      const pts = other.timeline.map(f => [f.lat, f.lon]);
+      if(pts.length > 1){
+        L.polyline(pts, {color: darkMap ? "#94a3b8" : "#475569", weight:2.2, dashArray:"4 4", opacity:0.75}).addTo(layOtherStorms);
+      }
+      const cur = other.timeline[other.nowIdx];
+      if(cur){
+        const cat = tyCat(cur.ws);
+        L.circleMarker([cur.lat, cur.lon], {radius:6, fillColor:cat.color, color:"#fff", weight:1.8, fillOpacity:0.9})
+          .bindTooltip(`🌀 ${other.titleZh} (${other.titleEn}) - 點擊切換`, {className:"ty-tip", direction:"top"})
+          .on("click", () => selectStorm(idx, true))
+          .addTo(layOtherStorms);
+      }
+    });
+  }
+
+  // 2. 歷史暴風圈累計掃掠包絡帶（以各過去定位點之四分區多邊形半透明疊加）
+  if($("ckSwath").checked){
+    S.analysisFixes.forEach((f, i) => {
+      if(f.c15 && (i % 2 === 0 || i === S.analysisFixes.length - 1)){
+        const polyPts = makeFullQuadrantPolygon(f.lat, f.lon, f.c15, 6);
+        if(polyPts){
+          L.polygon(polyPts, {
+            color: "#e11d48",
+            weight: 0.7,
+            opacity: 0.25,
+            fillColor: "#f43f5e",
+            fillOpacity: 0.04,
+            interactive: false
+          }).addTo(laySwath);
+        }
+      }
+    });
+  }
+
+  // 3. 預報 70% 機率圓與潛勢範圍外包框 (Cone of Uncertainty)
+  if($("ckProb70").checked && S.forecastFixes.length){
+    const conePts = buildConeEnvelope(S);
+    if(conePts && conePts.length){
+      L.polygon(conePts, {
+        color: darkMap ? "#facc15" : "#d97706",
+        weight: 2.2,
+        dashArray: "6 4",
+        opacity: 0.95,
+        fillColor: "#f59e0b",
+        fillOpacity: darkMap ? 0.13 : 0.16,
+        interactive: false
+      }).addTo(layProbCone);
+    }
+
+    S.forecastFixes.forEach(f => {
+      if(f.r70 && f.r70 > 0){
+        L.circle([f.lat, f.lon], {
+          radius: f.r70 * 1000,
+          color: darkMap ? "#eab308" : "#d97706",
+          weight: 1.3,
+          dashArray: "4 5",
+          fillColor: "#f59e0b",
+          fillOpacity: 0.07,
+          interactive: false
+        }).addTo(layProbCone);
+      }
+    });
+  }
+
+  // 4. 過去觀測路徑線（雙層描邊：底層白邊襯底＋上層強度色線，確保在 OSM 街道圖清晰立體）
+  if($("ckPastTrack").checked && S.analysisFixes.length > 1){
+    const allObsPts = S.analysisFixes.map(f => [f.lat, f.lon]);
+    L.polyline(allObsPts, {
+      color: darkMap ? "rgba(15,23,42,0.75)" : "rgba(255,255,255,0.88)",
+      weight: 6.2,
+      opacity: 1,
+      interactive: false
+    }).addTo(layTracks);
+
+    for(let i = 0; i < S.analysisFixes.length - 1; i++){
+      const p1 = S.analysisFixes[i], p2 = S.analysisFixes[i+1];
+      const cat = tyCat(p2.ws);
+      L.polyline([[p1.lat, p1.lon], [p2.lat, p2.lon]], {
+        color: cat.color,
+        weight: 3.5,
+        opacity: 0.95
+      }).addTo(layTracks);
+    }
+  }
+
+  // 5. 未來預報路徑線（虛線＋襯底光暈，在淺色 OSM 底圖採用深藍黑虛線，深色底圖採用亮白虛線）
+  if($("ckFcstTrack").checked && S.forecastFixes.length){
+    const anchor = S.analysisFixes[S.analysisFixes.length - 1];
+    const fcList = S.hourlyForecastFixes || S.forecastFixes;
+    const fcPts = (anchor ? [[anchor.lat, anchor.lon]] : []).concat(fcList.map(f => [f.lat, f.lon]));
+    if(fcPts.length > 1){
+      L.polyline(fcPts, {
+        color: darkMap ? "rgba(15,23,42,0.7)" : "rgba(255,255,255,0.85)",
+        weight: 5.5,
+        opacity: 1,
+        interactive: false
+      }).addTo(layTracks);
+      L.polyline(fcPts, {
+        color: darkMap ? "#f8fafc" : "#1e293b",
+        weight: 2.8,
+        dashArray: "7 6",
+        opacity: 0.95
+      }).addTo(layTracks);
+    }
+  }
+
+  // 6. 所有定位節點 CircleMarker（點擊可跳轉至該時間幀並開啟 Popup）
+  S.timeline.forEach((f, idx) => {
+    if(f.type !== "fcst" && !$("ckPastTrack").checked) return;
+    if(f.type === "fcst" && !$("ckFcstTrack").checked) return;
+
+    const cat = tyCat(f.ws);
+    const isFcst = f.type === "fcst";
+    const isNow = f.type === "now";
+
+    // 逐時內插點以小圓點呈現，避免地圖密集擁擠
+    if(f.isInterp){
+      const m = L.circleMarker([f.lat, f.lon], {
+        radius: 2.6,
+        fillColor: cat.color,
+        color: "#ffffff",
+        weight: 1.2,
+        fillOpacity: 0.88
+      });
+      const tipTxt = `+${f.tau}h 預報（逐時內插）｜${fmtShortTime(f.time)}｜${f.ws ? f.ws+'m/s' : cat.short}`;
+      m.bindTooltip(tipTxt, {className:"ty-tip", direction:"top", offset:[0,-4]});
+      m.bindPopup(() => buildFixPopup(S, f, idx));
+      m.on("click", () => {
+        pauseAnim();
+        setFrame(idx, false);
+      });
+      m.addTo(layPoints);
+      return;
+    }
+
+    const m = L.circleMarker([f.lat, f.lon], {
+      radius: isNow ? 6.8 : (isFcst ? 5.5 : 4.5),
+      fillColor: isFcst ? "#ffffff" : cat.color,
+      color: isFcst ? cat.color : "#ffffff",
+      weight: isFcst ? 2.8 : 1.8,
+      fillOpacity: 0.98
+    });
+
+    const tipTxt = `${f.type==='fcst' ? '+'+f.tau+'h 預報' : '觀測'}｜${fmtShortTime(f.time)}｜${f.ws ? f.ws+'m/s' : cat.short}`;
+    m.bindTooltip(tipTxt, {className:"ty-tip", direction:"top", offset:[0,-6]});
+    m.bindPopup(() => buildFixPopup(S, f, idx));
+    m.on("click", () => {
+      pauseAnim();
+      setFrame(idx, false);
+    });
+    m.addTo(layPoints);
+
+    // 預報時距標籤 (+6h, +12h, +24h...)
+    if(isFcst && f.tau != null){
+      L.marker([f.lat, f.lon], {
+        interactive: false,
+        icon: L.divIcon({
+          className: "lbl-icon",
+          iconSize: [48, 18],
+          iconAnchor: [-8, 9],
+          html: `<span class="tau-tag">+${f.tau}h</span>`
+        })
+      }).addTo(layPoints);
+    }
+  });
+}
+
+/* ─────────── 繪製當前動畫幀：四分區暴風範圍扇形 ＋ 持續接續旋轉颱風符號 ＋ 已走過軌跡高亮 ─────────── */
+let activeTyMarker = null;
+
+function renderActiveFrame(){
+  layQuadWind.clearLayers();
+
+  const S = currentStorm();
+  if(!S || !S.timeline.length){
+    layActiveHead.clearLayers();
+    activeTyMarker = null;
+    return;
+  }
+  const fix = S.timeline[curFrameIdx] || S.timeline[0];
+  const lat = fix.lat, lon = fix.lon;
+  const darkMap = isDarkBasemap();
+
+  // 1. 高亮從起點到目前動畫幀的軌跡線
+  if(curFrameIdx > 0){
+    const passedPts = S.timeline.slice(0, curFrameIdx + 1).map(f => [f.lat, f.lon]);
+    L.polyline(passedPts, {
+      color: darkMap ? "#ffffff" : "#0f172a",
+      weight: 6,
+      opacity: darkMap ? 0.35 : 0.25,
+      interactive: false
+    }).addTo(layQuadWind);
+  }
+
+  const showQ15 = $("ckQuad15").checked;
+  const showQ25 = $("ckQuad25").checked;
+  const showCross = $("ckQuadCross").checked;
+  const showLabels = $("ckQuadLabels").checked;
+
+  // 2. 繪製七級風 (15m/s) 四分區扇形與外框（高對比洋紅配色）
+  if(showQ15 && fix.c15){
+    const q15 = fix.c15;
+    const quadDefs = [
+      {dir:"NE", zh:"東北", s:0,   e:90,  r:q15.NE, fillOpacity:0.18, mid:45},
+      {dir:"SE", zh:"東南", s:90,  e:180, r:q15.SE, fillOpacity:0.13, mid:135},
+      {dir:"SW", zh:"西南", s:180, e:270, r:q15.SW, fillOpacity:0.18, mid:225},
+      {dir:"NW", zh:"西北", s:270, e:360, r:q15.NW, fillOpacity:0.13, mid:315}
+    ];
+
+    quadDefs.forEach(qd => {
+      if(!qd.r || qd.r <= 0) return;
+      const sectorPts = makeQuadrantSector(lat, lon, qd.s, qd.e, qd.r, 3);
+      if(sectorPts){
+        L.polygon(sectorPts, {
+          color: "transparent",
+          weight: 0,
+          fillColor: "#e11d48",
+          fillOpacity: qd.fillOpacity,
+          interactive: false
+        }).addTo(layQuadWind);
+      }
+
+      // 在各象限圓弧外側顯示半徑標籤
+      if(showLabels){
+        const lblPt = destPoint(lat, lon, qd.mid, qd.r * 0.78);
+        L.marker(lblPt, {
+          interactive: false,
+          icon: L.divIcon({
+            className: "quad-lbl-icon",
+            iconSize: [0, 0],
+            html: `<span class="quad-map-tag">7級 ${qd.dir} ${qd.r}km</span>`
+          })
+        }).addTo(layQuadWind);
+      }
+    });
+
+    // 外圍連續階梯邊界線
+    const fullPoly15 = makeFullQuadrantPolygon(lat, lon, q15, 3);
+    if(fullPoly15){
+      L.polygon(fullPoly15, {
+        color: "#e11d48",
+        weight: 2.2,
+        opacity: 0.95,
+        dashArray: fix.type === "fcst" ? "6 4" : null,
+        fill: false,
+        interactive: false
+      }).addTo(layQuadWind);
+    }
+  }
+
+  // 3. 繪製十級風 (25m/s) 四分區扇形與外框（深紫紅警示配色）
+  if(showQ25 && fix.c25){
+    const q25 = fix.c25;
+    const quadDefs25 = [
+      {dir:"NE", s:0,   e:90,  r:q25.NE, mid:45},
+      {dir:"SE", s:90,  e:180, r:q25.SE, mid:135},
+      {dir:"SW", s:180, e:270, r:q25.SW, mid:225},
+      {dir:"NW", s:270, e:360, r:q25.NW, mid:315}
+    ];
+    quadDefs25.forEach(qd => {
+      if(!qd.r || qd.r <= 0) return;
+      const sectorPts = makeQuadrantSector(lat, lon, qd.s, qd.e, qd.r, 3);
+      if(sectorPts){
+        L.polygon(sectorPts, {
+          color: "transparent",
+          weight: 0,
+          fillColor: "#9f1239",
+          fillOpacity: 0.32,
+          interactive: false
+        }).addTo(layQuadWind);
+      }
+    });
+
+    const fullPoly25 = makeFullQuadrantPolygon(lat, lon, q25, 3);
+    if(fullPoly25){
+      L.polygon(fullPoly25, {
+        color: "#881337",
+        weight: 2.4,
+        opacity: 0.96,
+        dashArray: fix.type === "fcst" ? "5 4" : null,
+        fill: false,
+        interactive: false
+      }).addTo(layQuadWind);
+    }
+  }
+
+  // 4. 繪製四象限十字分割線 (N / E / S / W 軸線)
+  if(showCross && (fix.c15 || fix.c25)){
+    const c15 = fix.c15 || {};
+    const maxN = Math.max(c15.NW || 0, c15.NE || 0, c15.avg || 0);
+    const maxE = Math.max(c15.NE || 0, c15.SE || 0, c15.avg || 0);
+    const maxS = Math.max(c15.SE || 0, c15.SW || 0, c15.avg || 0);
+    const maxW = Math.max(c15.SW || 0, c15.NW || 0, c15.avg || 0);
+
+    const axes = [
+      {brg:0,   dist:maxN},
+      {brg:90,  dist:maxE},
+      {brg:180, dist:maxS},
+      {brg:270, dist:maxW}
+    ];
+    axes.forEach(ax => {
+      if(ax.dist > 0){
+        const endPt = destPoint(lat, lon, ax.brg, ax.dist);
+        L.polyline([[lat, lon], endPt], {
+          color: darkMap ? "rgba(255, 214, 228, 0.65)" : "rgba(159, 18, 57, 0.55)",
+          weight: 1.4,
+          dashArray: "4 4",
+          interactive: false
+        }).addTo(layQuadWind);
+      }
+    });
+  }
+
+  // 5. 若為預報點且有 70% 機率圓，高亮當前預報點的 70% 圓
+  if(fix.type === "fcst" && fix.r70){
+    L.circle([lat, lon], {
+      radius: fix.r70 * 1000,
+      color: darkMap ? "#fdd663" : "#b45309",
+      weight: 2.2,
+      dashArray: "5 4",
+      fillColor: "#f59e0b",
+      fillOpacity: 0.16,
+      interactive: false
+    }).addTo(layQuadWind);
+  }
+
+  // 6. 當前颱風中心旋轉圖示（複用既有 Marker 並原位更新座標與顏色，確保動畫旋轉完全連續不重置）
+  const cat = tyCat(fix.ws);
+  if(activeTyMarker && layActiveHead.hasLayer(activeTyMarker)){
+    activeTyMarker.setLatLng([lat, lon]);
+    const el = activeTyMarker.getElement();
+    if(el){
+      const span = el.querySelector(".tyicon-color-span");
+      if(span) span.style.color = cat.color;
+    }
+  } else {
+    layActiveHead.clearLayers();
+    activeTyMarker = L.marker([lat, lon], {
+      icon: L.divIcon({
+        className: "tyicon",
+        iconSize: [38, 38],
+        iconAnchor: [19, 19],
+        html: tyIconSVG(cat.color, 38)
+      }),
+      zIndexOffset: 1000
+    });
+    activeTyMarker.bindPopup(() => {
+      const st = currentStorm();
+      const fx = st?.timeline?.[curFrameIdx] || st?.timeline?.[0];
+      return st && fx ? buildFixPopup(st, fx, curFrameIdx) : "";
+    });
+    activeTyMarker.addTo(layActiveHead);
+  }
+}
+
+/* ─────────── 更新介面面板、KPI、播放器與時序圖游標 ─────────── */
+function setFrame(idx, panIfFollow=true){
+  const S = currentStorm();
+  if(!S || !S.timeline.length) return;
+  curFrameIdx = Math.max(0, Math.min(S.timeline.length - 1, idx));
+  const fix = S.timeline[curFrameIdx];
+  const cat = tyCat(fix.ws);
+
+  // 更新滑桿與播放器文字
+  $("timeSlider").value = curFrameIdx;
+  $("plTimeTxt").textContent = fmtDateTime(fix.time);
+
+  const phaseEl = $("plPhaseTag");
+  if(fix.type === "now"){
+    phaseEl.textContent = "最新實況定位";
+    phaseEl.className = "pl-phase-tag now";
+  } else if(fix.type === "fcst"){
+    phaseEl.textContent = fix.isInterp ? `未來預報 +${fix.tau}h (逐時內插)` : `未來預報 +${fix.tau}h`;
+    phaseEl.className = "pl-phase-tag fcst";
+  } else {
+    phaseEl.textContent = `過去觀測 (${curFrameIdx + 1}/${S.analysisFixes.length})`;
+    phaseEl.className = "pl-phase-tag obs";
+  }
+
+  $("plStatTxt").innerHTML = `<span style="color:${cat.color}">${cat.name}</span> · ${fix.ws != null ? fix.ws + ' m/s' : '—'} · ${fix.pr != null ? fix.pr + ' hPa' : '—'}`;
+
+  // 更新左側 KPI 卡
+  $("kpiWind").textContent = fix.ws ?? "—";
+  $("kpiWind").style.color = cat.color;
+  $("kpiGust").textContent = fix.gs ?? "—";
+  $("kpiPres").textContent = fix.pr ?? "—";
+  $("kpiCoord").textContent = `${fix.lat.toFixed(1)}°N, ${fix.lon.toFixed(1)}°E`;
+
+  const mvTxt = (fix.mvDir || fix.mvSpd != null)
+    ? `移向 <b>${fix.mvDir || '—'}</b> ／ 時速 <b>${fix.mvSpd ?? '—'} km/h</b>`
+    : `移向移速：滯留或無資料`;
+  $("kpiMove").innerHTML = mvTxt + (fix.mvPred ? `<br><span style="color:#fdd663">${fix.mvPred}</span>` : "");
+
+  // 更新四分區雷達盤與表格
+  drawQuadrantRadar(fix);
+
+  // 更新地圖動態暴風圈與中心位置
+  renderActiveFrame();
+
+  // 更新時序圖當前垂直指示線
+  updateChartCursor();
+
+  // 若開啟鏡頭跟隨，平滑移動地圖中心
+  if(panIfFollow && $("ckFollow").checked){
+    map.panTo([fix.lat, fix.lon], {animate:true, duration:0.35});
+  }
+}
+
+/* ─────────── 動畫播放控制 ─────────── */
+function startAnim(){
+  const S = currentStorm();
+  if(!S || S.timeline.length <= 1) return;
+  if(curFrameIdx >= S.timeline.length - 1){
+    curFrameIdx = 0;
+  }
+  isPlaying = true;
+  $("playIcon").textContent = "pause";
+  const intervalMs = parseInt($("speedSel").value, 10) || 500;
+  if(animTimer) clearInterval(animTimer);
+  animTimer = setInterval(() => {
+    const st = currentStorm();
+    if(!st) return pauseAnim();
+    if(curFrameIdx < st.timeline.length - 1){
+      setFrame(curFrameIdx + 1, true);
+    } else if($("ckLoop").checked){
+      setFrame(0, true);
+    } else {
+      pauseAnim();
+    }
+  }, intervalMs);
+}
+
+function pauseAnim(){
+  isPlaying = false;
+  $("playIcon").textContent = "play_arrow";
+  if(animTimer){
+    clearInterval(animTimer);
+    animTimer = null;
+  }
+}
+
+function toggleAnim(){
+  if(isPlaying) pauseAnim();
+  else startAnim();
+}
+
+/* ─────────── 強度時序圖 (Chart.js) — 明確區分「過去觀測」與「未來預報」 ─────────── */
+const verticalCursorPlugin = {
+  id: "verticalCursor",
+  beforeDraw(chart){
+    const nowIdx = chart.config._nowIdx;
+    const meta = chart.getDatasetMeta(0);
+    if(nowIdx == null || !meta?.data?.length) return;
+    const nowPt = meta.data[nowIdx];
+    if(!nowPt) return;
+
+    const {ctx, chartArea} = chart;
+    const {top, bottom, left, right} = chartArea;
+    const splitX = Math.max(left, Math.min(right, nowPt.x));
+
+    ctx.save();
+    // 1. 左側：過去觀測區背景 (淡翠綠底)
+    if(splitX > left){
+      ctx.fillStyle = "rgba(16, 185, 129, 0.07)";
+      ctx.fillRect(left, top, splitX - left, bottom - top);
+    }
+    // 2. 右側：未來預報區背景 (淡琥珀橘底)
+    if(right > splitX){
+      ctx.fillStyle = "rgba(245, 158, 11, 0.11)";
+      ctx.fillRect(splitX, top, right - splitX, bottom - top);
+    }
+    // 3. 實況 / 預報分界垂直虛線
+    ctx.beginPath();
+    ctx.setLineDash([4, 3]);
+    ctx.moveTo(splitX, top);
+    ctx.lineTo(splitX, bottom);
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = "rgba(110, 231, 183, 0.85)";
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 4. 分界頂部文字標籤
+    ctx.font = "700 9.5px 'Noto Sans TC', sans-serif";
+    if(splitX - left > 34){
+      ctx.fillStyle = "#6ee7b7";
+      ctx.textAlign = "right";
+      ctx.fillText("◄ 觀測", splitX - 4, top + 11);
+    }
+    if(right - splitX > 34){
+      ctx.fillStyle = "#fcd34d";
+      ctx.textAlign = "left";
+      ctx.fillText("預報 ►", splitX + 4, top + 11);
+    }
+    ctx.restore();
+  },
+  afterDraw(chart){
+    const idx = chart.config._activeIdx;
+    if(idx == null) return;
+    const meta = chart.getDatasetMeta(0);
+    const pt = meta?.data?.[idx];
+    if(!pt) return;
+    const ctx = chart.ctx;
+    const top = chart.chartArea.top;
+    const bottom = chart.chartArea.bottom;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(pt.x, top);
+    ctx.lineTo(pt.x, bottom);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#fdd663";
+    ctx.stroke();
+    ctx.restore();
+  }
+};
+
+function buildIntensityChart(){
+  const S = currentStorm();
+  if(!S) return;
+  const ctx = $("intensityChart").getContext("2d");
+  if(intensityChart){
+    intensityChart.destroy();
+    intensityChart = null;
+  }
+
+  const nowIdx = S.nowIdx;
+  const labels = S.timeline.map(f => f.type === "fcst" ? `+${f.tau}h` : fmtShortTime(f.time));
+  const winds = S.timeline.map(f => f.ws);
+  const press = S.timeline.map(f => f.pr);
+  const ptColors = S.timeline.map(f => tyCat(f.ws).color);
+
+  // 觀測點為實心色點；官方預報錨點為白心色環；逐時內插點隱藏圓點以維持曲線平滑
+  const windPtBg = S.timeline.map((f, i) => f.type === "fcst" ? "#ffffff" : ptColors[i]);
+  const windPtBorder = S.timeline.map((f, i) => f.type === "fcst" ? ptColors[i] : "#0f172a");
+  const windPtRadius = S.timeline.map(f => f.isInterp ? 0 : (f.type === "now" ? 4.5 : 3.2));
+  const presPtRadius = S.timeline.map(f => f.isInterp ? 0 : 2.2);
+
+  intensityChart = new Chart(ctx, {
+    type: "line",
+    plugins: [verticalCursorPlugin],
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "最大風速 (m/s)",
+          data: winds,
+          borderColor: "#38bdf8",
+          backgroundColor: "rgba(56,189,248,0.14)",
+          pointBackgroundColor: windPtBg,
+          pointBorderColor: windPtBorder,
+          pointBorderWidth: 1.8,
+          pointRadius: windPtRadius,
+          pointHoverRadius: 4.5,
+          borderWidth: 2.4,
+          tension: 0.25,
+          yAxisID: "yWind",
+          fill: true,
+          segment: {
+            borderDash: seg => seg.p1DataIndex > nowIdx ? [6, 4] : undefined,
+            borderColor: seg => seg.p1DataIndex > nowIdx ? "#fbbf24" : "#38bdf8",
+            backgroundColor: seg => seg.p1DataIndex > nowIdx ? "rgba(251,191,36,0.10)" : "rgba(56,189,248,0.16)"
+          }
+        },
+        {
+          label: "中心氣壓 (hPa)",
+          data: press,
+          borderColor: "#f472b6",
+          pointBackgroundColor: "#f472b6",
+          pointRadius: presPtRadius,
+          pointHoverRadius: 4,
+          borderWidth: 2,
+          tension: 0.25,
+          yAxisID: "yPres",
+          segment: {
+            borderDash: seg => seg.p1DataIndex > nowIdx ? [3, 3] : undefined,
+            borderColor: seg => seg.p1DataIndex > nowIdx ? "#fda4af" : "#f472b6"
+          }
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {mode:"index", intersect:false},
+      onClick: (evt, elements) => {
+        if(elements && elements.length){
+          pauseAnim();
+          setFrame(elements[0].index, true);
+        }
+      },
+      plugins: {
+        legend: {
+          labels: {color:"#cbd5e1", font:{size:10.5}, boxWidth:12, padding:8}
+        },
+        tooltip: {
+          backgroundColor: "rgba(15,21,34,0.94)",
+          titleColor: "#fdd663",
+          bodyColor: "#f8f9fa",
+          borderColor: "rgba(255,255,255,0.15)",
+          borderWidth: 1,
+          callbacks: {
+            title: items => {
+              if(!items?.length) return "";
+              const idx = items[0].dataIndex;
+              const f = S.timeline[idx];
+              if(!f) return items[0].label;
+              const tag = f.type === "now" ? "【最新實況定位】" : (f.type === "fcst" ? (f.isInterp ? `【未來預報 +${f.tau}h 逐時內插】` : `【未來預報 +${f.tau}h】`) : "【過去觀測定位】");
+              return `${tag} ${fmtDateTime(f.time, false)}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: {color:"#94a3b8", font:{size:9.5}, maxRotation:0, autoSkip:true, maxTicksLimit:6},
+          grid: {color:"rgba(255,255,255,0.05)"}
+        },
+        yWind: {
+          type: "linear",
+          position: "left",
+          ticks: {color:"#38bdf8", font:{size:10}},
+          grid: {color:"rgba(255,255,255,0.06)"}
+        },
+        yPres: {
+          type: "linear",
+          position: "right",
+          reverse: true,
+          ticks: {color:"#f472b6", font:{size:10}},
+          grid: {drawOnChartArea:false}
+        }
+      }
+    }
+  });
+  intensityChart.config._nowIdx = nowIdx;
+  intensityChart.config._activeIdx = curFrameIdx;
+  intensityChart.update("none");
+}
+
+function updateChartCursor(){
+  if(!intensityChart) return;
+  intensityChart.config._activeIdx = curFrameIdx;
+  intensityChart.update("none");
+}
+
+/* ─────────── 渲染側欄颱風清單與選擇系統 ─────────── */
+function renderStormListUI(){
+  const listEl = $("stormList");
+  $("stormCountTag").textContent = `${appData.storms.length} 系統`;
+
+  if(!appData.storms.length){
+    listEl.innerHTML = `<div style="padding:12px;text-align:center;color:var(--muted);font-size:12px">
+      目前中央氣象署線上 API 資料中無活動中之熱帶氣旋。<br>可點選上方「線上 API 抓取」或「匯入 JSON」。
+    </div>`;
+    return;
+  }
+
+  listEl.innerHTML = appData.storms.map((st, idx) => {
+    const nowFix = st.timeline[st.nowIdx] || st.timeline[st.timeline.length - 1];
+    const cat = tyCat(nowFix?.ws);
+    const hasQ = nowFix?.c15?.hasQuad;
+    return `<div class="storm-item ${idx === curStormIdx ? 'active' : ''}" data-idx="${idx}">
+      <div class="st-ico" style="color:${cat.color}">🌀</div>
+      <div class="st-info">
+        <div class="st-title">
+          <span>${st.titleZh}</span>
+          <span style="font-size:11.5px;color:var(--muted);font-weight:500">${st.titleEn}</span>
+          <span class="cat-pill" style="background:${cat.color};margin-left:auto">${cat.name}</span>
+        </div>
+        <div class="st-sub">
+          觀測 ${st.analysisFixes.length} 點 · 預報 ${st.forecastFixes.length} 點
+          ${nowFix?.ws ? ` · 最大風速 <b>${nowFix.ws} m/s</b>` : ''}
+          ${hasQ ? `<br><span style="color:#ff8fb0">✔ 含四分區暴風半徑 (NE:${nowFix.c15.NE}/SE:${nowFix.c15.SE}/SW:${nowFix.c15.SW}/NW:${nowFix.c15.NW}km)</span>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+
+  listEl.querySelectorAll(".storm-item").forEach(el => {
+    el.onclick = () => selectStorm(parseInt(el.dataset.idx, 10), true);
+  });
+}
+
+function fitCurrentStorm(){
+  const S = currentStorm();
+  if(!S || !S.timeline.length) return;
+  const pts = S.timeline.map(f => [f.lat, f.lon]);
+  const nowFix = S.timeline[S.nowIdx];
+  if(nowFix?.c15?.avg){
+    pts.push(destPoint(nowFix.lat, nowFix.lon, 0, nowFix.c15.avg));
+    pts.push(destPoint(nowFix.lat, nowFix.lon, 90, nowFix.c15.avg));
+    pts.push(destPoint(nowFix.lat, nowFix.lon, 180, nowFix.c15.avg));
+    pts.push(destPoint(nowFix.lat, nowFix.lon, 270, nowFix.c15.avg));
+  }
+  const lastFcst = S.forecastFixes?.[S.forecastFixes.length - 1];
+  if(lastFcst?.r70){
+    pts.push(destPoint(lastFcst.lat, lastFcst.lon, 0, lastFcst.r70));
+    pts.push(destPoint(lastFcst.lat, lastFcst.lon, 90, lastFcst.r70));
+    pts.push(destPoint(lastFcst.lat, lastFcst.lon, 180, lastFcst.r70));
+    pts.push(destPoint(lastFcst.lat, lastFcst.lon, 270, lastFcst.r70));
+  }
+  try{
+    map.fitBounds(L.latLngBounds(pts).pad(0.15));
+  }catch(e){}
+}
+
+function selectStorm(idx, fitMap=true){
+  pauseAnim();
+  curStormIdx = Math.max(0, Math.min(appData.storms.length - 1, idx));
+  const S = currentStorm();
+  renderStormListUI();
+  if(!S) return;
+
+  const slider = $("timeSlider");
+  slider.min = 0;
+  slider.max = Math.max(0, S.timeline.length - 1);
+
+  $("tickStart").textContent = `起點: ${fmtShortTime(S.timeline[0]?.time)}`;
+  const nowFix = S.timeline[S.nowIdx];
+  $("tickNow").textContent = nowFix ? `▲ 最新定位 (${fmtShortTime(nowFix.time)})` : "▲ 最新定位";
+  const lastFix = S.timeline[S.timeline.length - 1];
+  $("tickEnd").textContent = lastFix?.type === "fcst" ? `預報 +${lastFix.tau}h (${fmtShortTime(lastFix.time)})` : `終點`;
+
+  renderStaticTrack();
+  buildIntensityChart();
+  setFrame(S.nowIdx, false);
+  if(fitMap) fitCurrentStorm();
+}
+
+function loadDataset(rawJson, sourceLabel){
+  const parsed = parseW0034005(rawJson);
+  if(!parsed.storms.length){
+    showToast(`⚠️ ${sourceLabel} 目前無活動中熱帶氣旋資料，已保留現有畫面`, true);
+    return false;
+  }
+  appData = parsed;
+  $("sentTime").textContent = `資料來源：${sourceLabel} ｜ 發布時間：${fmtDateTime(appData.sentTime)}`;
+  selectStorm(0, true);
+  showToast(`✅ 成功載入 ${sourceLabel}（共 ${appData.storms.length} 個熱帶氣旋系統）`);
+  return true;
+}
+
+/* ─────────── 資料載入來源：1. 線上 API  2. 本機或內建 W-C0034-005.json  3. 檔案上傳 ─────────── */
+function getFileApiUrl(key){
+  return `https://opendata.cwa.gov.tw/fileapi/v1/opendataapi/W-C0034-005?Authorization=${encodeURIComponent(key)}&format=JSON`;
+}
+function getDatastoreUrl(key){
+  return `https://opendata.cwa.gov.tw/api/v1/rest/datastore/W-C0034-005?Authorization=${encodeURIComponent(key)}&format=JSON`;
+}
+
+async function fetchLiveCwaApi(silentFallback=false){
+  const urls = [getFileApiUrl(apiKey), getDatastoreUrl(apiKey)];
+  for(const u of urls){
+    try{
+      const res = await fetch(u, {cache:"no-store"});
+      if(!res.ok) continue;
+      const json = await res.json();
+      const parsed = parseW0034005(json);
+      if(parsed.storms.length){
+        loadDataset(json, "CWA 線上即時 API");
+        $("btnFetchApi").classList.add("active-src");
+        return true;
+      }
+    }catch(e){}
+  }
+  if(!silentFallback){
+    showToast("ℹ️ 線上 API 目前無活動中熱帶氣旋或連線受阻", true);
+  }
+  return false;
+}
+
+/* ─────────── UI 事件綁定 ─────────── */
+// 摺疊區塊
+document.querySelectorAll(".sec-head").forEach(hd => {
+  hd.onclick = () => hd.parentElement.classList.toggle("closed");
+});
+$("lgToggle").onclick = () => $("legendBox").classList.toggle("collapsed");
+
+// 側欄收合
+$("panelToggle").onclick = () => {
+  const c = $("sidePanel").classList.toggle("collapsed");
+  $("panelToggle").classList.toggle("collapsed", c);
+  $("panelToggle").textContent = c ? "▶" : "◀";
+  $("playerBar").classList.toggle("panel-closed", c);
+  setTimeout(() => map.invalidateSize(), 260);
+};
+
+// 播放器按鈕
+$("btnPlay").onclick  = toggleAnim;
+$("btnFirst").onclick = () => { pauseAnim(); setFrame(0, true); };
+$("btnPrev").onclick  = () => { pauseAnim(); setFrame(curFrameIdx - 1, true); };
+$("btnNext").onclick  = () => { pauseAnim(); setFrame(curFrameIdx + 1, true); };
+$("btnNow").onclick   = () => {
+  pauseAnim();
+  const S = currentStorm();
+  if(S) setFrame(S.nowIdx, true);
+};
+$("btnLast").onclick  = () => {
+  pauseAnim();
+  const S = currentStorm();
+  if(S) setFrame(S.timeline.length - 1, true);
+};
+$("timeSlider").oninput = e => {
+  pauseAnim();
+  setFrame(parseInt(e.target.value, 10), false);
+};
+$("speedSel").onchange = () => {
+  if(isPlaying) startAnim();
+};
+
+// 鍵盤快捷鍵 (Space 播放/暫停, 左右方向鍵逐幀移動)
+window.addEventListener("keydown", e => {
+  if(e.target && ["INPUT","SELECT","TEXTAREA"].includes(e.target.tagName)) return;
+  if(e.code === "Space"){
+    e.preventDefault();
+    toggleAnim();
+  } else if(e.code === "ArrowLeft"){
+    e.preventDefault();
+    pauseAnim();
+    setFrame(curFrameIdx - 1, true);
+  } else if(e.code === "ArrowRight"){
+    e.preventDefault();
+    pauseAnim();
+    setFrame(curFrameIdx + 1, true);
+  }
+});
+
+// 圖層開關事件
+["ckQuad15","ckQuad25","ckQuadCross","ckQuadLabels"].forEach(id => {
+  $(id).onchange = () => renderActiveFrame();
+});
+["ckSwath","ckPastTrack","ckFcstTrack","ckProb70","ckOtherStorms"].forEach(id => {
+  $(id).onchange = () => {
+    renderStaticTrack();
+    renderActiveFrame();
+  };
+});
+if($("ckHourlyFcst")){
+  $("ckHourlyFcst").onchange = () => updateTimelineMode();
+}
+
+$("btnFitTrack").onclick = fitCurrentStorm;
+$("btnFocusCenter").onclick = () => {
+  const S = currentStorm();
+  const fix = S?.timeline?.[curFrameIdx];
+  if(fix) map.flyTo([fix.lat, fix.lon], Math.max(map.getZoom(), 6), {duration:0.6});
+};
+
+// 頂部資料來源按鈕
+$("btnFetchApi").onclick = async () => {
+  showToast("⏳ 正在從中央氣象署 Open Data API 抓取 W-C0034-005…");
+  await fetchLiveCwaApi(false);
+};
+$("btnUploadJson").onclick = () => $("fileInput").click();
+$("fileInput").onchange = e => {
+  const file = e.target.files?.[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try{
+      const j = JSON.parse(ev.target.result);
+      loadDataset(j, `本機檔案 (${file.name})`);
+      $("btnFetchApi").classList.remove("active-src");
+    }catch(err){
+      showToast("❌ JSON 格式解析失敗：" + err.message, true);
+    }
+  };
+  reader.readAsText(file, "utf-8");
+  e.target.value = "";
+};
+
+// API 設定 Modal
+function updateUrlPreview(){
+  const k = $("inpApiKey").value.trim() || DEFAULT_KEY;
+  $("apiUrlPreview").textContent = getFileApiUrl(k);
+}
+$("inpApiKey").value = apiKey;
+$("inpApiKey").oninput = updateUrlPreview;
+$("btnApiConfig").onclick = () => {
+  $("inpApiKey").value = apiKey;
+  updateUrlPreview();
+  $("apiModal").classList.add("open");
+};
+$("btnCloseModal").onclick = () => $("apiModal").classList.remove("open");
+$("btnResetKey").onclick = () => {
+  $("inpApiKey").value = DEFAULT_KEY;
+  updateUrlPreview();
+};
+$("btnSaveAndFetch").onclick = async () => {
+  apiKey = $("inpApiKey").value.trim() || DEFAULT_KEY;
+  try{ localStorage.setItem(LS_KEY, apiKey); }catch(e){}
+  $("apiModal").classList.remove("open");
+  showToast("⏳ 已更新金鑰，正在嘗試連線抓取 W-C0034-005…");
+  await fetchLiveCwaApi(false);
+};
+
+/* ─────────── 啟動初始化 ─────────── */
+(async function init(){
+  await fetchLiveCwaApi(false);
+})();
+</script>
+</body>
+</html>

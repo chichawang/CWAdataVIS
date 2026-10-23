@@ -596,8 +596,8 @@
       <label>國家 / 地區篩選</label>
       <select id="regionSel">
         <option value="">🌏 亞洲全區 (All Asia - 5,600+ 站)</option>
-        <optgroup label="🇹🇼 台灣 (Taiwan - CWA)">
-          <option value="TW">台灣 全國 (~876 站)</option>
+        <optgroup label="🇹🇼 臺灣 (Taiwan - CWA)">
+          <option value="TW">臺灣 全國 (~876 站)</option>
           <option value="TW_North">北部地區 (北北基桃竹宜)</option>
           <option value="TW_Central">中部地區 (苗中彰投雲)</option>
           <option value="TW_South">南部地區 (嘉南高屏)</option>
@@ -698,7 +698,7 @@
     </div>
   </details>
 
-  <!-- 底圖圖層選擇（9 大底圖包含台灣電子地圖與多樣化圖磚） -->
+  <!-- 底圖圖層選擇（9 大底圖包含臺灣電子地圖與多樣化圖磚） -->
   <details class="sec" open>
     <summary>🗺️ 底圖圖層選擇 (Base Map)<span class="car">▾</span></summary>
     <div class="sec-body">
@@ -710,14 +710,14 @@
         <option value="topo">OpenTopoMap 地形圖 (高程等高線)</option>
         <option value="light">CARTO 淺色白底圖 (Positron)</option>
         <option value="voyager">CARTO 導航全彩圖 (Voyager)</option>
-        <optgroup label="台灣國土測繪中心 (NLSC WMTS)">
-          <option value="emap">台灣電子地圖 (國土測繪中心 EMAP)</option>
-          <option value="emapgray">台灣電子地圖 - 灰階 (NLSC EMAP01)</option>
-          <option value="photomix">台灣電子地圖 + 正射影像混合 (PHOTO_MIX)</option>
+        <optgroup label="臺灣國土測繪中心 (NLSC WMTS)">
+          <option value="emap">臺灣電子地圖 (國土測繪中心 EMAP)</option>
+          <option value="emapgray">臺灣電子地圖 - 灰階 (NLSC EMAP01)</option>
+          <option value="photomix">臺灣電子地圖 + 正射影像混合 (PHOTO_MIX)</option>
         </optgroup>
       </select>
       <div style="font-size:11px;color:var(--muted);line-height:1.5;margin-top:6px">
-        💡 <b>支援底圖</b>：CARTO深/淺色/Voyager、OSM、Esri衛星、Topo地形，以及內政部國土測繪中心（NLSC）台灣電子地圖與航照正射影像。
+        💡 <b>支援底圖</b>：CARTO深/淺色/Voyager、OSM、Esri衛星、Topo地形，以及內政部國土測繪中心（NLSC）臺灣電子地圖與航照正射影像。
       </div>
     </div>
   </details>
@@ -745,10 +745,10 @@
         本儀表板統一整合東亞、東南亞及南亞 14 大國家/地區官方地面氣象站網（共計 <b>5,794</b> 測站），包含即時觀測數值快照與官方 API 接口：
       </div>
 
-      <!-- 1. 台灣 CWA -->
+      <!-- 1. 臺灣 CWA -->
       <div class="src-card">
         <div class="src-head">
-          <div class="src-title">🇹🇼 台灣 (Taiwan)</div>
+          <div class="src-title">🇹🇼 臺灣 (Taiwan)</div>
           <span class="src-badge tw">CWA ‧ ~876 站</span>
         </div>
         <div class="src-meta">
@@ -977,13 +977,16 @@ const map = L.map('map', {
 });
 L.control.zoom({ position: 'bottomright' }).addTo(map);
 
+const OSM_TILE_URL = location.protocol === "file:"
+  ? "https://wsrv.nl/?url=https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+  : (location.protocol==="file:"?"https://wsrv.nl/?url=https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png":"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png");
 const BASES = {
-  dark: L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+  dark: L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=cb1_325q_1_8b5e6f905ab09a4799809661", {
     maxZoom: 20,
     attribution: "&copy; OpenStreetMap &copy; CARTO",
     crossOrigin: true
   }),
-  osm: L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  osm: L.tileLayer(OSM_TILE_URL, {
     maxZoom: 19,
     attribution: "&copy; OpenStreetMap contributors",
     crossOrigin: true
@@ -998,17 +1001,17 @@ const BASES = {
     attribution: "&copy; OpenTopoMap",
     crossOrigin: true
   }),
-  light: L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+  light: L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_325q_1_8b5e6f905ab09a4799809661", {
     maxZoom: 20,
     attribution: "&copy; OpenStreetMap &copy; CARTO",
     crossOrigin: true
   }),
-  voyager: L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+  voyager: L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_325q_1_8b5e6f905ab09a4799809661", {
     maxZoom: 20,
     attribution: "&copy; OpenStreetMap &copy; CARTO",
     crossOrigin: true
   }),
-  // 台灣電子地圖 (國土測繪中心 NLSC WMTS)
+  // 臺灣電子地圖 (國土測繪中心 NLSC WMTS)
   emap: L.tileLayer("https://wmts.nlsc.gov.tw/wmts/EMAP/default/GoogleMapsCompatible/{z}/{y}/{x}", {
     maxZoom: 20,
     attribution: "&copy; 內政部國土測繪中心 (NLSC)",
@@ -1298,7 +1301,7 @@ const REGION_BOUNDS = {
 
 function normalizeSearchString(str) {
   if (!str || typeof str !== 'string') return '';
-  return str.normalize('NFC').toLowerCase().trim();
+  return str.normalize('NFC').replace(/台/g, '臺').toLowerCase().trim();
 }
 
 function matchesSearchQuery(station, query) {
@@ -1660,7 +1663,7 @@ window.refreshStationLive = async function(stationId) {
     const ctry = station.country;
     let updated = false;
 
-    // 1. 台灣 CWA: 若有授權碼則呼叫 CWA REST API，否則 fallback 至 Open-Meteo
+    // 1. 臺灣 CWA: 若有授權碼則呼叫 CWA REST API，否則 fallback 至 Open-Meteo
     if (ctry === 'TW') {
       const cwaKey = localStorage.getItem('cwa_api_key') || localStorage.getItem('cwaApiKey') || window.CWA_API_KEY;
       if (cwaKey) {
@@ -1828,7 +1831,7 @@ const searchInput = document.getElementById('search');
 
 /**
  * 判斷是否為基本氣象測站 (國家測站分級之基準台站)
- * - 台灣 CWA：有人氣象站 (33 站) 為基本測站，其餘為自動氣象站
+ * - 臺灣 CWA：有人氣象站 (33 站) 為基本測站，其餘為自動氣象站
  * - 中國 CMA：國家基準氣候站 (166 站) 與國家基本氣象站 (546 站) 為基本測站，其餘為一般氣象站
  * - 日本 JMA：氣象廳官署 (152 站) 為基本測站，其餘為 AMeDAS 無人站
  * - 南韓 KMA：ASOS 有人/基準氣象觀測所 (98 站) 為基本測站，其餘為 AWS 自動氣象站
@@ -2199,7 +2202,7 @@ async function refreshStationsBatch(stationsToUpdate) {
   if (!stationsToUpdate || stationsToUpdate.length === 0) return 0;
   let updatedCount = 0;
 
-  // 1. 對於台灣 CWA (若有 KEY) 優先嘗試個別更新；若無 KEY 或其他國家則分批呼叫 Open-Meteo
+  // 1. 對於臺灣 CWA (若有 KEY) 優先嘗試個別更新；若無 KEY 或其他國家則分批呼叫 Open-Meteo
   const BATCH_CHUNK = 40; // Open-Meteo 一次可支援 50 個地點
   for (let i = 0; i < stationsToUpdate.length; i += BATCH_CHUNK) {
     const chunk = stationsToUpdate.slice(i, i + BATCH_CHUNK);

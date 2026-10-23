@@ -239,9 +239,9 @@
   <select id="baseSel">
     <option value="dark">深色圖</option>
     <option value="osm">街道圖 (OSM)</option>
-    <option value="emap">台灣電子地圖 (國土測繪中心)</option>
-    <option value="emapgray">台灣電子地圖-灰階 (國土測繪中心)</option>
-    <option value="photomix">台灣電子地圖+正射影像混合 (TGOS/NLSC)</option>
+    <option value="emap">臺灣電子地圖 (國土測繪中心)</option>
+    <option value="emapgray">臺灣電子地圖-灰階 (國土測繪中心)</option>
+    <option value="photomix">臺灣電子地圖+正射影像混合 (TGOS/NLSC)</option>
     <option value="sat">衛星影像</option>
     <option value="topo">地形圖</option>
     <option value="light" selected>淺色圖</option>
@@ -464,12 +464,12 @@ function gradientCSS(ramp){
   return"linear-gradient(90deg,"+ramp.map(s=>`${s[1]} ${((s[0]-lo)/(hi-lo)*100).toFixed(1)}%`).join(",")+")";
 }
 
-// 台灣本島預設範圍
+// 臺灣本島預設範圍
 const TAIWAN=L.latLngBounds([21.85,119.95],[25.35,122.05]);
 const map=L.map("map",{zoomControl:true}).fitBounds(TAIWAN);
 map.zoomControl.setPosition("topright");
 const BASES={
-  osm:L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap",crossOrigin:true}),
+  osm:L.tileLayer((location.protocol==="file:"?"https://wsrv.nl/?url=https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png":"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"),{maxZoom:19,attribution:"© OpenStreetMap",crossOrigin:true}),
   emap:L.tileLayer("https://wmts.nlsc.gov.tw/wmts/EMAP/default/GoogleMapsCompatible/{z}/{y}/{x}",{maxZoom:20,attribution:"© 內政部國土測繪中心 (NLSC)",crossOrigin:true}),
   emapgray:L.tileLayer("https://wmts.nlsc.gov.tw/wmts/EMAP01/default/GoogleMapsCompatible/{z}/{y}/{x}",{maxZoom:20,attribution:"© 內政部國土測繪中心 (NLSC 灰階)",crossOrigin:true}),
   photomix:L.tileLayer("https://wmts.nlsc.gov.tw/wmts/PHOTO_MIX/default/GoogleMapsCompatible/{z}/{y}/{x}",{maxZoom:20,attribution:"© 國土測繪中心/TGOS 正射影像(混合)",crossOrigin:true}),

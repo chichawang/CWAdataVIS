@@ -112,6 +112,9 @@ input[type=range]{accent-color:var(--acc);width:100%}
 .leaflet-control-zoom{border:1px solid var(--line) !important;border-radius:12px !important;overflow:hidden;box-shadow:0 4px 18px rgba(15,23,42,.14) !important}
 .leaflet-bar a{background:var(--glass) !important;color:var(--fg) !important;border-color:var(--line) !important;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
 .leaflet-bar a:hover{background:rgba(37,99,235,.14) !important;color:#1d4ed8 !important}
+.pop h3{margin:0 0 6px;font-size:14px;font-weight:700}
+.pop .row{display:flex;justify-content:space-between;gap:14px;margin:2px 0;font-size:12px}
+.pop .k{color:var(--fg3)} .pop .big{font-size:15px;font-weight:700}
 
 /* 地圖上浮層 */
 .ovl{position:absolute;z-index:600;background:var(--glass);border:1px solid var(--line);
@@ -155,11 +158,15 @@ input[type=range]{accent-color:var(--acc);width:100%}
 #timeBar .tslider{grid-column:2/3;display:flex;align-items:center;min-width:0;padding:0}
 #timeBar .tslider input[type=range]{height:18px;accent-color:#111827;width:100%;min-width:0;display:block}
 #timeBar .tbottom{grid-column:2/3;display:flex;align-items:center;justify-content:center;gap:7px;color:#334155;font-size:12px;min-width:0}
-#timeBar .tbottom .material-symbols-outlined{font-size:19px;color:#667085}
-#timeBar .tbottom .tmainBtn{width:24px;height:24px;border:0;border-radius:50%;background:transparent;color:#667085;
-  display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
-#timeBar .tbottom .tmainBtn:hover{background:rgba(255,255,255,.45);color:#111827}
-#timeBar .tbottom .tmainBtn .material-symbols-outlined{font-size:19px}
+#timeBar .tbottom .material-symbols-outlined{font-size:16px;color:#667085}
+#timeBar .tbottom .tmainBtn{height:24px;min-width:44px;padding:0 5px;border:1px solid rgba(0,0,0,.15);border-radius:12px;background:rgba(255,255,255,.5);color:#334155;
+  font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:1px;cursor:pointer;line-height:1;transition:all .15s ease}
+#timeBar .tbottom .tmainBtn:hover{background:rgba(255,255,255,.9);color:#0f172a;border-color:rgba(0,0,0,.3)}
+#timeBar .tbottom .tmainBtn .material-symbols-outlined{font-size:16px}
+.time-tz-toggle{display:inline-flex;align-items:center;background:rgba(0,0,0,0.06);border:1px solid rgba(0,0,0,0.12);border-radius:10px;padding:1px;gap:1px}
+.tz-mini-btn{padding:1px 5px;font-size:9.5px;font-weight:700;border-radius:8px;border:none;background:transparent;color:#64748b;cursor:pointer;line-height:1.2}
+.tz-mini-btn:hover{color:#0f172a}
+.tz-mini-btn.active{background:#0f172a;color:#fff}
 #timeBar .initText{white-space:nowrap}
 #timeBar .initText .timeLabel{display:inline;margin-right:4px;font-size:12px;color:#334155}
 #timeBar .initText .timeValue{display:inline;font-size:12px;font-weight:600;color:#475569}
@@ -364,16 +371,25 @@ input[type=range]{accent-color:var(--acc);width:100%}
       <button class="tplay" id="tPlay" title="播放指定時效"><span class="material-symbols-outlined">play_arrow</span></button>
       <div class="tmain">
         <button id="tPrev" title="前一時效"><span class="material-symbols-outlined">chevron_left</span></button>
-        <span class="timeText"><span class="timeLabel">預報時間</span><span class="timeValue" id="validTime">--</span></span>
+        <div class="timeText">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+            <span class="timeLabel">預報時間</span>
+            <div class="time-tz-toggle" id="nwpTzToggle" title="切換顯示時區：世界協調時間 (UTC) / 本地時間 (LST)">
+              <button type="button" class="tz-mini-btn active" id="btnNwpUTC" data-tz="UTC">UTC</button>
+              <button type="button" class="tz-mini-btn" id="btnNwpLST" data-tz="LST">LST</button>
+            </div>
+          </div>
+          <span class="timeValue" id="validTime">--</span>
+        </div>
         <button id="tNext" title="後一時效"><span class="material-symbols-outlined">chevron_right</span></button>
       </div>
       <div class="tslider"><input type="range" id="tSlider" min="0" max="240" step="6" value="0"/></div>
       <div class="tbottom">
-        <button class="tmainBtn" id="dPrev" title="前一天"><span class="material-symbols-outlined">chevron_left</span></button>
+        <button class="tmainBtn" id="dPrev" title="前 6 小時 (-6h) 並自動載入"><span class="material-symbols-outlined">chevron_left</span>-6h</button>
         <span class="initText" id="initTime"><span class="timeLabel">初始時間</span><span class="timeValue">--</span></span>
         <input type="date" id="dDate" class="miniCtl"/>
         <select id="dCycle" class="miniCtl"><option>00</option><option>06</option><option>12</option><option>18</option></select>
-        <button class="tmainBtn" id="dNext" title="後一天"><span class="material-symbols-outlined">chevron_right</span></button>
+        <button class="tmainBtn" id="dNext" title="後 6 小時 (+6h) 並自動載入">+6h<span class="material-symbols-outlined">chevron_right</span></button>
         <button class="btn pri clean" id="btnLoad">載入資料</button>
       </div>
     </div>
@@ -385,8 +401,8 @@ input[type=range]{accent-color:var(--acc);width:100%}
   <div id="chartHead">
     <span class="t">強度時序</span>
     <div class="seg" id="chartSeg">
-      <button data-v="pres" class="on">中心氣壓 hPa</button>
-      <button data-v="wind">最大風速 kt</button>
+      <button data-v="pres">中心氣壓 hPa</button>
+      <button data-v="wind" class="on">最大風速 kt</button>
     </div>
     <label class="chk" style="padding:2px 6px"><input type="checkbox" id="cChartMem" checked><span style="font-size:12px">顯示成員</span></label>
     <button class="btn sm" id="chartHide" style="margin-left:auto">隱藏</button>
@@ -1578,7 +1594,7 @@ const S = {
   tracks: [],
   storms: [],
   storm: null,
-  chartVar: "pres",
+  chartVar: "wind",
   basin: "NWP",
   allStorms: false,
   showDots: true,
@@ -1601,7 +1617,7 @@ MODELS.forEach(m=>{ if(!(m.code in S.modelOn)) S.modelOn[m.code]=DEFAULT_ON.incl
 const TILES = {
   dark :{u:"https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=cb1_325q_1_8b5e6f905ab09a4799809661", a:"© OpenStreetMap © CARTO", max:19},
   light:{u:"https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_325q_1_8b5e6f905ab09a4799809661",a:"© OpenStreetMap © CARTO", max:19},
-  osm  :{u:"https://tile.openstreetmap.org/{z}/{x}/{y}.png", a:"© OpenStreetMap contributors", max:19},
+  osm  :{u:(location.protocol==="file:"?"https://wsrv.nl/?url=https://tile.openstreetmap.org/{z}/{x}/{y}.png":"https://tile.openstreetmap.org/{z}/{x}/{y}.png"), a:"© OpenStreetMap contributors", max:19},
   sat  :{u:"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", a:"Esri World Imagery", max:18}
 };
 const map = L.map("map",{center:[22.5,127], zoom:4, worldCopyJump:false, zoomControl:false,
@@ -1623,7 +1639,7 @@ const gCtl  = L.layerGroup().addTo(map);
 const gDots = L.layerGroup().addTo(map);
 const probLayer = new ProbLayer();
 
-/* 台灣參考點 */
+/* 臺灣參考點 */
 L.circleMarker([23.7,121.0],{radius:4,color:"#fff",weight:1.5,fillColor:"#fff",fillOpacity:.9})
  .bindTooltip("臺灣",{permanent:false}).addTo(map);
 
@@ -1770,6 +1786,48 @@ $("#toggleSide").addEventListener("click",toggleSidePanel);
 $("#sideMini").addEventListener("click",toggleSidePanel);
 if(window.matchMedia && window.matchMedia("(max-width: 640px)").matches) setSidePanelHidden(true);
 
+function getTimeMode(){
+  return S.timeMode || "UTC";
+}
+function setTimeMode(mode){
+  S.timeMode = (mode === "LST") ? "LST" : "UTC";
+  try{ localStorage.setItem("nwp_timemode", S.timeMode); }catch(e){}
+  syncTzUI();
+  updateTimePanel();
+  if(S.storm) draw(false);
+}
+function syncTzUI(){
+  document.querySelectorAll(".tz-mini-btn").forEach(b => {
+    b.classList.toggle("active", b.dataset.tz === getTimeMode());
+  });
+}
+function fmtDisplayTime(d){
+  if(!d) return "--";
+  const date = (d instanceof Date) ? d : new Date(d);
+  if(isNaN(date.getTime())) return String(d);
+  if(getTimeMode() === "UTC"){
+    return `${date.getUTCFullYear()}/${pad2(date.getUTCMonth()+1)}/${pad2(date.getUTCDate())} ${pad2(date.getUTCHours())}:00 UTC`;
+  } else {
+    return `${date.getFullYear()}/${pad2(date.getMonth()+1)}/${pad2(date.getDate())} ${pad2(date.getHours())}:00 (Local Time)`;
+  }
+}
+function fmtUTC(d){
+  return fmtDisplayTime(d);
+}
+
+function pValidTime(t, p){
+  if(p && p._v) return new Date(p._v);
+  if(p && p.valid_time) return new Date(p.valid_time);
+  const baseStr = (t && t.header && t.header.baseTime) || ($("#dDate") && $("#dDate").value ? initDateUTC().toISOString() : null);
+  if(baseStr && p && p.h != null){
+    return new Date(Date.parse(baseStr) + p.h * 3600000);
+  }
+  if(p && p.h != null){
+    return new Date(initDateUTC().getTime() + p.h * 3600000);
+  }
+  return null;
+}
+
 /* 日期預設：最新 UTC 6 小時起報時次往前 12 小時 */
 (function initDate(){
   const n = new Date();
@@ -1781,15 +1839,19 @@ if(window.matchMedia && window.matchMedia("(max-width: 640px)").matches) setSide
   $("#dCycle").value = pad2(d.getUTCHours());
   updateTimePanel();
 })();
-function shiftDate(days){
-  const v=$("#dDate").value; if(!v) return;
-  const [y,m,d]=v.split("-").map(Number);
-  const t=new Date(Date.UTC(y,m-1,d+days));
-  $("#dDate").value = ymdUTC(t);
-  markInitDirty();
+
+function shiftCycle(hours, autoLoad = false){
+  const d = initDateUTC();
+  d.setUTCHours(d.getUTCHours() + hours);
+  setInitDateUTC(d);
+  if(autoLoad){
+    loadAll();
+  } else {
+    markInitDirty();
+  }
 }
-$("#dPrev").onclick=()=>shiftDate(-1);
-$("#dNext").onclick=()=>shiftDate(1);
+$("#dPrev").onclick = () => shiftCycle(-6, true);
+$("#dNext").onclick = () => shiftCycle(6, true);
 
 function ymdUTC(d){ return d.getUTCFullYear()+"-"+pad2(d.getUTCMonth()+1)+"-"+pad2(d.getUTCDate()); }
 function initDateUTC(){
@@ -1814,25 +1876,17 @@ function markInitClean(key){
   S.loadedInitKey = key || initKey();
   updateLoadButtonState();
 }
-function fmtUTC(d){
-  return `${d.getUTCFullYear()}/${pad2(d.getUTCMonth()+1)}/${pad2(d.getUTCDate())} ${pad2(d.getUTCHours())}:00 UTC`;
-}
 function updateTimePanel(){
   const init = initDateUTC();
   const h = +$("#tSlider").value || 0;
   const valid = new Date(init.getTime()+h*3600000);
-  $("#validTime").textContent = `${h}小時預報　${fmtUTC(valid)}`;
+  $("#validTime").textContent = `${h}小時預報　${fmtDisplayTime(valid)}`;
   $("#initTime").innerHTML = `<span class="timeLabel">初始時間</span>`;
 }
 function setInitDateUTC(d){
   $("#dDate").value = ymdUTC(d);
   $("#dCycle").value = pad2(d.getUTCHours());
   updateTimePanel();
-}
-function shiftCycle(hours){
-  const d = initDateUTC();
-  d.setUTCHours(d.getUTCHours()+hours);
-  setInitDateUTC(d);
 }
 
 function urlsFor(m){
@@ -2230,11 +2284,12 @@ function draw(refit){
                                  lineJoin:"round", dashArray: isDet?null:"1 0"}).addTo(gCtl);
       bindTip(pl,t,isDet?"決定性預報":"控制報");
       // 起點
-      L.circleMarker(pts[0],{radius:4,color:t.color,weight:2,fillColor:"#0b1017",fillOpacity:1}).addTo(gCtl);
+      L.circleMarker(pts[0],{radius:4,color:t.color,weight:2,fillColor:"#0b1017",fillOpacity:1})
+       .bindTooltip(`<b>${t.modelLabel}</b> 起報點 (0h)<br>事件時間：${fmtDisplayTime(pValidTime(t, t.pts[0]))}`,{direction:"top"}).addTo(gCtl);
       // 每 24h 標記
       t.pts.forEach(p=>{ if(p.h>0 && p.h%24===0)
         L.circleMarker(ll(p),{radius:2.6,color:t.color,weight:1,fillColor:t.color,fillOpacity:.9})
-         .bindTooltip("+"+p.h+"h",{direction:"top"}).addTo(gCtl); });
+         .bindTooltip(`<b>${t.modelLabel}</b> +${p.h}h<br>事件時間：${fmtDisplayTime(pValidTime(t, p))}`,{direction:"top"}).addTo(gCtl); });
     }else if(isMean){
       // 集合平均檔：若已由 gMean 繪製（showMean），則不重複畫成員線；若 showMean 關閉但 showMem 開啟，則以成員線呈現
       if(!showMean && showMem){
@@ -2262,12 +2317,13 @@ function draw(refit){
       pl.bindTooltip((m?m.label:c)+" 集合平均" + (nMem ? ` (${nMem} 成員)` : ""),{sticky:true});
       mt.forEach(p=>{
         if(p.h%24!==0) return;
+        const vt = pValidTime(null, p);
         L.circleMarker([p.lat,p.lon],{radius:4.4,color:"#fff",weight:1.6,fillColor:col,fillOpacity:1})
-         .bindTooltip(`<b>${m?m.label:c}</b> 集合平均<br>+${p.h}h`
-            + (p.n>1 ? `　成員 ${p.n}` : "") + `<br>`
-            + (p.pres?`平均氣壓 ${p.pres.toFixed(0)} hPa<br>`:"")
-            + (p.wind?`平均風速 ${p.wind.toFixed(0)} kt<br>`:"")
-            + (p.spread?`離散度 ${p.spread.toFixed(0)} km`:""),{sticky:true})
+         .bindTooltip(`<b>${m?m.label:c}</b> 集合平均<br>+${p.h}h<br>事件時間：${fmtDisplayTime(vt)}`
+            + (p.n>1 ? `<br>成員 ${p.n}` : "")
+            + (p.pres?`<br>平均氣壓 ${p.pres.toFixed(0)} hPa`:"")
+            + (p.wind?`<br>平均風速 ${p.wind.toFixed(0)} kt`:"")
+            + (p.spread?`<br>離散度 ${p.spread.toFixed(0)} km`:""),{sticky:true})
          .addTo(gMean);
       });
     }
@@ -2288,10 +2344,12 @@ function draw(refit){
   updateChartPaneVisibility();
 }
 function bindTip(pl,t,role){
-  const last=t.pts[t.pts.length-1];
+  const first=t.pts[0], last=t.pts[t.pts.length-1];
+  const firstVt = pValidTime(t, first);
+  const lastVt = pValidTime(t, last);
   pl.bindTooltip(`<b style="color:${t.color}">${t.modelLabel}</b> · ${role}<br>`
-    + `${t.name||t.distId}<br>起報 ${t.header.baseTime}<br>`
-    + `時效 +${last.h}h`, {sticky:true});
+    + `${t.name||t.distId}<br>起報：${fmtDisplayTime(firstVt||t.header.baseTime)}<br>`
+    + `時效：+${last.h}h（事件時間：${fmtDisplayTime(lastVt)}）`, {sticky:true});
 }
 function drawDots(){
   gDots.clearLayers();
@@ -2305,22 +2363,26 @@ function drawDots(){
     n++;
     const isMean = t.isMean || t.member===-1;
     const role = isMean ? "系集平均" : (t.isEns ? ("成員 "+t.member) : "決定性");
+    const vt = pValidTime(t, p);
     L.circleMarker(ll(p),{radius:t.isCtl?5:3.2, color:t.isCtl?"#fff":t.color, weight:t.isCtl?2:1,
        fillColor:t.color, fillOpacity:t.isCtl?1:.75})
-     .bindTooltip(`${t.modelLabel} ${role}<br>+${p.h}h　`
-       +(p.pres?p.pres.toFixed(0)+" hPa ":"")+(p.wind?p.wind.toFixed(0)+" kt":""),{sticky:true})
+     .bindTooltip(`<b>${t.modelLabel}</b> ${role}<br>+${p.h}h ‧ 事件時間：${fmtDisplayTime(vt)}`
+       +(p.pres?`<br>氣壓 ${p.pres.toFixed(0)} hPa`:"")+(p.wind?`　風速 ${p.wind.toFixed(0)} kt`:""),{sticky:true})
      .addTo(gDots);
   }
-  // 各模式該時效之平均位置
+  // 各模式該時效之平均位置（使用自訂旋轉颱風 SVG 圖示，動畫播放時相位連續不重製）
   for(const c in g.means){
     const p = g.means[c].find(x=>x.h===h) || nearestFix(g.means[c], h);
     if(!p) continue;
     const m=MODELS.find(x=>x.code===c);
-    L.circleMarker([p.lat,p.lon],{radius:7,color:"#fff",weight:2,fillColor:m?m.color:"#fff",fillOpacity:.95})
-     .bindTooltip(`${m?m.label:c} 平均位置 +${p.h}h` + (p.spread?`<br>離散度 ${p.spread.toFixed(0)} km`:""),{sticky:true})
+    const col = m?m.color:"#d33";
+    const ic = L.divIcon({className:"tyicon",iconSize:[28,28],iconAnchor:[14,14],html:tyIconSVG(col,28)});
+    const vt = pValidTime(null, p);
+    L.marker([p.lat,p.lon],{icon:ic,zIndexOffset:850})
+     .bindTooltip(`<b>${m?m.label:c}</b> 平均位置 +${p.h}h<br>事件時間：${fmtDisplayTime(vt)}` + (p.spread?`<br>離散度 ${p.spread.toFixed(0)} km`:""),{sticky:true})
      .addTo(gDots);
     if(p.spread>0){
-      L.circle([p.lat,p.lon],{radius:p.spread*1000, color:m?m.color:"#fff", weight:1.2,
+      L.circle([p.lat,p.lon],{radius:p.spread*1000, color:col, weight:1.2,
          opacity:.7, fill:false, dashArray:"4 4"}).addTo(gDots);
     }
   }
@@ -2669,6 +2731,28 @@ $("#chartHide").onclick = ()=>{
   $("#chartHide").textContent = p.classList.contains("hide")?"顯示":"隱藏";
   setTimeout(()=>{map.invalidateSize(); drawChart();},60);
 };
+// 手機版預設不顯示強度時序，隱藏於底部
+if(window.innerWidth <= 860){
+  const cp = $("#chartPane");
+  if(cp){
+    cp.classList.add("hide");
+    if($("#chartHide")) $("#chartHide").textContent = "顯示";
+  }
+}
+$("#chartHead").addEventListener("click", e => {
+  if(e.target.closest("button") || e.target.closest("input")) return;
+  const p = $("#chartPane");
+  if(p.classList.contains("hide")){
+    p.classList.remove("hide");
+    if($("#chartHide")) $("#chartHide").textContent = "隱藏";
+    setTimeout(()=>{ map.invalidateSize(); drawChart(); }, 60);
+  }
+});
+// 時區切換按鈕綁定 (預設 UTC)
+document.querySelectorAll(".tz-mini-btn").forEach(b => {
+  b.onclick = () => setTimeMode(b.dataset.tz);
+});
+syncTzUI();
 $("#btnCustom").onclick = async ()=>{
   const u=$("#customUrl").value.trim(); if(!u) return;
   setStatus("載入自訂網址…");

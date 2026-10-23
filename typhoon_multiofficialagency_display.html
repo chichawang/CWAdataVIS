@@ -31,10 +31,10 @@
   .pop .big{font-size:18px;font-weight:700;color:#fff}
   .windarrow,.tyicon,.lbl-icon{background:none!important;border:none!important}
   .dnLayer{image-rendering:auto;-webkit-user-select:none;user-select:none}
-  .tyicon svg{animation:tyspin 6s linear infinite;transform-origin:50% 50%}
-  @keyframes tyspin{to{transform:rotate(-360deg)}}
-  .fcLabel{font-size:10px;font-weight:700;text-shadow:0 0 4px #000,0 0 2px #000;white-space:nowrap}
-  .stLabel{font-size:11px;font-weight:700;color:#fff;text-shadow:0 0 4px #000,0 0 2px #000;white-space:nowrap}
+  .tyicon svg{animation:tyspin 6s linear infinite;transform-origin:50% 50%;filter:drop-shadow(0 0 2px #fff) drop-shadow(0 0 2px #fff) drop-shadow(0 2px 4px rgba(0,0,0,.65))}
+  @keyframes tyspin{from{transform:rotate(0deg)}to{transform:rotate(-360deg)}}
+  .fcLabel{font-size:10px;font-weight:800;color:#0f172a;background:rgba(255,255,255,.92);border:1.5px solid #334155;border-radius:4px;padding:0 4px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.35)}
+  .stLabel{font-size:11px;font-weight:800;color:#0f172a;background:rgba(255,255,255,.92);border:1.5px solid #334155;border-radius:4px;padding:1px 5px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.35)}
 
   /* ═══ 控制面板：全高玻璃側欄 ═══ */
   .panel{position:absolute;top:0;left:0;bottom:0;z-index:1000;background:rgba(16,24,42,.55);
@@ -129,10 +129,11 @@
   .fbox{position:absolute;z-index:1000;background:rgba(16,24,42,.62);border:1px solid rgba(255,255,255,.1);
     border-radius:12px;padding:10px 12px;backdrop-filter:blur(18px) saturate(1.5);
     -webkit-backdrop-filter:blur(18px) saturate(1.5);box-shadow:0 8px 32px rgba(0,0,0,.35)}
-  .fbox .bhead{display:flex;align-items:center;gap:8px;cursor:pointer}
+  .fbox .bhead{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
   .fbox .bhead .btitle{flex:1;font-size:12px;font-weight:700}
-  .fbox .bhead .arw{font-size:9px;color:var(--muted)}
+  .fbox .bhead .arw{font-size:9px;color:var(--muted);transition:transform .2s ease}
   .fbox.collapsed .bbody{display:none}
+  .fbox.collapsed .bhead .arw{transform:rotate(-90deg)}
   #status{top:12px;left:calc(var(--panelW) + 34px);max-width:min(560px,calc(100vw - var(--panelW) - 70px));
     font-size:11.5px;color:var(--muted);line-height:1.6;transition:left .2s ease}
   #status.wide{left:46px}
@@ -167,7 +168,7 @@
 <!-- ══════════════ 控制面板 ══════════════ -->
 <div class="panel" id="panel">
   <h1>🌀 全球官方颱風路徑整合圖</h1>
-  <div class="sub">彙整美國、歐洲、日本、中國、台灣、韓國等官方氣象機構之熱帶氣旋預報路徑，於同一張 OpenStreetMap 上比較。</div>
+  <div class="sub">彙整美國、歐洲、日本、中國、臺灣、韓國等官方氣象機構之熱帶氣旋預報路徑，於同一張 OpenStreetMap 上比較。</div>
 
   <!-- 檢視模式 -->
   <div class="blk" id="blkView">
@@ -208,7 +209,7 @@
   </div>
 
   <!-- 機構 -->
-  <div class="blk" id="blkAgency">
+  <div class="blk closed" id="blkAgency">
     <div class="bh"><span class="ic">🏛️</span>官方氣象機構<span class="tag" id="tagAgency">—</span><span class="arw">▼</span></div>
     <div class="bb">
       <div id="agencyBox"></div>
@@ -221,13 +222,16 @@
   </div>
 
   <!-- 圖層 -->
-  <div class="blk" id="blkLayer">
+  <div class="blk closed" id="blkLayer">
     <div class="bh"><span class="ic">🗂️</span>圖層與顯示<span class="arw">▼</span></div>
     <div class="bb">
-      <label class="ckrow"><input type="checkbox" id="ckPast" checked> 過去路徑（依強度上色）</label>
+      <label class="ckrow"><input type="checkbox" id="ckPast" checked> 過去觀測路徑（依強度上色）</label>
       <label class="ckrow"><input type="checkbox" id="ckFcst" checked> 各機構預報路徑</label>
-      <label class="ckrow"><input type="checkbox" id="ckCone" checked> 預報不確定性範圍（機率圓）</label>
-      <label class="ckrow"><input type="checkbox" id="ckWind" checked> 暴風半徑圈（七級／十級風）</label>
+      <label class="ckrow"><input type="checkbox" id="ckHourly" checked> 啟用預報逐時內插 (Hourly Track)</label>
+      <label class="ckrow"><input type="checkbox" id="ckCone" checked> 70% 暴風侵襲潛勢外包框與機率圓</label>
+      <label class="ckrow"><input type="checkbox" id="ckWind" > 四分區暴風半徑圈（七級／十級風）</label>
+      <label class="ckrow"><input type="checkbox" id="ckQuadLbl"> 顯示地圖上四象限風圈半徑數值標籤</label>
+      <label class="ckrow"><input type="checkbox" id="ckSwath" > 顯示歷史暴風圈累計掃掠包絡帶</label>
       <label class="ckrow"><input type="checkbox" id="ckTau" checked> 預報時距標籤（+24h…）</label>
       <label class="ckrow"><input type="checkbox" id="ckName" checked> 颱風名稱標籤（總覽模式）</label>
       <label class="ckrow"><input type="checkbox" id="ckDayNight" checked> 日夜變化陰影區（晨昏線）</label>
@@ -248,7 +252,7 @@
   </div>
 
   <!-- 發布時刻 -->
-  <div class="blk closed" id="blkTime">
+  <div class="blk closed" id="blkTime" style="display:none">
     <div class="bh"><span class="ic">🕒</span>預報發布時刻<span class="arw">▼</span></div>
     <div class="bb">
       <div id="issueLabel" class="hint" style="margin:0 0 6px">—</div>
@@ -289,14 +293,17 @@
 </div>
 
 <!-- ══════════════ 浮動盒 ══════════════ -->
-<div class="fbox" id="status">初始化中…</div>
+<div class="fbox collapsed" id="status">
+  <div class="bhead"><span class="btitle">ℹ️ 系統狀態與資訊</span><span class="arw">▼</span></div>
+  <div class="bbody" id="statusBody">初始化中…</div>
+</div>
 
-<div class="fbox" id="legend">
-  <div class="bhead"><span class="btitle">🎨 圖例</span><span class="arw">▼</span></div>
+<div class="fbox collapsed" id="legend">
+  <div class="bhead"><span class="btitle">🎨 圖例（強度清單）</span><span class="arw">▼</span></div>
   <div class="bbody" id="lgBody"></div>
 </div>
 
-<div class="fbox" id="cmp">
+<div class="fbox collapsed" id="cmp">
   <div class="bhead"><span class="btitle">📊 預報比較</span><span class="arw">▼</span></div>
   <div class="bbody" id="cmpBody"></div>
 </div>
@@ -349,7 +356,7 @@ const AGENCIES = [
   {code:"MISC",group:"other",zh:"其他機構／模式",en:"Other",org:"資料源中未列名之其他官方預報",color:"#94a3b8",alias:[],url:""}
 ];
 const GROUPS = [
-  {id:"tw",   flag:"🇹🇼",name:"台灣"},
+  {id:"tw",   flag:"🇹🇼",name:"臺灣"},
   {id:"jp",   flag:"🇯🇵",name:"日本"},
   {id:"kr",   flag:"🇰🇷",name:"韓國"},
   {id:"cn",   flag:"🇨🇳",name:"中國（含香港）"},
@@ -429,17 +436,14 @@ function unwrapJSONP(txt){
 /* ═══════════ 通用工具 ═══════════ */
 const num = v=>{const n=parseFloat(v); return isFinite(n)?n:null;};
 const pad2 = n=>String(n).padStart(2,"0");
-/* 全頁時間一律以台灣時間（UTC+8，無日光節約時間）顯示。
-   不可使用 getHours() 等本地取值器 —— 那是「瀏覽器所在時區」，在國外開啟就會錯。
-   作法：把 UTC 時間戳位移 +8 小時後，改用 getUTC*() 取值。 */
+/* 全頁時間以 Local Time 顯示並標註 (Local Time) */
 const TW_OFFSET_MS = 8*3600e3;
 function fmtTime(d){
   if(!d) return "—";
   const t = (d instanceof Date)?d:new Date(d);
   if(isNaN(t)) return String(d);
-  const z = new Date(t.getTime()+TW_OFFSET_MS);
-  return z.getUTCFullYear()+"/"+pad2(z.getUTCMonth()+1)+"/"+pad2(z.getUTCDate())+" "
-       + pad2(z.getUTCHours())+":"+pad2(z.getUTCMinutes());
+  return t.getFullYear()+"/"+pad2(t.getMonth()+1)+"/"+pad2(t.getDate())+" "
+       + pad2(t.getHours())+":"+pad2(t.getMinutes())+" (Local Time)";
 }
 function parseCMATime(s){
   const m = String(s||"").match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/);
@@ -468,22 +472,188 @@ const fmtLL = (lat,lon)=>{
   const lo = ((lon+540)%360)-180;
   return lat.toFixed(1)+"°"+(lat>=0?"N":"S")+" "+Math.abs(lo).toFixed(1)+"°"+(lo>=0?"E":"W");
 };
-/* 強度分類（近中心最大風速 m/s；沿用 CWA 颱風路徑潛勢預測圖圖例） */
-function tyCat(ws){
-  if(ws==null) return {name:"—",short:"—",color:"#9fb0c8"};
-  if(ws<17.2)  return {name:"熱帶性低氣壓",short:"TD",color:"#29c5e0"};
-  if(ws<32.7)  return {name:"輕度颱風",short:"TS",color:"#a3c832"};
-  if(ws<51.0)  return {name:"中度颱風",short:"TY",color:"#ffa726"};
-  return {name:"強烈颱風",short:"STY",color:"#f0507a"};
+/* 強度分類（支援傳入數值風速 m/s 或物件 {ws, grade, pres}；針對街道底圖優化之高對比色盤） */
+function tyCat(pOrWs, grade, pres){
+  let ws = null, g = grade, pr = pres;
+  if(pOrWs && typeof pOrWs === "object"){
+    ws = pOrWs.ws;
+    if(g == null) g = pOrWs.grade;
+    if(pr == null) pr = pOrWs.pres;
+  } else {
+    ws = pOrWs;
+  }
+  let w = (ws != null) ? num(ws) : null;
+  if(w == null && g){
+    const s = String(g).toUpperCase();
+    if(GRADE_MS[s] != null) w = GRADE_MS[s];
+    else if(/SUPER|超強|超强/.test(s)) w = 55;
+    else if(/STY|強烈|强台|強台/.test(s)) w = 45;
+    else if(/TY|颱風|台风|中度/.test(s)) w = 38;
+    else if(/STS|強烈熱帶|强烈热带/.test(s)) w = 28;
+    else if(/TS|熱帶風暴|热带风暴|輕度|轻度/.test(s)) w = 20;
+    else if(/TD|低氣壓|低气压|低壓|低压/.test(s)) w = 15;
+  }
+  if(w == null && pr != null){
+    const pVal = num(pr);
+    if(pVal != null){
+      if(pVal < 930) w = 55;
+      else if(pVal < 960) w = 42;
+      else if(pVal < 990) w = 25;
+      else w = 15;
+    }
+  }
+  if(w == null) return {name:"—",short:"—",color:"#475569"};
+  if(w < 17.2)  return {name:"熱帶性低氣壓",short:"TD",color:"#0284c7"};
+  if(w < 32.7)  return {name:"輕度颱風",short:"TS",color:"#16a34a"};
+  if(w < 51.0)  return {name:"中度颱風",short:"TY",color:"#ea580c"};
+  return {name:"強烈颱風",short:"STY",color:"#dc2626"};
 }
 const KT2MS = 0.514444, NM2KM = 1.852;
 const GRADE_MS = {TD:15,TS:20,STS:28,TY:38,STY:45,SuperTY:55};
 function tyIconSVG(col,size){
-  return '<svg viewBox="0 0 24 24" width="'+size+'" height="'+size+'">'
-    +'<path d="M12 1.6 C6.6 1.6 2.9 5.4 2.9 10.6 C4.6 7.4 8 5.9 12 5.9 Z" fill="'+col+'" stroke="#0b1220" stroke-width="0.6"/>'
-    +'<path d="M12 22.4 C17.4 22.4 21.1 18.6 21.1 13.4 C19.4 16.6 16 18.1 12 18.1 Z" fill="'+col+'" stroke="#0b1220" stroke-width="0.6"/>'
-    +'<circle cx="12" cy="12" r="5.2" fill="'+col+'" stroke="#0b1220" stroke-width="0.8"/>'
-    +'<circle cx="12" cy="12" r="2" fill="#0b1220"/></svg>';
+  const c = col || "#d33";
+  const delay = -((performance.now() / 1000) % 6).toFixed(3);
+  return '<span class="tyicon-color-span" style="color:'+c+';display:inline-block;line-height:0">'
+    +'<svg viewBox="0 0 100 100" width="'+size+'" height="'+size+'" role="img" aria-label="颱風" style="animation-delay:'+delay+'s">'
+    +'<g fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round">'
+    +'<path d="M88 12C72 10 62 20 50 20C33.4 20 20 33.4 20 50C20 60 24 68 30 72C24 78 18 84 12 88C28 90 38 80 50 80C66.6 80 80 66.6 80 50C80 40 76 32 70 28C76 22 82 16 88 12Z"/>'
+    +'<circle cx="50" cy="50" r="11"/>'
+    +'</g></svg></span>';
+}
+function tyDestPt(lat,lon,brgDeg,distKm){
+  if(!distKm||distKm<=0) return [lat,lon];
+  const R=6371,r=Math.PI/180,d=distKm/R,b=brgDeg*r,la1=lat*r,lo1=lon*r;
+  const sla1=Math.sin(la1),cla1=Math.cos(la1),sd=Math.sin(d),cd=Math.cos(d);
+  const sla2=sla1*cd+cla1*sd*Math.cos(b);
+  const la2=Math.asin(Math.max(-1,Math.min(1,sla2)));
+  const lo2=lo1+Math.atan2(Math.sin(b)*sd*cla1,cd-sla1*sla2);
+  return [la2/r,lo2/r];
+}
+function tyBearing(la1,lo1,la2,lo2){
+  const r=Math.PI/180,f1=la1*r,f2=la2*r,dl=(lo2-lo1)*r;
+  const y=Math.sin(dl)*Math.cos(f2);
+  const x=Math.cos(f1)*Math.sin(f2)-Math.sin(f1)*Math.cos(f2)*Math.cos(dl);
+  return ((Math.atan2(y,x)/r)+360)%360;
+}
+function tySlerp(a,b,t){
+  if(t<=0) return [a[0],a[1]];
+  if(t>=1) return [b[0],b[1]];
+  const r=Math.PI/180;
+  const la1=a[0]*r,lo1=a[1]*r,la2=b[0]*r,lo2=b[1]*r;
+  const x1=Math.cos(la1)*Math.cos(lo1),y1=Math.cos(la1)*Math.sin(lo1),z1=Math.sin(la1);
+  const x2=Math.cos(la2)*Math.cos(lo2),y2=Math.cos(la2)*Math.sin(lo2),z2=Math.sin(la2);
+  const dot=Math.max(-1,Math.min(1,x1*x2+y1*y2+z1*z2));
+  const omega=Math.acos(dot);
+  if(omega<1e-7) return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t];
+  const so=Math.sin(omega),w1=Math.sin((1-t)*omega)/so,w2=Math.sin(t*omega)/so;
+  const x=w1*x1+w2*x2,y=w1*y1+w2*y2,z=w1*z1+w2*z2;
+  return [Math.atan2(z,Math.hypot(x,y))/r,Math.atan2(y,x)/r];
+}
+function tyLerpNum(a,b,t){
+  if(a==null&&b==null) return null;
+  if(a==null) return b;
+  if(b==null) return a;
+  return a+(b-a)*t;
+}
+function tyLerpQ(qa,qb,t){
+  if(!qa&&!qb) return null;
+  const g=(q,k)=>q?(q[k]??q.avg??0):0;
+  const NE=Math.round(tyLerpNum(g(qa,"NE"),g(qb,"NE"),t));
+  const SE=Math.round(tyLerpNum(g(qa,"SE"),g(qb,"SE"),t));
+  const SW=Math.round(tyLerpNum(g(qa,"SW"),g(qb,"SW"),t));
+  const NW=Math.round(tyLerpNum(g(qa,"NW"),g(qb,"NW"),t));
+  const avg=Math.round((NE+SE+SW+NW)/4);
+  if(avg<=0&&NE<=0&&SE<=0&&SW<=0&&NW<=0) return null;
+  const hasQuad=!!((qa&&qa.hasQuad)||(qb&&qb.hasQuad)||(NE!==SE||SE!==SW||SW!==NW));
+  return {avg,NE,SE,SW,NW,hasQuad};
+}
+function tyQuadPoly(ll,q){
+  if(!ll||!q) return null;
+  const qs=[{s:0,e:90,r:q.NE??q.avg??0},{s:90,e:180,r:q.SE??q.avg??0},{s:180,e:270,r:q.SW??q.avg??0},{s:270,e:360,r:q.NW??q.avg??0}];
+  if(qs.every(x=>x.r<=0)) return null;
+  const pts=[];
+  qs.forEach(x=>{
+    if(x.r>0){ for(let a=x.s;a<=x.e;a+=4) pts.push(tyDestPt(ll[0],ll[1],a,x.r)); }
+    else pts.push(ll);
+  });
+  return unwrapLng(pts);
+}
+function tyBuildHourlyFcst(cur,fcst,issueT){
+  if(!fcst||!fcst.length) return [];
+  const anchors=[];
+  const t0=(issueT instanceof Date&&!isNaN(issueT))?issueT:((cur&&cur.t instanceof Date&&!isNaN(cur.t))?cur.t:null);
+  const has0 = fcst.some(f=>f && f.tau===0 && f.lat!=null && f.lon!=null);
+  if(!has0 && cur && cur.lat!=null && cur.lon!=null){
+    anchors.push(Object.assign({},cur,{tau:0,isAnchor:true}));
+  }
+  fcst.forEach(f=>{
+    if(f.lat==null||f.lon==null||f.tau==null) return;
+    anchors.push(Object.assign({},f,{isAnchor:true}));
+  });
+  anchors.sort((a,b)=>(a.tau??0)-(b.tau??0));
+  if(anchors.length<2) return anchors.filter(p=>(p.tau??0)>0);
+  const out=[];
+  for(let i=0;i<anchors.length-1;i++){
+    const A=anchors[i],B=anchors[i+1];
+    const tauA=Math.round(A.tau??0),tauB=Math.round(B.tau??0);
+    const span=tauB-tauA;
+    if(span<=0){ if(i===0 && (A.tau??0)>0) out.push(A); continue; }
+    for(let h=tauA;h<tauB;h++){
+      if(h===0) continue;
+      if(h===tauA){ out.push(A); continue; }
+      const r=(h-tauA)/span;
+      const ll=tySlerp([A.lat,A.lon],[B.lat,B.lon],r);
+      const ws=tyLerpNum(A.ws,B.ws,r);
+      const pres=tyLerpNum(A.pres,B.pres,r);
+      const r70=tyLerpNum(A.r70,B.r70,r);
+      const r15=tyLerpNum(A.r15,B.r15,r);
+      const r25=tyLerpNum(A.r25,B.r25,r);
+      const q15=tyLerpQ(A.q15,B.q15,r);
+      const q25=tyLerpQ(A.q25,B.q25,r);
+      const vt=t0?new Date(t0.getTime()+h*3600e3):null;
+      out.push({
+        tau:h,lat:ll[0],lon:ll[1],
+        ws:ws!=null?Math.round(ws*10)/10:null,
+        pres:pres!=null?Math.round(pres):null,
+        r70:r70!=null?Math.round(r70):null,
+        r15:q15?q15.avg:(r15!=null?Math.round(r15):null),
+        r25:q25?q25.avg:(r25!=null?Math.round(r25):null),
+        q15,q25,grade:A.grade||B.grade||"",vt,isInterp:true
+      });
+    }
+  }
+  const lastA = anchors[anchors.length-1];
+  if((lastA.tau??0)>0) out.push(lastA);
+  return out;
+}
+function tyBuildConeEnvelope(cur,fcst,issueT){
+  const hourly=tyBuildHourlyFcst(cur,fcst,issueT);
+  const pts=[];
+  if(cur&&cur.lat!=null&&cur.lon!=null) pts.push({ll:[cur.lat,cur.lon],r:Math.max(cur.r70||0,8)});
+  hourly.forEach(f=>{ if(f.lat!=null&&f.lon!=null&&f.r70&&f.r70>0) pts.push({ll:[f.lat,f.lon],r:f.r70}); });
+  if(pts.length<2) return null;
+  const brgs=pts.map((p,i)=>{
+    if(i===0) return tyBearing(pts[0].ll[0],pts[0].ll[1],pts[1].ll[0],pts[1].ll[1]);
+    if(i===pts.length-1) return tyBearing(pts[i-1].ll[0],pts[i-1].ll[1],pts[i].ll[0],pts[i].ll[1]);
+    const b1=tyBearing(pts[i-1].ll[0],pts[i-1].ll[1],pts[i].ll[0],pts[i].ll[1]);
+    const b2=tyBearing(pts[i].ll[0],pts[i].ll[1],pts[i+1].ll[0],pts[i+1].ll[1]);
+    const rad=Math.PI/180;
+    const x=Math.cos(b1*rad)+Math.cos(b2*rad),y=Math.sin(b1*rad)+Math.sin(b2*rad);
+    return ((Math.atan2(y,x)/rad)+360)%360;
+  });
+  const left=[],right=[];
+  for(let i=0;i<pts.length;i++){
+    const p=pts[i],b=brgs[i];
+    left.push(tyDestPt(p.ll[0],p.ll[1],(b-90+360)%360,p.r));
+    right.push(tyDestPt(p.ll[0],p.ll[1],(b+90)%360,p.r));
+  }
+  const startCap=[];
+  const p0=pts[0],b0=brgs[0];
+  for(let a=90;a<=270;a+=15) startCap.push(tyDestPt(p0.ll[0],p0.ll[1],(b0+a)%360,p0.r));
+  const endCap=[];
+  const pN=pts[pts.length-1],bN=brgs[pts.length-1];
+  for(let a=-85;a<=85;a+=5) endCap.push(tyDestPt(pN.ll[0],pN.ll[1],(bN+a+360)%360,pN.r));
+  return unwrapLng([].concat(left,endCap,right.reverse(),startCap));
 }
 function basinOf(lat,lon){
   let x = lon; while(x>180) x-=360; while(x<-180) x+=360;
@@ -506,7 +676,7 @@ function haversineKm(a,b){
 
 /* ═══════════ 地圖 ═══════════ */
 const BASEMAPS = {
-  osm:{u:"https://tile.openstreetmap.org/{z}/{x}/{y}.png",a:"© OpenStreetMap contributors",max:19},
+  osm:{u:(location.protocol==="file:"?"https://wsrv.nl/?url=https://tile.openstreetmap.org/{z}/{x}/{y}.png":"https://tile.openstreetmap.org/{z}/{x}/{y}.png"),a:"© OpenStreetMap contributors",max:19},
   hot:{u:"https://tile-a.openstreetmap.fr/hot/{z}/{x}/{y}.png",a:"© OpenStreetMap contributors, HOT",max:19},
   dark:{u:"https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=cb1_325q_1_8b5e6f905ab09a4799809661",a:"© OpenStreetMap contributors © CARTO",max:20},
   light:{u:"https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_325q_1_8b5e6f905ab09a4799809661",a:"© OpenStreetMap contributors © CARTO",max:20},
@@ -550,8 +720,8 @@ function applyDim(){
 }
 setBase(localStorage.getItem(LS.base)||"osm");
 const layDayNight=L.layerGroup().addTo(map),
-      layPast=L.layerGroup().addTo(map), layFcst=L.layerGroup().addTo(map),
       layCone=L.layerGroup().addTo(map), layWind=L.layerGroup().addTo(map),
+      layPast=L.layerGroup().addTo(map), layFcst=L.layerGroup().addTo(map),
       layMark=L.layerGroup().addTo(map);
 
 /* ═══════════ 資料模型 ═══════════ */
@@ -666,9 +836,19 @@ async function jmaStorms(onOne){
       const past=[]; const issueT = it.issue?new Date(it.issue):null;
       if(Array.isArray(fc)) fc.forEach(e=>{
         if(e&&e.track){
-          [].concat(e.track.preTyphoon||[],e.track.typhoon||[]).forEach(p=>{
+          const pre = (e.track.preTyphoon||[]).map(p=>({p, grade:"TD"}));
+          const typ = (e.track.typhoon||[]).map(p=>({p, grade:"TY"}));
+          const rawTrack = pre.concat(typ);
+          const baseT = issueT || new Date();
+          const nPts = rawTrack.length;
+          rawTrack.forEach((item, idx)=>{
+            const p = item.p;
             const lat=num(p[0]),lon=num(p[1]);
-            if(lat!=null&&lon!=null) past.push({t:null,lat,lon,ws:null,pres:null,grade:""});
+            if(lat!=null&&lon!=null){
+              const hoursBack = (nPts - 1 - idx) * 3;
+              const tEst = new Date(baseT.getTime() - hoursBack * 3600e3);
+              past.push({t:tEst,lat,lon,ws:GRADE_MS[item.grade]||null,pres:null,grade:item.grade});
+            }
           });
         }
       });
@@ -812,7 +992,7 @@ async function jtwcStorms(onOne){
   return out;
 }
 
-/* ─── 來源 5：台灣中央氣象署 CWA Open Data W-C0034-005 ─── */
+/* ─── 來源 5：臺灣中央氣象署 CWA Open Data W-C0034-005 ─── */
 const CWA_KEY_DEFAULT = "rdec-key-123-45678-011121314";
 let CWA_KEY = CWA_KEY_DEFAULT;
 try{
@@ -839,26 +1019,57 @@ function cwaRad(fix,re){
   if(typeof c==="object"){ const r=cwaK(c,/^radius$/i); return r!=null?num(r):num(cwaK(c,/radius/i)); }
   return num(c);
 }
+function cwaQuadRad(fix,re){
+  const c = cwaK(fix,re);
+  if(!c||typeof c!=="object") return null;
+  const avg = num(cwaK(c,/^radius$/i));
+  const qw = cwaK(c,/quadrant_?radii/i);
+  let arr = qw ? cwaK(qw,/^radius$/i) : null;
+  if(arr && !Array.isArray(arr)) arr = [arr];
+  const q = {avg,NE:avg,SE:avg,SW:avg,NW:avg,hasQuad:false};
+  if(Array.isArray(arr)){
+    arr.forEach(it=>{
+      if(!it||typeof it!=="object") return;
+      const d = String(it["@dir"]||it.dir||it.direction||"").toUpperCase().trim();
+      const v = num(it["#text"]??it.value??it.radius);
+      if(v!=null && ["NE","SE","SW","NW"].includes(d)){ q[d]=v; q.hasQuad=true; }
+    });
+  }
+  return (q.avg!=null||q.hasQuad) ? q : null;
+}
 /* datastore API 網址：與 CWA_opendata_10min_display.html 之 dataApi() 相同格式 */
 function cwaApi(id){
   return "https://opendata.cwa.gov.tw/api/v1/rest/datastore/"+id
        + "?Authorization="+encodeURIComponent(CWA_KEY)+"&format=JSON&_t="+Date.now();
 }
+function cwaFileApi(id){
+  return "https://opendata.cwa.gov.tw/fileapi/v1/opendataapi/"+id
+       + "?Authorization="+encodeURIComponent(CWA_KEY)+"&format=JSON";
+}
 async function cwaStorms(){
-  const url = cwaApi("W-C0034-005");
-  const j = await pfetch(url,{type:"json"});
-  if(j && String(j.success)==="false") throw new Error("API 回應 success=false，請確認授權碼是否有效或已被限流");
-
-  // 欄位路徑容錯：camelCase 與 snake_case 皆可（同 10 分鐘觀測地圖之 tyParse）
-  let list = (j && j.records && (j.records.tropicalCyclones||j.records.tropical_cyclones||{}));
-  list = (list && (list.tropicalCyclone || list.tropical_cyclone))
-      || cwaK(cwaK((j&&j.records)||{}, /tropical_?cyclones/i)||{}, /tropical_?cyclone$/i)
-      || [];
-  if(list && !Array.isArray(list)) list=[list];
+  let j = null;
+  try{ j = await pfetch(cwaFileApi("W-C0034-005"),{type:"json"}); }catch(e){}
+  const extractList = data => {
+    if(!data) return [];
+    const root = data.cwaopendata || data;
+    let l = root?.Dataset?.TropicalCyclones?.TropicalCyclone
+         || data?.records?.tropicalCyclones?.tropicalCyclone
+         || data?.records?.tropical_cyclones?.tropical_cyclone
+         || cwaK(cwaK(root?.Dataset||data?.records||{}, /tropical_?cyclones/i)||{}, /tropical_?cyclone$/i)
+         || [];
+    if(l && !Array.isArray(l)) l=[l];
+    return l;
+  };
+  let list = extractList(j);
+  if(!list.length){
+    const j2 = await pfetch(cwaApi("W-C0034-005"),{type:"json"});
+    if(j2 && String(j2.success)==="false") throw new Error("API 回應 success=false，請確認授權碼是否有效或已被限流");
+    j = j2;
+    list = extractList(j2);
+  }
   const isDemo = CWA_KEY === CWA_KEY_DEFAULT;
-  diagSet("台灣 CWA 氣象署",{
-    note:"records 欄位："+Object.keys((j&&j.records)||{}).join("／")
-       + "｜熱帶氣旋 "+((list&&list.length)||0)+" 筆"
+  diagSet("臺灣 CWA 氣象署",{
+    note:"熱帶氣旋 "+((list&&list.length)||0)+" 筆"
        + (isDemo?"｜使用官方示範金鑰":"｜使用自訂金鑰")});
   const out=[];
   (list||[]).forEach(tc=>{
@@ -868,24 +1079,34 @@ async function cwaStorms(){
     const past = norm(cwaK(tc,/analysis_?data/i)).map(f=>{
       const ll = cwaLL(f); if(!ll) return null;
       const mv = cwaK(f,/^movement$/i)||f;
+      const ws = num(cwaK(f,/max_?wind/i));
+      const gust = num(cwaK(f,/max_?gust/i));
+      const pres = num(cwaK(f,/pressure/i));
+      const cat = tyCat(ws, "", pres);
       return {t:new Date(cwaK(f,/fix_?time|^date_?time$/i)),lat:ll[0],lon:ll[1],
-        ws:num(cwaK(f,/max_?wind/i)),gust:num(cwaK(f,/max_?gust/i)),pres:num(cwaK(f,/pressure/i)),
-        r15:cwaRad(f,/15\s*ms|of_?15/i),r25:cwaRad(f,/25\s*ms|of_?25/i),grade:"",
+        ws,gust,pres,
+        r15:cwaRad(f,/15\s*ms|of_?15/i),r25:cwaRad(f,/25\s*ms|of_?25/i),
+        q15:cwaQuadRad(f,/15\s*ms|of_?15/i),q25:cwaQuadRad(f,/25\s*ms|of_?25/i),
+        grade:cat.short||"",
         mvDir:cwaK(mv,/moving_?direction/i),mvSpd:num(cwaK(mv,/moving_?speed|^speed$/i))};
     }).filter(Boolean);
     past.sort((a,b)=>(a.t?a.t.getTime():0)-(b.t?b.t.getTime():0));
     const fpts = norm(cwaK(tc,/forecast_?data/i)).map(f=>{
       const ll = cwaLL(f); if(!ll) return null;
+      const ws = num(cwaK(f,/max_?wind/i));
+      const pres = num(cwaK(f,/pressure/i));
+      const cat = tyCat(ws, "", pres);
       return {tau:num(cwaK(f,/^tau$|forecast_?hour/i)),lat:ll[0],lon:ll[1],
-        ws:num(cwaK(f,/max_?wind/i)),pres:num(cwaK(f,/pressure/i)),grade:"",
+        ws,pres,grade:cat.short||"",
         r70:cwaRad(f,/70\s*percent|probability/i),
-        r15:cwaRad(f,/15\s*ms|of_?15/i),r25:cwaRad(f,/25\s*ms|of_?25/i)};
+        r15:cwaRad(f,/15\s*ms|of_?15/i),r25:cwaRad(f,/25\s*ms|of_?25/i),
+        q15:cwaQuadRad(f,/15\s*ms|of_?15/i),q25:cwaQuadRad(f,/25\s*ms|of_?25/i)};
     }).filter(Boolean);
     fpts.sort((a,b)=>(a.tau??0)-(b.tau??0));
     if(!past.length&&!fpts.length) return;
     const last = past[past.length-1];
     out.push({key:"CWA:"+(no||nameEn),nameEn,nameZh,no:no+"",
-      basin:last?basinOf(last.lat,last.lon):"WP",source:"CWA",past,
+      basin:last?basinOf(last.lat,last.lon):"WP",source:"CWA",cwaAuthoritative:true,past,
       issues:fpts.length?[{t:last?last.t:new Date(),agencies:{RCTP:{pts:fpts,rawKey:"CWA"}},from:"CWA"}]:[]});
   });
   return out;
@@ -1777,37 +1998,72 @@ async function kmaStorms(onOne){
 /* ═══════════ 跨來源合併 ═══════════ */
 function lastPos(s){ const p=s.past&&s.past[s.past.length-1]; return p?[p.lat,p.lon]:null; }
 function pastScore(s){
+  if(s && (s.source === "CWA" || s.source === "RCTP" || s.cwaAuthoritative || (s.sources && s.sources.includes("CWA")))) return 9999999;
   const p=s.past||[]; if(!p.length) return 0;
-  return p.length * (p.some(x=>x.t instanceof Date && !isNaN(x.t))?3:1) * (p.some(x=>x.ws!=null)?1.5:1);
+  const numDates = p.filter(x=>x && x.t instanceof Date && !isNaN(x.t.getTime())).length;
+  const numWs = p.filter(x=>x && (x.ws!=null||x.pres!=null)).length;
+  return numDates * 50 + numWs * 5 + p.length;
 }
 function sameStorm(a,b){
   const na=(a.nameEn||"").toUpperCase().replace(/[^A-Z]/g,"");
   const nb=(b.nameEn||"").toUpperCase().replace(/[^A-Z]/g,"");
   if(na&&nb&&na===nb&&na!=="NAMELESS"&&na!=="UNNAMED") return true;
   if(a.no&&b.no&&a.no===b.no) return true;
+  const numA = String(a.no||"").replace(/\D/g,"");
+  const numB = String(b.no||"").replace(/\D/g,"");
+  if(numA && numB && (numA === numB || (numA.length>=2 && numB.length>=2 && numA.slice(-2) === numB.slice(-2)))){
+    const pa=lastPos(a), pb=lastPos(b);
+    if(!pa || !pb || haversineKm(pa,pb)<800) return true;
+  }
   const pa=lastPos(a), pb=lastPos(b);
   return !!(pa&&pb&&haversineKm(pa,pb)<350);
 }
 function mergeStorms(groups){
-  const all=[].concat.apply([],groups), out=[];
+  let all=[].concat.apply([],groups), out=[];
+  // 優先排序：CWA 來源排在最前面，確保颱風基礎資料與過去路徑絕對以 CWA 為權威準則
+  all.sort((a,b)=>{
+    const ac = (a.source === "CWA" || a.source === "RCTP" || a.cwaAuthoritative || (a.sources && a.sources.includes("CWA"))) ? 1 : 0;
+    const bc = (b.source === "CWA" || b.source === "RCTP" || b.cwaAuthoritative || (b.sources && b.sources.includes("CWA"))) ? 1 : 0;
+    return bc - ac;
+  });
   all.forEach(s=>{
     const hit = out.find(o=>sameStorm(o,s));
-    if(!hit){ out.push(Object.assign({sources:[s.source]},s)); return; }
+    const sIsCwa = (s.source === "CWA" || s.source === "RCTP" || s.cwaAuthoritative || (s.sources && s.sources.includes("CWA")));
+    if(!hit){
+      out.push(Object.assign({sources:[s.source], cwaAuthoritative: sIsCwa}, s));
+      return;
+    }
     hit.sources = Array.from(new Set(hit.sources.concat([s.source])));
-    if(pastScore(s)>pastScore(hit)){
+    const hitIsCwa = !!hit.cwaAuthoritative;
+
+    if(sIsCwa){
+      // 過去颱風資料以 CWA 的資料為準：若來源包含 CWA，絕對優先採用 CWA 之觀測路徑
+      hit.past = s.past;
+      hit.cwaAuthoritative = true;
+      if(s.nameZh) hit.nameZh = s.nameZh;
+      if(s.nameEn) hit.nameEn = s.nameEn;
+      if(s.no)     hit.no     = s.no;
+    } else if(!hitIsCwa && pastScore(s) > pastScore(hit)){
       const prevL = hit.past && hit.past[hit.past.length-1];
       hit.past = s.past;
       const newL = hit.past && hit.past[hit.past.length-1];
       if(prevL && newL){
-        ["r15","r25","gust","pres","ws","distHK","bearHK"].forEach(k=>{ if(newL[k]==null&&prevL[k]!=null) newL[k]=prevL[k]; });
+        ["r15","r25","q15","q25","gust","pres","ws","distHK","bearHK"].forEach(k=>{ if(newL[k]==null&&prevL[k]!=null) newL[k]=prevL[k]; });
       }
     }
+    // 僅在非 CWA 欄位缺失時補充最新點屬性，不覆寫已存在的 CWA 官方觀測數據
     const hl=hit.past[hit.past.length-1], sl=s.past&&s.past[s.past.length-1];
-    if(hl&&sl) ["r15","r25","gust","pres","ws","distHK","bearHK"].forEach(k=>{ if(hl[k]==null&&sl[k]!=null) hl[k]=sl[k]; });
+    if(hl&&sl) ["r15","r25","q15","q25","gust","pres","ws","distHK","bearHK"].forEach(k=>{ if(hl[k]==null&&sl[k]!=null) hl[k]=sl[k]; });
     hit.issues = (hit.issues||[]).concat(s.issues||[]);
-    hit.nameEn = hit.nameEn||s.nameEn;
-    hit.nameZh = hit.nameZh||s.nameZh;
-    hit.no     = hit.no||s.no;
+    if(!hitIsCwa){
+      hit.nameEn = hit.nameEn||s.nameEn;
+      hit.nameZh = hit.nameZh||s.nameZh;
+      hit.no     = hit.no||s.no;
+    } else {
+      if(!hit.nameEn && s.nameEn) hit.nameEn = s.nameEn;
+      if(!hit.nameZh && s.nameZh) hit.nameZh = s.nameZh;
+      if(!hit.no && s.no) hit.no = s.no;
+    }
     if(s.cmaId)  hit.cmaId  = s.cmaId;
     if(s.kmaImg) hit.kmaImg = s.kmaImg;
     if(s.hkoUrl) hit.hkoUrl = s.hkoUrl;
@@ -1842,7 +2098,8 @@ function latestAgencies(storm){
 function viewOf(storm){
   if(!storm) return {t:null,agencies:{}};
   const IL = storm.issueList||[];
-  if(storm===curStorm && curIssueIdx>=0 && IL[curIssueIdx]){
+  const isCur = curStorm && (storm === curStorm || storm.key === curStorm.key);
+  if(isCur && curIssueIdx>=0 && IL[curIssueIdx]){
     const is=IL[curIssueIdx], ag={};
     Object.keys(is.agencies).forEach(c=>{ ag[c]=Object.assign({issue:is.t},is.agencies[c]); });
     return {t:is.t,agencies:ag};
@@ -1853,6 +2110,50 @@ function viewOf(storm){
   return {t,agencies:ag};
 }
 const activeView = ()=>viewOf(curStorm);
+function getIssueFix(S, v){
+  if(!S) return null;
+  if(v && Array.isArray(v.pts)){
+    const f0 = v.pts.find(p=>p && p.tau===0 && p.lat!=null && p.lon!=null);
+    if(f0) return f0;
+  }
+  const issueT = (v && v.issue instanceof Date && !isNaN(v.issue.getTime()))
+    ? v.issue
+    : ((v && v.issue) ? new Date(v.issue) : null);
+  const past = S.past||[];
+  if(!past.length) return null;
+  if(!issueT || isNaN(issueT.getTime())){
+    return (curIssueIdx < 0) ? past[past.length-1] : null;
+  }
+  const targetMs = issueT.getTime();
+  let best = null, minDiff = Infinity;
+  for(let i=0; i<past.length; i++){
+    const p = past[i];
+    if(!p || p.lat==null || p.lon==null) continue;
+    const pt = (p.t instanceof Date) ? p.t : (p.t ? new Date(p.t) : null);
+    if(pt && !isNaN(pt.getTime())){
+      const diff = Math.abs(pt.getTime() - targetMs);
+      if(diff < minDiff){
+        minDiff = diff;
+        best = p;
+      }
+    }
+  }
+  if(best && minDiff <= 18 * 3600e3) return best;
+
+  // 若過去點無確切時間匹配，且正在檢視過去發布時刻，依時序拉桿相對比例映射過去路徑位置
+  const IL = S.issueList||[];
+  if(curIssueIdx >= 0 && IL.length > 0 && past.length > 0){
+    const approxIdx = Math.round(curIssueIdx * (past.length - 1) / Math.max(1, IL.length - 1));
+    if(past[approxIdx] && past[approxIdx].lat!=null && past[approxIdx].lon!=null){
+      return past[approxIdx];
+    }
+  }
+  // 檢視過去預報發布時刻時，絕對不回退連接到最新點 (past[past.length-1])
+  if(curIssueIdx >= 0){
+    return null;
+  }
+  return past[past.length-1];
+}
 function shownStorms(){
   const b = $("basinSel").value;
   if(overview) return storms.filter(s=>b==="ALL"||s.basin===b);
@@ -1962,83 +2263,161 @@ function drawDayNight(list){
 function drawStorm(S,opt){
   const pts=[];
   const showPast=$("ckPast").checked, showFc=$("ckFcst").checked, showCone=$("ckCone").checked,
-        showWind=$("ckWind").checked, showTau=$("ckTau").checked, showName=$("ckName").checked;
+        showWind=$("ckWind").checked, showTau=$("ckTau").checked, showName=$("ckName").checked,
+        showHourly=$("ckHourly")?$("ckHourly").checked:true,
+        showQuadLbl=$("ckQuadLbl")?$("ckQuadLbl").checked:false,
+        showSwath=$("ckSwath")?$("ckSwath").checked:true;
   const thin = !!opt.thin;
   const past = S.past||[];
 
+  if(showSwath && !thin && past.length){
+    past.forEach(p=>{
+      if(p.q15){
+        const poly = tyQuadPoly([p.lat,p.lon], p.q15, 6);
+        if(poly) L.polygon(poly,{color:"#e11d48",weight:.6,dashArray:"2 4",fillColor:"#f43f5e",fillOpacity:.03,interactive:false}).addTo(layWind);
+      }else if(p.r15){
+        L.circle(mapLL(p),{radius:p.r15*1000,color:"#e11d48",weight:.6,dashArray:"2 4",fillColor:"#f43f5e",fillOpacity:.03,interactive:false}).addTo(layWind);
+      }
+    });
+  }
+
   if(showPast && past.length){
     const line = unwrapLng(past.map(p=>[p.lat,p.lon]));
-    if(line.length>1) L.polyline(line,{color:"#e6edf6",weight:thin?1.6:2,opacity:thin?.55:.72}).addTo(layPast);
+    if(line.length>1){
+      L.polyline(line,{color:"#ffffff",weight:thin?4.2:6.5,opacity:thin?.75:.88,lineCap:"round",lineJoin:"round",interactive:false}).addTo(layPast);
+      for(let i=0;i<line.length-1;i++){
+        L.polyline([line[i],line[i+1]],{color:tyCat(past[i+1]).color,weight:thin?2.2:3.4,opacity:.96,lineCap:"round"}).addTo(layPast);
+      }
+    }
     line.forEach((ll,i)=>{
       const p = past[i];
+      const cat = tyCat(p);
       if(i<past.length-1)
-        L.circleMarker(ll,{radius:thin?2.6:3.6,fillColor:tyCat(p.ws).color,color:"#0b1220",weight:1,fillOpacity:.95})
-         .bindPopup(()=>fixPopup(S,p,"past")).addTo(layPast);
+        L.circleMarker(ll,{radius:thin?3.5:5,fillColor:cat.color,color:"#ffffff",weight:1.8,fillOpacity:1})
+         .bindPopup(()=>fixPopup(S,p,"past"))
+         .bindTooltip((p.t?fmtTime(p.t).slice(5)+" ":"") + cat.name + (p.ws!=null?" ("+p.ws.toFixed(0)+" m/s)":""), {sticky:true})
+         .addTo(layPast);
       pts.push(ll);
     });
   }
 
-  const cur = past[past.length-1];
+  const view = viewOf(S);
+  const isCur = curStorm && (S === curStorm || S.key === curStorm.key);
+  const issueFixForView = (curIssueIdx >= 0 && isCur) ? getIssueFix(S, { issue: view.t }) : null;
+  const cur = (curIssueIdx >= 0 && isCur) ? issueFixForView : (past[past.length-1] || null);
   if(cur){
     const cll=mapLL(cur);
     if(showWind){
-      if(cur.r15) L.circle(cll,{radius:cur.r15*1000,color:"#ff8fb0",weight:1.4,fillColor:"#ff8fb0",fillOpacity:.15})
+      const p15 = cur.q15 ? tyQuadPoly([cur.lat,cur.lon], cur.q15) : null;
+      if(p15) L.polygon(p15,{color:"#e11d48",weight:2,fillColor:"#f43f5e",fillOpacity:.18})
+        .bindTooltip("七級風暴風半徑 "+(cur.q15.avg||cur.r15||"")+" km").addTo(layWind);
+      else if(cur.r15) L.circle(cll,{radius:cur.r15*1000,color:"#e11d48",weight:2,fillColor:"#f43f5e",fillOpacity:.18})
         .bindTooltip("七級風暴風半徑 "+cur.r15+" km").addTo(layWind);
-      if(cur.r25) L.circle(cll,{radius:cur.r25*1000,color:"#e8447a",weight:1.4,fillColor:"#e8447a",fillOpacity:.13})
+
+      const p25 = cur.q25 ? tyQuadPoly([cur.lat,cur.lon], cur.q25) : null;
+      if(p25) L.polygon(p25,{color:"#881337",weight:2.2,fillColor:"#be123c",fillOpacity:.26})
+        .bindTooltip("十級風暴風半徑 "+(cur.q25.avg||cur.r25||"")+" km").addTo(layWind);
+      else if(cur.r25) L.circle(cll,{radius:cur.r25*1000,color:"#881337",weight:2.2,fillColor:"#be123c",fillOpacity:.26})
         .bindTooltip("十級風暴風半徑 "+cur.r25+" km").addTo(layWind);
+
+      const qMax = cur.q15 || cur.q25;
+      if(qMax){
+        const maxR = Math.max(qMax.NE||0,qMax.SE||0,qMax.SW||0,qMax.NW||0,qMax.avg||0);
+        if(maxR>0){
+          [0,90,180,270].forEach(brg=>{
+            const endPt = tyDestPt(cur.lat,cur.lon,brg,maxR);
+            L.polyline(unwrapLng([[cur.lat,cur.lon],endPt]),{
+              color:"#be123c",weight:1,dashArray:"3 4",opacity:.5,interactive:false
+            }).addTo(layWind);
+          });
+        }
+      }
+      if(showQuadLbl && cur.q15 && !thin){
+        [{d:"NE",a:45,v:cur.q15.NE},{d:"SE",a:135,v:cur.q15.SE},{d:"SW",a:225,v:cur.q15.SW},{d:"NW",a:315,v:cur.q15.NW}].forEach(q=>{
+          if(q.v>0){
+            const pt=tyDestPt(cur.lat,cur.lon,q.a,q.v*0.72);
+            L.marker(pt,{interactive:false,icon:L.divIcon({className:"lbl-icon",iconSize:[64,16],iconAnchor:[32,8],
+              html:`<div class="fcLabel" style="color:#ffe4e6;background:rgba(15,23,42,.9);border-color:#f43f5e">${q.d} ${Math.round(q.v)}km</div>`})}).addTo(layWind);
+          }
+        });
+      }
     }
-    const cat = tyCat(cur.ws);
+    const cat = tyCat(cur);
     const sz = thin?28:36;
     L.marker(cll,{icon:L.divIcon({className:"tyicon",iconSize:[sz,sz],iconAnchor:[sz/2,sz/2],html:tyIconSVG(cat.color,sz)}),zIndexOffset:900})
       .bindPopup(()=>fixPopup(S,cur,"now")).addTo(layMark);
     if(showName && overview)
-      L.marker(cll,{icon:L.divIcon({className:"lbl-icon",iconSize:[130,16],iconAnchor:[-14,8],
+      L.marker(cll,{icon:L.divIcon({className:"lbl-icon",iconSize:[130,18],iconAnchor:[-14,9],
         html:'<div class="stLabel">'+stormTitle(S)+'</div>'})}).addTo(layMark);
     pts.push(cll);
   }
 
-  const view = viewOf(S);
   const drawn=[];
   if(showFc){
     AG_ORDER.filter(c=>view.agencies[c]&&agencyOn[c]).forEach(code=>{
       const A=AG_BY_CODE[code], v=view.agencies[code];
-      const line = unwrapLng((cur?[[cur.lat,cur.lon]]:[]).concat(v.pts.map(p=>[p.lat,p.lon])));
-      if(line.length>1)
-        L.polyline(line,{color:A.color,weight:thin?2:2.6,opacity:.95,dashArray:"7 5",lineCap:"round"})
+      const issueFix = getIssueFix(S, v) || issueFixForView;
+      const hourlyPts = showHourly ? tyBuildHourlyFcst(issueFix, v.pts, v.issue) : v.pts.filter(p=>(p.tau??0)>0).map(p=>Object.assign({},p,{isInterp:false}));
+      const line = unwrapLng((issueFix?[[issueFix.lat,issueFix.lon]]:[]).concat(hourlyPts.map(p=>[p.lat,p.lon])));
+      if(line.length>1){
+        L.polyline(line,{color:"#ffffff",weight:thin?3.8:5.2,opacity:.78,lineCap:"round",interactive:false}).addTo(layFcst);
+        L.polyline(line,{color:A.color,weight:thin?2:2.6,opacity:.96,dashArray:"7 5",lineCap:"round"})
           .bindTooltip(A.zh+"（"+A.en+"）"+(overview?" · "+stormTitle(S):"")+" 預報路徑",{sticky:true}).addTo(layFcst);
-      const fLine = line.slice(cur?1:0);
-      v.pts.forEach((p,i)=>{
+      }
+      // 70% 機率外包框（Cone of Uncertainty）
+      if(showCone){
+        const conePoly = tyBuildConeEnvelope(issueFix, v.pts, v.issue);
+        if(conePoly){
+          L.polygon(conePoly,{
+            color:A.color,weight:1.8,dashArray:"8 5",
+            fillColor:A.color,fillOpacity:.10,interactive:false
+          }).addTo(layCone);
+        }
+      }
+      const fLine = line.slice(issueFix?1:0);
+      hourlyPts.forEach((p,i)=>{
         const ll = fLine[i]||mapLL(p);
+        if(p.isInterp){
+          if(!thin){
+            L.circleMarker(ll,{radius:2.2,fillColor:A.color,color:"#ffffff",weight:0.8,fillOpacity:.88})
+              .bindPopup(()=>fcPopup(S,A,p,v.issue)).addTo(layFcst);
+          }
+          pts.push(ll);
+          return;
+        }
         // 預報不確定性範圍（70% 機率圓／預報圓）
         if(showCone && p.r70)
-          L.circle(ll,{radius:p.r70*1000,color:A.color,weight:1,dashArray:"3 4",fillColor:A.color,fillOpacity:.06})
-            .bindTooltip(A.en+" +"+(p.tau!=null?p.tau+"h":"")+" 70% 機率圓 "+p.r70+" km").addTo(layCone);
-        // 預報時刻之暴風半徑（JMA 暴風/強風警戒域、KMA 15/25 m/s、JTWC 34/50kt、CWA 七級/十級風）
+          L.circle(ll,{radius:p.r70*1000,color:A.color,weight:1,dashArray:"3 4",fillColor:A.color,fillOpacity:.04,interactive:false}).addTo(layCone);
+        // 預報時刻之暴風半徑（支援四象限非對稱或圓形）
         if(showWind && !thin){
-          if(p.r15) L.circle(ll,{radius:p.r15*1000,color:"#ff8fb0",weight:1,opacity:.7,dashArray:"2 4",
-            fillColor:"#ff8fb0",fillOpacity:.05})
-            .bindTooltip(A.en+" +"+(p.tau!=null?p.tau+"h":"")+" 七級風半徑 "+p.r15+" km").addTo(layWind);
-          if(p.r25) L.circle(ll,{radius:p.r25*1000,color:"#e8447a",weight:1,opacity:.7,dashArray:"2 4",
-            fillColor:"#e8447a",fillOpacity:.05})
-            .bindTooltip(A.en+" +"+(p.tau!=null?p.tau+"h":"")+" 十級風半徑 "+p.r25+" km").addTo(layWind);
+          const fp15 = p.q15 ? tyQuadPoly([p.lat,p.lon], p.q15) : null;
+          if(fp15) L.polygon(fp15,{color:"#e11d48",weight:1.2,opacity:.75,dashArray:"3 4",fillColor:"#f43f5e",fillOpacity:.06,interactive:false}).addTo(layWind);
+          else if(p.r15) L.circle(ll,{radius:p.r15*1000,color:"#e11d48",weight:1.2,opacity:.75,dashArray:"3 4",
+            fillColor:"#f43f5e",fillOpacity:.06,interactive:false}).addTo(layWind);
+
+          const fp25 = p.q25 ? tyQuadPoly([p.lat,p.lon], p.q25) : null;
+          if(fp25) L.polygon(fp25,{color:"#881337",weight:1.2,opacity:.75,dashArray:"3 4",fillColor:"#be123c",fillOpacity:.08,interactive:false}).addTo(layWind);
+          else if(p.r25) L.circle(ll,{radius:p.r25*1000,color:"#881337",weight:1.2,opacity:.75,dashArray:"3 4",
+            fillColor:"#be123c",fillOpacity:.08,interactive:false}).addTo(layWind);
         }
-        L.circleMarker(ll,{radius:thin?3.4:4.6,fillColor:"#fff",color:A.color,weight:2.4,fillOpacity:1})
+        L.circleMarker(ll,{radius:thin?3.6:5,fillColor:"#ffffff",color:A.color,weight:2.5,fillOpacity:1})
           .bindPopup(()=>fcPopup(S,A,p,v.issue)).addTo(layFcst);
         pts.push(ll);
       });
       const end = fLine[fLine.length-1];
-      if(end) L.marker(end,{icon:L.divIcon({className:"lbl-icon",iconSize:[64,14],iconAnchor:[-6,7],
-        html:'<div class="fcLabel" style="color:'+A.color+'">'+A.en+'</div>'})}).addTo(layFcst);
-      drawn.push({A,v});
+      if(end) L.marker(end,{icon:L.divIcon({className:"lbl-icon",iconSize:[64,16],iconAnchor:[-6,8],
+        html:'<div class="fcLabel" style="color:'+A.color+';border-color:'+A.color+'">'+A.en+'</div>'})}).addTo(layFcst);
+      drawn.push({A,v,issueFix});
     });
     if(showTau && drawn.length && !thin){
       const ref = drawn.reduce((a,b)=>b.v.pts.length>a.v.pts.length?b:a);
-      const rl = unwrapLng((cur?[[cur.lat,cur.lon]]:[]).concat(ref.v.pts.map(p=>[p.lat,p.lon]))).slice(cur?1:0);
+      const refFix = ref.issueFix || cur;
+      const rl = unwrapLng((refFix?[[refFix.lat,refFix.lon]]:[]).concat(ref.v.pts.map(p=>[p.lat,p.lon]))).slice(refFix?1:0);
       ref.v.pts.forEach((p,i)=>{
-        if(p.tau==null) return;
+        if(p.tau==null || p.tau===0) return;
         if(ref.v.pts.length>12 && p.tau%12!==0 && i!==ref.v.pts.length-1) return;
-        L.marker(rl[i]||mapLL(p),{icon:L.divIcon({className:"lbl-icon",iconSize:[46,14],iconAnchor:[24,-4],
-          html:'<div class="fcLabel" style="color:#e6edf6">+'+p.tau+'h</div>'})}).addTo(layFcst);
+        L.marker(rl[i]||mapLL(p),{icon:L.divIcon({className:"lbl-icon",iconSize:[46,16],iconAnchor:[24,-4],
+          html:'<div class="fcLabel">+'+p.tau+'h</div>'})}).addTo(layFcst);
       });
     }
   }
@@ -2069,37 +2448,39 @@ function fitBasin(){
 }
 
 function fixPopup(S,p,kind){
-  const cat = tyCat(p.ws);
-  let h = '<div class="pop"><h3>🌀 '+stormTitle(S)+' <small style="color:#9fb0c8">'+(kind==="now"?"目前位置":"過去位置")+'</small></h3>';
+  const cat = tyCat(p);
+  let h = '<div class="pop"><h3>🌀 '+stormTitle(S)+' <small style="color:#9fb0c8">'+(kind==="now"?(curIssueIdx>=0?"發布時刻位置":"目前位置"):"過去位置")+'</small></h3>';
   h += '<div class="row"><span class="k">強度分類</span><span class="big" style="color:'+cat.color+'">'+cat.name+'</span></div>';
   h += row("定位時間",p.t?fmtTime(p.t):"—");
   h += row("位置",fmtLL(p.lat,p.lon));
   h += row("近中心最大風速",p.ws!=null?p.ws.toFixed(0)+" m/s（"+(p.ws/KT2MS).toFixed(0)+" kt）":"—");
   if(p.gust!=null) h += row("最大陣風",p.gust+" m/s");
   h += row("中心氣壓",p.pres!=null?p.pres+" hPa":"—");
-  if(p.r15!=null) h += row("七級風暴風半徑",p.r15+" km");
-  if(p.r25!=null) h += row("十級風暴風半徑",p.r25+" km");
+  if(p.r15!=null) h += row("七級風暴風半徑",p.r15+" km"+(p.q15&&p.q15.hasQuad?" (NE:"+p.q15.NE+"/SE:"+p.q15.SE+"/SW:"+p.q15.SW+"/NW:"+p.q15.NW+")":""));
+  if(p.r25!=null) h += row("十級風暴風半徑",p.r25+" km"+(p.q25&&p.q25.hasQuad?" (NE:"+p.q25.NE+"/SE:"+p.q25.SE+"/SW:"+p.q25.SW+"/NW:"+p.q25.NW+")":""));
   if(p.mvDir||p.mvSpd!=null) h += row("移向 / 移速",(p.mvDir||"—")+" / "+(p.mvSpd!=null?p.mvSpd.toFixed(0)+" km/h":"—"));
   if(p.distHK!=null) h += row("距香港",(p.bearHK?(BEAR_ZH[p.bearHK]||p.bearHK)+"方 ":"")+p.distHK+" 公里");
-  h += '<div style="color:#9fb0c8;font-size:11px;margin-top:5px">資料來源：'+(S.sources||[S.source]).join("、")
+  const pastSrcNote = S.cwaAuthoritative ? "臺灣氣象署 CWA（官方定位）" : (S.sources||[S.source]).join("、");
+  h += '<div style="color:#9fb0c8;font-size:11px;margin-top:5px">定位來源：'+pastSrcNote
+     + '<br>涵蓋機構預報：'+(S.sources||[S.source]).join("、")
      + (S.kmaImg?'<br><a href="'+S.kmaImg+'" target="_blank" rel="noopener" style="color:#7fb3ff">KMA 官方路徑圖 ↗</a>':'')
      + (S.hkoUrl?'<br><a href="'+S.hkoUrl+'" target="_blank" rel="noopener" style="color:#7fb3ff">HKO 官方路徑圖 ↗</a>':'')
      + '</div></div>';
   return h;
 }
 function fcPopup(S,A,p,issue){
-  const cat = tyCat(p.ws);
-  let h = '<div class="pop"><h3 style="color:'+A.color+'">'+A.zh+'　<small style="color:#9fb0c8">'+A.en+' 預報</small></h3>';
+  const cat = tyCat(p);
+  let h = '<div class="pop"><h3 style="color:'+A.color+'">'+A.zh+'　<small style="color:#9fb0c8">'+A.en+(p.isInterp?' 逐時內插預報':' 預報')+'</small></h3>';
   h += row("熱帶氣旋",stormTitle(S));
-  h += row("預報時距",p.tau!=null?"+"+p.tau+" 小時":"—");
+  h += row("預報時距",p.tau!=null?"+"+p.tau+" 小時"+(p.isInterp?" (內插)":""):"—");
   h += row("發布時刻",issue?fmtTime(issue):"—");
   h += row("有效時刻",p.vt?fmtTime(p.vt):(issue&&p.tau!=null?fmtTime(new Date(issue.getTime()+p.tau*3600e3)):"—"));
   h += row("預報位置",fmtLL(p.lat,p.lon));
   h += '<div class="row"><span class="k">預報強度</span><span style="color:'+cat.color+'">'
      + (p.ws!=null?p.ws.toFixed(0)+" m/s（"+cat.name+"）":(p.grade||"—"))+'</span></div>';
   h += row("中心氣壓",p.pres!=null?p.pres+" hPa":"—");
-  if(p.r15!=null) h += row("七級風暴風半徑",p.r15+" km");
-  if(p.r25!=null) h += row("十級風暴風半徑",p.r25+" km");
+  if(p.r15!=null) h += row("七級風暴風半徑",p.r15+" km"+(p.q15&&p.q15.hasQuad?" (NE:"+p.q15.NE+"/SE:"+p.q15.SE+"/SW:"+p.q15.SW+"/NW:"+p.q15.NW+")":""));
+  if(p.r25!=null) h += row("十級風暴風半徑",p.r25+" km"+(p.q25&&p.q25.hasQuad?" (NE:"+p.q25.NE+"/SE:"+p.q25.SE+"/SW:"+p.q25.SW+"/NW:"+p.q25.NW+")":""));
   if(p.r70!=null) h += row("70% 機率圓半徑",p.r70+" km");
   h += '<div style="color:#9fb0c8;font-size:11px;margin-top:5px">'+A.org
      + (A.url?'<br><a href="'+A.url+'" target="_blank" rel="noopener" style="color:#7fb3ff">前往官方頁面 ↗</a>':'')+'</div></div>';
@@ -2143,7 +2524,7 @@ function updateCmpTable(){
     h = '<table class="tb"><thead><tr><th style="text-align:left">熱帶氣旋</th><th>強度</th><th>洋盆</th><th>機構</th>'
       + CMP_TAUS.map(t=>'<th>+'+t+'h 分歧</th>').join("") + '</tr></thead><tbody>';
     list.forEach(S=>{
-      const cur=S.past[S.past.length-1], cat=tyCat(cur?cur.ws:null);
+      const cur=S.past[S.past.length-1], cat=tyCat(cur);
       const v=viewOf(S);
       const codes = AG_ORDER.filter(c=>v.agencies[c]&&agencyOn[c]);
       h += '<tr><td class="l" style="cursor:pointer" data-pick="'+S.key+'">'+stormTitle(S)+'</td>'
@@ -2189,23 +2570,23 @@ function updateCmpTable(){
 
 /* ═══════════ 圖例 / 狀態 ═══════════ */
 function updateLegend(){
-  let h = '<div style="margin-bottom:5px;color:#cfe0f5;font-weight:600">強度（過去路徑點色）</div>';
-  [["熱帶性低氣壓","#29c5e0"],["輕度颱風","#a3c832"],["中度颱風","#ffa726"],["強烈颱風","#f0507a"]].forEach(x=>{
+  let h = '<div style="margin-bottom:5px;color:#cfe0f5;font-weight:600">強度（過去路徑與點色）</div>';
+  [["熱帶性低氣壓","#0284c7"],["輕度颱風","#16a34a"],["中度颱風","#ea580c"],["強烈颱風","#dc2626"]].forEach(x=>{
     h += '<span style="display:inline-block;margin-right:9px"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:'+x[1]+';margin-right:4px"></span>'+x[0]+'</span>';
   });
   const seen = {};
   shownStorms().forEach(S=>{ const v=viewOf(S); Object.keys(v.agencies).forEach(c=>{ if(agencyOn[c]) seen[c]=1; }); });
   const codes = AG_ORDER.filter(c=>seen[c]);
   if(codes.length){
-    h += '<div style="margin:7px 0 4px;border-top:1px solid rgba(255,255,255,.12);padding-top:6px;color:#cfe0f5;font-weight:600">預報路徑（虛線）</div>';
+    h += '<div style="margin:7px 0 4px;border-top:1px solid rgba(255,255,255,.12);padding-top:6px;color:#cfe0f5;font-weight:600">預報路徑（逐時內插虛線）</div>';
     codes.forEach(c=>{
       const A=AG_BY_CODE[c];
       h += '<div class="lgLine"><i style="border-top-color:'+A.color+';border-top-style:dashed"></i>'+A.zh+' <span style="color:#9fb0c8">'+A.en+'</span></div>';
     });
   }
   h += '<div style="margin-top:6px;border-top:1px solid rgba(255,255,255,.12);padding-top:5px;color:#9fb0c8">'
-     + '<span style="color:#ff8fb0">粉紅圈</span>＝七級風暴風半徑｜<span style="color:#e8447a">深粉圈</span>＝十級風'
-     + '（實線＝目前，虛線＝各預報時刻）<br>機構色虛圓＝該機構之預報機率圓／預報圓</div>';
+     + '<span style="color:#e11d48">洋紅圈</span>＝七級風暴風半徑｜<span style="color:#be123c">酒紅圈</span>＝十級風'
+     + '（實線＝目前，虛線＝各預報時刻）<br>機構色虛線外包框＝70% 預報路徑潛勢包絡線與機率圓</div>';
   if($("ckDayNight").checked){
     const t=dayNightTime(shownStorms());
     h += '<div style="margin-top:6px;border-top:1px solid rgba(255,255,255,.12);padding-top:5px;color:#9fb0c8">'
@@ -2216,7 +2597,7 @@ function updateLegend(){
   $("lgBody").innerHTML = h;
 }
 function updateStatusBar(){
-  const el = $("status");
+  const el = $("statusBody") || $("status");
   const list = shownStorms();
   if(!list.length){
     el.innerHTML = "🌀 目前"+(($("basinSel").value==="ALL")?"":BASIN_NAME[$("basinSel").value])
@@ -2229,12 +2610,12 @@ function updateStatusBar(){
     el.innerHTML = '🌐 <b>總覽模式</b>　📍 '+((($("basinSel").value==="ALL"))?"全球":BASIN_NAME[$("basinSel").value])
       + '　🌀 <b>'+list.length+'</b> 個系統　🏛️ <b>'+Object.keys(seen).length+'</b> 個機構預報'
       + '<br>' + list.map(S=>{
-          const cur=S.past[S.past.length-1], cat=tyCat(cur?cur.ws:null);
+          const cur=S.past[S.past.length-1], cat=tyCat(cur);
           return '<b style="color:'+cat.color+'">'+stormTitle(S)+'</b>';
         }).join("　") + '　<span style="color:var(--muted)">點左側清單可切換為單一颱風檢視</span>';
     return;
   }
-  const S=curStorm, cur=S.past[S.past.length-1], cat=tyCat(cur?cur.ws:null), v=viewOf(S);
+  const S=curStorm, v=viewOf(S), cur=(curIssueIdx>=0?getIssueFix(S,{issue:v.t}):null)||S.past[S.past.length-1], cat=tyCat(cur);
   const n = Object.keys(v.agencies).filter(c=>agencyOn[c]).length;
   el.innerHTML = '🌀 <b>'+stormTitle(S)+'</b>（<b style="color:'+cat.color+'">'+cat.name+'</b>）'
     + '　📍 '+BASIN_NAME[S.basin||"XX"]
@@ -2242,8 +2623,9 @@ function updateStatusBar(){
     + '<br>顯示中機構 <b>'+n+'</b> 個'
     + (v.t?'　發布時刻 '+fmtTime(v.t):'')
     + (curIssueIdx>=0?'　<span style="color:var(--warn)">（歷史發布時刻）</span>':'')
+    + (S.cwaAuthoritative ? '　<b>觀測定位：臺灣氣象署 CWA</b>' : '')
     + '　資料源：'+(S.sources||[S.source]).join("、")
-    + '　<span style="color:var(--muted)">時間皆為台灣時間 UTC+8</span>';
+    + '　<span style="color:var(--muted)">時間皆為 Local Time</span>';
 }
 function updateTags(){
   $("tagView").textContent = overview?"總覽":"單一颱風";
@@ -2318,7 +2700,7 @@ function renderStormList(){
     h += '<div class="hint">目前'+((b==="ALL")?"":BASIN_NAME[b])+'無活躍熱帶氣旋，或資料仍在載入／來源暫時無法連線。<br>可切換洋盆，或用下方「歷史事件回顧」檢視歷年颱風。</div>';
   }else{
     h += list.map(s=>{
-      const cur=s.past[s.past.length-1], cat=tyCat(cur?cur.ws:null);
+      const cur=s.past[s.past.length-1], cat=tyCat(cur);
       const nAg = Object.keys(latestAgencies(s)).length;
       return '<div class="sItem'+((!overview&&curStorm&&curStorm.key===s.key)?" sel":"")+'" data-k="'+s.key+'">'
         + '<span class="ico" style="color:'+cat.color+'">🌀</span><span>'
@@ -2344,7 +2726,6 @@ function setMode(isOverview){
   overview = !!isOverview;
   $("modeAll").classList.toggle("on",overview);
   $("modeOne").classList.toggle("on",!overview);
-  $("blkTime").classList.toggle("closed",overview);
   renderStormList();
   updateTags();
 }
@@ -2387,7 +2768,7 @@ const SOURCES = [
   {id:"cma", name:"中國 CMA 中央氣象台", note:"含各國預報轉發",        basins:["WP"]},
   {id:"jma", name:"日本 JMA 氣象廳",     note:"bosai 官方 JSON",       basins:["WP"]},
   {id:"jtwc",name:"美國 JTWC 警報中心",  note:"警報電文解析",          basins:["WP","IO","SH"]},
-  {id:"cwa", name:"台灣 CWA 氣象署",     note:"Open Data W-C0034-005", basins:["WP"]},
+  {id:"cwa", name:"臺灣 CWA 氣象署",     note:"Open Data W-C0034-005", basins:["WP"]},
   {id:"hko", name:"香港 HKO 天文台",     note:"官方 XML 直連",         basins:["WP"]},
   {id:"kma", name:"韓國 KMA 氣象廳",     note:"Cloudflare JSON",       basins:["WP"]},
   {id:"nhc", name:"美國 NHC 颶風中心",   note:"大西洋／東太平洋",      basins:["AL","EP"]}
@@ -2410,12 +2791,10 @@ function publish(id,list){
     const wa=(a.past[a.past.length-1]||{}).ws||0, wb=(b.past[b.past.length-1]||{}).ws||0;
     return wb-wa;
   });
-  if(!overview){
-    const keep = prevKey && storms.find(s=>s.key===prevKey);
-    if(keep) curStorm = keep;
-    else if(storms.length){ curStorm = storms[0]; buildIssueSlider(); }
-    else curStorm = null;
-  }
+  const keep = prevKey && storms.find(s=>s.key===prevKey);
+  if(keep) curStorm = keep;
+  else if(storms.length){ curStorm = storms[0]; buildIssueSlider(); }
+  else curStorm = null;
   renderStormList();
   render(false);
 }
@@ -2570,13 +2949,13 @@ $("histStorm").onchange = async ()=>{
     selectStorm(s.key,true);
     const IL=s.issueList||[];
     if(IL.length){ curIssueIdx=IL.length-1; $("issueSlider").value=IL.length-1; onIssueChange(); }
-    $("blkTime").classList.remove("closed");
   }catch(e){ $("status").innerHTML = "⚠️ 歷史資料載入失敗："+e.message; }
   renderDiag();
 };
 
 /* ═══════════ UI 事件 ═══════════ */
 document.querySelectorAll(".blk>.bh").forEach(h=>{ h.onclick=()=>h.parentElement.classList.toggle("closed"); });
+$("status").querySelector(".bhead").onclick = ()=>$("status").classList.toggle("collapsed");
 $("legend").querySelector(".bhead").onclick = ()=>$("legend").classList.toggle("collapsed");
 $("cmp").querySelector(".bhead").onclick = ()=>$("cmp").classList.toggle("collapsed");
 $("panelTab").onclick = ()=>{
@@ -2594,7 +2973,7 @@ $("modeOne").onclick = ()=>{
   if(curStorm) buildIssueSlider();
   render(true);
 };
-["ckPast","ckFcst","ckCone","ckWind","ckTau","ckName","ckCmp"].forEach(id=>{ $(id).onchange=()=>render(false); });
+["ckPast","ckFcst","ckHourly","ckCone","ckWind","ckQuadLbl","ckSwath","ckTau","ckName","ckCmp"].forEach(id=>{ if($(id)) $(id).onchange=()=>render(false); });
 $("ckDayNight").onchange = ()=>{
   try{ localStorage.setItem(LS.dayNight,$("ckDayNight").checked?"1":"0"); }catch(e){}
   render(false);
