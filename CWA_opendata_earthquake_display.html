@@ -17,6 +17,8 @@
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css"/>
 <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
 <script src="https://unpkg.com/deck.gl@8.9.36/dist.min.js"></script>
+<script src="gsmma_active_faults.js"></script>
+<script src="taiwan_territorial_sea.js"></script>
 <style>
   :root{
     --bg:#0e1217;
@@ -348,6 +350,8 @@
         <select id="baseSel" title="更換底圖"></select>
         <button id="btn3d">2D ⇄ 3D</button>
         <button id="btnHome">🎯 全臺視角</button>
+        <button id="btnFault" style="border-color:var(--accent);color:var(--accent)" title="切換活動斷層線顯示（經濟部地質調查及礦業管理中心 GSMMA）">⚡ 活動斷層</button>
+        <button id="btnSea" style="border-color:var(--line);color:var(--txt)" title="切換臺灣海域界線（基線、12浬領海、24浬鄰接區）顯示（內政部公告）">🌊 海域界線</button>
         <button id="btnTown">🏘️ 鄉鎮震度</button>
       </div>
       <div class="legend" id="legend">
@@ -358,6 +362,16 @@
             ● 圓點大小 = 芮氏規模，深度沿 Z 軸下沉（可放大倍率）<br>
             ● 垂直線 = 震源深度；地表圓圈 = 震央<br>
             ● 點擊事件可檢視各地測站震度
+          </div>
+          <div id="faultLeg" style="margin-top:8px;padding-top:6px;border-top:1px dashed var(--line);font-size:11px;display:flex;flex-direction:column;gap:3px">
+            <div style="font-weight:700;color:#fff;display:flex;align-items:center;gap:4px">
+              <span>⚡ 活動斷層（經濟部地礦中心）</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;color:var(--muted);font-size:10.5px;flex-wrap:wrap">
+              <span style="display:inline-flex;align-items:center;gap:4px"><i style="display:inline-block;width:12px;height:3px;background:#ef4444;border-radius:2px"></i> 第一類</span>
+              <span style="display:inline-flex;align-items:center;gap:4px"><i style="display:inline-block;width:12px;height:2px;background:#f59e0b;border-radius:2px"></i> 第二類</span>
+              <span style="display:inline-flex;align-items:center;gap:4px"><i style="display:inline-block;width:12px;height:2px;border-top:2px dashed #94a3b8"></i> 隱伏/推測</span>
+            </div>
           </div>
         </div>
       </div>
@@ -432,6 +446,91 @@ let newKeys=new Set();
 let tlCursor=null;    // null = LIVE（全部顯示）
 let playing=false, playTimer=null;
 let showTown=true;
+let showFault=true;
+let showSea=false;
+let FAULTS=[], FAULT_LABELS=[], SEA_PATHS=[];
+
+function processFaultsData(geoJson){
+  if(!geoJson||!geoJson.features)return;
+  const paths=[], labels=[], seen=new Set();
+  geoJson.features.forEach(f=>{
+    if(!f.geometry||!f.geometry.coordinates)return;
+    const coords=f.geometry.coordinates;
+    const p=f.properties||{};
+    const isClass1=p.FAULT_TYPE==="第一類";
+    const isObserved=p.observe==="觀察";
+    paths.push({
+      path:coords.map(c=>[c[0],c[1],0]),
+      properties:p,
+      Name:p.Name||"活動斷層",
+      FAULT_TYPE:p.FAULT_TYPE,
+      observe:p.observe,
+      isClass1,
+      isObserved
+    });
+    const name=p.Name;
+    if(name&&!seen.has(name)&&coords.length>=2){
+      seen.add(name);
+      const mid=coords[Math.floor(coords.length/2)];
+      labels.push({
+        name,
+        position:[mid[0],mid[1],0],
+        properties:p,
+        Name:name,
+        FAULT_TYPE:p.FAULT_TYPE,
+        observe:p.observe,
+        isClass1
+      });
+    }
+  });
+  FAULTS=paths;
+  FAULT_LABELS=labels;
+  if(deckgl)renderLayers();
+}
+
+function initFaults(){
+  if(window.GSMMA_ACTIVE_FAULTS){
+    processFaultsData(window.GSMMA_ACTIVE_FAULTS);
+  }
+  fetch("https://www.geologycloud.tw/api/v1/zh-tw/ActiveFault?t=.json")
+    .then(r=>r.json())
+    .then(data=>{
+      if(data&&data.features&&data.features.length){
+        processFaultsData(data);
+      }
+    })
+    .catch(()=>{/* 離線或 file:// 模式下使用預載入之 GSMMA 圖資 */});
+}
+
+function initSeaBorder(){
+  if(!window.TAIWAN_TERRITORIAL_SEA||!window.TAIWAN_TERRITORIAL_SEA.features)return;
+  const paths=[];
+  window.TAIWAN_TERRITORIAL_SEA.features.forEach(f=>{
+    if(!f.geometry||!f.geometry.coordinates)return;
+    const p=f.properties||{};
+    const geom=f.geometry;
+    const addLine=(coords)=>{
+      if(coords&&coords.length>=2){
+        paths.push({
+          path:coords.map(c=>[c[0],c[1],0]),
+          properties:p,
+          name:p.name||"中華民國海域界線",
+          limit_name:p.limit_name||"海域界線",
+          limit_type:p.limit_type||"baseline",
+          zone:p.zone||p.region||"",
+          limit_desc:p.limit_desc||"",
+          points:p.points||""
+        });
+      }
+    };
+    if(geom.type==="LineString")addLine(geom.coordinates);
+    else if(geom.type==="MultiLineString")geom.coordinates.forEach(addLine);
+    else if(geom.type==="Polygon")geom.coordinates.forEach(addLine);
+    else if(geom.type==="MultiPolygon")geom.coordinates.forEach(poly=>poly.forEach(addLine));
+  });
+  SEA_PATHS=paths;
+  if(deckgl)renderLayers();
+}
 let soundOn=false;
 let curPitch=55, firstLoad=true;
 let deckgl=null;
@@ -566,6 +665,30 @@ function initMap(){
         html=`<b>${object.county} ${object.name}</b><br>震度 ${object.int}`;
       else if(layer.id==="stations")
         html=`<b>測站 ${object.name}</b><br>震度 ${object.int}｜PGA ${object.pga??"–"} gal<br>震央距 ${object.dist??"–"} km`;
+      else if(layer.id && layer.id.startsWith("fault")){
+        const p = object.properties || object;
+        const isClass1 = p.FAULT_TYPE === "第一類";
+        const typeBadge = isClass1
+          ? '<span style="background:rgba(239,68,68,0.25);color:#fca5a5;padding:1px 6px;border-radius:4px;font-weight:700">第一類活動斷層</span>'
+          : '<span style="background:rgba(245,158,11,0.25);color:#fcd34d;padding:1px 6px;border-radius:4px;font-weight:700">第二類活動斷層</span>';
+        const typeDesc = isClass1 ? "全新世（距今 1 萬年內）曾活動" : "更新世晚期（距今 10 萬年至 1 萬年內）曾活動";
+        const obsDesc = p.observe || "斷層線";
+        html = `<div style="display:flex;align-items:center;gap:6px"><span style="color:#ef4444;font-size:14px">⚡</span><b style="font-size:13px;color:#fff">${p.Name}</b> ${typeBadge}</div>`
+             + `<div style="margin-top:5px;color:#cbd5e1;line-height:1.4">${typeDesc}</div>`
+             + `<div style="margin-top:4px;font-size:10px;color:#94a3b8;border-top:1px dashed rgba(255,255,255,0.15);padding-top:4px">性質：<b>${obsDesc}</b> ｜ 來源：經濟部地質調查及礦業管理中心（GSMMA）</div>`;
+      }
+      else if(layer.id && layer.id.startsWith("sea-border")){
+        const p = object.properties || object;
+        const title = p.name || "中華民國海域界線";
+        const tag = p.limit_name || "海域界線";
+        const z = p.zone || p.region || "";
+        const tagColor = p.limit_type==='24nm'?'#818cf8':p.limit_type==='12nm'?'#06b6d4':'#0284c7';
+        html = `<div style="display:flex;align-items:center;gap:6px"><span style="color:${tagColor};font-size:14px">🌊</span><b style="font-size:13px;color:#fff">${title}</b></div>`
+             + `<div style="margin-top:4px;color:#cbd5e1;font-size:11px;line-height:1.4">依據《中華民國領海及鄰接區法》公告之法定界線</div>`
+             + (z ? `<div style="margin-top:2px;font-size:11px;color:#94a3b8">涵蓋區域：<b>${z}</b></div>` : "")
+             + (p.limit_desc ? `<div style="margin-top:2px;font-size:10.5px;color:#94a3b8">${p.limit_desc}</div>` : "")
+             + `<div style="margin-top:4px;font-size:10px;color:#64748b;border-top:1px dashed rgba(255,255,255,0.15);padding-top:4px">來源：內政部地政司</div>`;
+      }
       else
         html=`<b>M${object.mag.toFixed(1)}</b>｜深度 ${object.depth} km｜最大震度 ${INT_LABEL[object.maxRank]}級<br>${fmtFull(object.t)}<br>${object.loc}`;
       return {html,style:{background:"#16213a",color:"#e6edf6",fontSize:"11px",
@@ -589,6 +712,79 @@ function renderLayers(){
   const sel=EVENTS.find(e=>e.key===selectedKey);
   const newest=evs.length?evs.reduce((a,b)=>a.t>b.t?a:b):null;
   const layers=[];
+
+  // 經濟部地質調查及礦業管理中心（GSMMA）活動斷層線條
+  if(showFault && FAULTS.length){
+    // 1. 斷層底層光暈/暗邊襯底（確保各風格底圖皆清晰辨識）
+    layers.push(new deck.PathLayer({
+      id:"faults-halo", data:FAULTS, pickable:false,
+      getPath:d=>d.path,
+      getColor:[0,0,0,160],
+      getWidth:d=>(d.isClass1?4.6:3.4),
+      widthUnits:"pixels"
+    }));
+
+    // 2. 斷層主線條（第一類活動斷層：亮紅；第二類活動斷層：金橙；隱伏/推測：虛線）
+    layers.push(new deck.PathLayer({
+      id:"faults", data:FAULTS, pickable:true,
+      autoHighlight:true, highlightColor:[255,255,255,140],
+      getPath:d=>d.path,
+      getColor:d=>(d.isClass1
+        ? (d.isObserved?[239,68,68,235]:[239,68,68,175])
+        : (d.isObserved?[245,158,11,230]:[245,158,11,165])),
+      getWidth:d=>(d.isClass1?2.4:1.7),
+      widthUnits:"pixels",
+      getDashArray:d=>(d.isObserved?[0,0]:[8,4]),
+      dashJustified:true,
+      dashUnits:"pixels"
+    }));
+
+    // 3. 斷層名稱文字標籤（隨 3D 視角旋轉，Billboard 廣告看板模式）
+    layers.push(new deck.TextLayer({
+      id:"fault-labels", data:FAULT_LABELS, pickable:true,
+      getPosition:d=>d.position,
+      getText:d=>d.name,
+      getSize:11, sizeUnits:"pixels", sizeMinPixels:9, sizeMaxPixels:14,
+      getColor:d=>(d.isClass1?[254,202,202,235]:[254,240,138,225]),
+      outlineWidth:2.5, outlineColor:[14,18,23,220],
+      fontFamily:'"Noto Sans TC", "Roboto", sans-serif',
+      fontWeight:700,
+      getTextAnchor:"middle", getAlignmentBaseline:"bottom",
+      billboard:true, pixelOffset:[0,-6]
+    }));
+  }
+
+  // 中華民國第一批海域界線（領海基線、12浬領海、24浬鄰接區）
+  if(showSea && SEA_PATHS.length){
+    // 1. 底層暗邊襯底（確保各種底圖風格皆清晰辨識）
+    layers.push(new deck.PathLayer({
+      id:"sea-border-halo", data:SEA_PATHS, pickable:false,
+      getPath:d=>d.path,
+      getColor:[0,0,0,160],
+      getWidth:d=>(d.limit_type==="24nm"?3.8 : d.limit_type==="12nm"?4.2 : 4.8),
+      widthUnits:"pixels"
+    }));
+    // 2. 海域界線主線條（基線：深青藍；12浬：亮青色；24浬：靛紫色）
+    layers.push(new deck.PathLayer({
+      id:"sea-border", data:SEA_PATHS, pickable:true,
+      autoHighlight:true, highlightColor:[255,255,255,140],
+      getPath:d=>d.path,
+      getColor:d=>(
+        d.limit_type==="24nm" ? [129,140,248,235] :
+        d.limit_type==="12nm" ? [6,182,212,240] :
+        [2,132,199,255]
+      ),
+      getWidth:d=>(d.limit_type==="24nm"?1.8 : d.limit_type==="12nm"?2.1 : 2.5),
+      widthUnits:"pixels",
+      getDashArray:d=>(
+        d.limit_type==="24nm" ? [3,6] :
+        d.limit_type==="12nm" ? [8,6] :
+        [12,4]
+      ),
+      dashJustified:true,
+      dashUnits:"pixels"
+    }));
+  }
 
   // 震源深度垂直線
   layers.push(new deck.LineLayer({
@@ -912,6 +1108,16 @@ $("btn3d").onclick=()=>{curPitch=curPitch?0:55;
   deckgl.setProps({initialViewState:{...TW_VIEW,pitch:curPitch,
     transitionDuration:700,transitionInterpolator:new deck.FlyToInterpolator()}});};
 $("btnHome").onclick=()=>flyTo(TW_VIEW.longitude,TW_VIEW.latitude,TW_VIEW.zoom);
+$("btnFault").onclick=function(){showFault=!showFault;
+  this.style.borderColor=showFault?"var(--accent)":"var(--line)";
+  this.style.color=showFault?"var(--accent)":"var(--txt)";
+  const leg=$("faultLeg");
+  if(leg)leg.style.display=showFault?"flex":"none";
+  renderLayers();};
+$("btnSea").onclick=function(){showSea=!showSea;
+  this.style.borderColor=showSea?"var(--accent)":"var(--line)";
+  this.style.color=showSea?"var(--accent)":"var(--txt)";
+  renderLayers();};
 $("btnTown").onclick=function(){showTown=!showTown;
   this.style.borderColor=showTown?"var(--accent)":"var(--line)";renderLayers();};
 $("soundBtn").onclick=function(){soundOn=!soundOn;this.textContent=soundOn?"🔔":"🔕";if(soundOn)beep();};
@@ -1026,6 +1232,8 @@ $("keyInput").addEventListener("keydown",e=>{if(e.key==="Enter")submitKey();});
 /* ===================== 初始化 ===================== */
 (function init(){
   initMap();
+  initFaults();
+  initSeaBorder();
   let saved="";
   try{saved=localStorage.getItem(STORE)||localStorage.getItem("cwa_api_key")||
     localStorage.getItem("cwa_marine_key")||"";}catch(e){}

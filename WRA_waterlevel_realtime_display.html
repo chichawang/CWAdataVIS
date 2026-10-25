@@ -15,6 +15,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="taiwan_territorial_sea.js"></script>
+<script src="taiwan_reservoirs.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
   :root{
@@ -240,6 +242,12 @@
         <option value="dark">深色圖</option>
         <option value="light">淺色圖</option>
       </select>
+      <label class="ckrow"><input type="checkbox" id="countyBndChk"> 🏛️ 臺灣縣市邊界</label>
+      <label class="ckrow"><input type="checkbox" id="townBndChk"> 🏡 臺灣鄉鎮市區邊界</label>
+      <label class="ckrow"><input type="checkbox" id="villageBndChk"> 🏘️ 村里邊界</label>
+      <label class="ckrow"><input type="checkbox" id="seaBndChk"> 🌊 臺灣海域界線（基線/12浬/24浬）</label>
+      <label class="ckrow"><input type="checkbox" id="reservoirChk"> 💧 水庫蓄水範圍</label>
+      <label class="ckrow"><input type="checkbox" id="watershedChk"> 🏞️ 水庫集水區</label>
     </div>
   </details>
 
@@ -468,6 +476,169 @@ const BASES={
   light:L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_325q_1_8b5e6f905ab09a4799809661",{maxZoom:20,attribution:"© CARTO"})
 };
 let curBase=BASES.osm.addTo(map);
+map.createPane("bndPane");
+map.getPane("bndPane").style.zIndex=375;
+map.getPane("bndPane").style.pointerEvents="none";
+
+const countyBorderLayer = L.tileLayer("https://wmts.nlsc.gov.tw/wmts/CITY/default/GoogleMapsCompatible/{z}/{y}/{x}", {
+  pane: "bndPane", maxZoom: 19, attribution: "© 國土測繪中心 (NLSC)"
+});
+const townBorderLayer = L.tileLayer("https://wmts.nlsc.gov.tw/wmts/TOWN/default/GoogleMapsCompatible/{z}/{y}/{x}", {
+  pane: "bndPane", maxZoom: 19, attribution: "© 國土測繪中心 (NLSC)"
+});
+const villageBorderLayer = L.tileLayer("https://wmts.nlsc.gov.tw/wmts/Village/default/GoogleMapsCompatible/{z}/{y}/{x}", {
+  pane: "bndPane", maxZoom: 19, attribution: "© 國土測繪中心 (NLSC)"
+});
+
+$("countyBndChk").addEventListener("change", e => {
+  if(e.target.checked) countyBorderLayer.addTo(map);
+  else map.removeLayer(countyBorderLayer);
+  saveHash();
+});
+$("townBndChk").addEventListener("change", e => {
+  if(e.target.checked) townBorderLayer.addTo(map);
+  else map.removeLayer(townBorderLayer);
+  saveHash();
+});
+$("villageBndChk").addEventListener("change", e => {
+  if(e.target.checked) villageBorderLayer.addTo(map);
+  else map.removeLayer(villageBorderLayer);
+  saveHash();
+});
+
+let seaBorderLayer = null;
+function getSeaBorderLayer(){
+  if(!seaBorderLayer && window.TAIWAN_TERRITORIAL_SEA){
+    seaBorderLayer = L.geoJSON(window.TAIWAN_TERRITORIAL_SEA, {
+      pane: "bndPane",
+      style: (feature) => {
+        const t = feature?.properties?.limit_type;
+        if (t === "24nm") {
+          return { color: "#818cf8", weight: 2.0, opacity: 0.95, dashArray: "3, 6" };
+        } else if (t === "12nm") {
+          return { color: "#06b6d4", weight: 2.2, opacity: 0.95, dashArray: "8, 6" };
+        } else {
+          return { color: "#0284c7", weight: 2.4, opacity: 1.0, dashArray: "12, 4" };
+        }
+      },
+      onEachFeature: (feature, layer) => {
+        const p = feature.properties || {};
+        const title = p.name || "中華民國海域界線";
+        const tag = p.limit_name || "海域界線";
+        const z = p.zone || p.region || "臺灣海域";
+        layer.bindTooltip(`🌊 ${tag}（${z}）`, { sticky: true, direction: "top" });
+        layer.bindPopup(`
+          <div style="font-size:13px;line-height:1.6;min-width:220px;">
+            <strong style="color:${p.stroke_color || '#0284c7'};font-size:14px;">🌊 ${title}</strong>
+            <div style="margin-top:4px;color:#cbd5e1;font-size:12px;">依據《中華民國領海及鄰接區法》公告之法定界線</div>
+            ${z ? `<div style="margin-top:2px;">涵蓋區域：<b>${z}</b></div>` : ""}
+            ${p.limit_desc ? `<div style="margin-top:2px;font-size:11.5px;color:#cbd5e1;">定義：${p.limit_desc}</div>` : ""}
+            ${p.points ? `<div style="margin-top:2px;font-size:11px;color:#94a3b8;">基準基點：${p.points}</div>` : ""}
+            <div style="margin-top:4px;font-size:10.5px;color:#94a3b8;border-top:1px dashed rgba(255,255,255,0.15);padding-top:4px;">來源：內政部地政司（政府資料開放平臺）</div>
+          </div>
+        `);
+      }
+    });
+  }
+  return seaBorderLayer;
+}
+$("seaBndChk").addEventListener("change", e => {
+  const l = getSeaBorderLayer();
+  if(!l) return;
+  if(e.target.checked) l.addTo(map);
+  else map.removeLayer(l);
+  saveHash();
+});
+
+let reservoirLayer = null;
+function getReservoirLayer(){
+  if(!reservoirLayer && window.TAIWAN_RESERVOIRS){
+    const data = window.TAIWAN_RESERVOIRS.storage || window.TAIWAN_RESERVOIRS;
+    reservoirLayer = L.geoJSON(data, {
+      pane: "bndPane",
+      style: {
+        color: "#0284c7",
+        weight: 1.5,
+        opacity: 0.9,
+        fillColor: "#0ea5e9",
+        fillOpacity: 0.35
+      },
+      onEachFeature: (feature, layer) => {
+        const p = feature.properties || {};
+        const title = p.name || "水庫蓄水範圍";
+        layer.bindTooltip(`💧 ${title}`, { sticky: true, direction: "top" });
+        layer.bindPopup(`
+          <div style="font-size:13px;line-height:1.6;min-width:200px;">
+            <strong style="color:#0284c7;font-size:14px;">💧 ${title}</strong>
+            <div style="margin-top:4px;color:#cbd5e1;font-size:12px;">經濟部水利署公告之水庫蓄水範圍</div>
+            ${p.area_ha ? `<div style="margin-top:2px;font-size:12px;">蓄水面積：<b>${p.area_ha.toLocaleString()} 公頃</b></div>` : ""}
+            <div style="margin-top:2px;font-size:11px;color:#94a3b8;">來源：水利署地理資訊倉儲 (GIC)</div>
+          </div>
+        `);
+      }
+    });
+  }
+  return reservoirLayer;
+}
+$("reservoirChk").addEventListener("change", e => {
+  const l = getReservoirLayer();
+  if(!l) return;
+  if(e.target.checked) {
+    l.addTo(map);
+    l.bringToFront();
+  } else {
+    map.removeLayer(l);
+  }
+  saveHash();
+});
+
+let watershedLayer = null;
+function getWatershedLayer(){
+  if(!watershedLayer && window.TAIWAN_RESERVOIRS && window.TAIWAN_RESERVOIRS.watershed){
+    watershedLayer = L.geoJSON(window.TAIWAN_RESERVOIRS.watershed, {
+      pane: "bndPane",
+      style: {
+        color: "#059669",
+        weight: 1.8,
+        opacity: 0.85,
+        dashArray: "6, 4",
+        fillColor: "#10b981",
+        fillOpacity: 0.12
+      },
+      onEachFeature: (feature, layer) => {
+        const p = feature.properties || {};
+        const title = p.name || "水庫集水區";
+        layer.bindTooltip(`🏞️ ${title} 集水區`, { sticky: true, direction: "top" });
+        layer.bindPopup(`
+          <div style="font-size:13px;line-height:1.6;min-width:220px;">
+            <strong style="color:#059669;font-size:14px;">🏞️ ${title} 集水區</strong>
+            <div style="margin-top:4px;color:#cbd5e1;font-size:12px;">經濟部水利署公告之水庫集水區</div>
+            ${p.area_km2 ? `<div style="margin-top:2px;">集水面積：<b>${p.area_km2.toLocaleString()} 平方公里</b>（${p.area_ha ? p.area_ha.toLocaleString() : ''} 公頃）</div>` : ""}
+            ${p.class_1 ? `<div style="margin-top:2px;">水庫分級：<b>${p.class_1}</b>${p.type ? `（${p.type}）` : ''}</div>` : ""}
+            ${p.unit ? `<div style="margin-top:2px;font-size:11.5px;color:#94a3b8;">管理機關：${p.unit}</div>` : ""}
+            ${p.zone ? `<div style="margin-top:2px;font-size:11px;color:#94a3b8;">區域：${p.zone} ｜ 狀態：${p.state || '已查認'}</div>` : ""}
+            ${p.note ? `<div style="margin-top:3px;font-size:10.5px;color:#94a3b8;border-top:1px dashed rgba(255,255,255,0.15);padding-top:3px;">備註：${p.note}</div>` : ""}
+            <div style="margin-top:4px;font-size:10px;color:#64748b;">來源：水利署地理資訊倉儲 (GIC)</div>
+          </div>
+        `);
+      }
+    });
+  }
+  return watershedLayer;
+}
+$("watershedChk").addEventListener("change", e => {
+  const l = getWatershedLayer();
+  if(!l) return;
+  if(e.target.checked) {
+    l.addTo(map);
+    l.bringToBack();
+    if(reservoirLayer && map.hasLayer(reservoirLayer)) reservoirLayer.bringToFront();
+  } else {
+    map.removeLayer(l);
+  }
+  saveHash();
+});
+
 map.createPane("pulse");
 map.getPane("pulse").style.zIndex=395;
 map.getPane("pulse").style.pointerEvents="none";
@@ -1666,6 +1837,12 @@ function saveHash(){
   if($("gateChk").checked)p.set("gt","1");
   if($("scourChk").checked)p.set("sr","1");
   if($("flowChk").checked)p.set("fv","1");
+  if($("countyBndChk").checked)p.set("cb","1");
+  if($("townBndChk").checked)p.set("tb","1");
+  if($("villageBndChk").checked)p.set("vb","1");
+  if($("seaBndChk").checked)p.set("sb","1");
+  if($("reservoirChk") && $("reservoirChk").checked)p.set("rb","1");
+  if($("watershedChk") && $("watershedChk").checked)p.set("ws","1");
   const s=p.toString();
   history.replaceState(null,"",s?("#"+s):location.pathname+location.search);
 }
@@ -1689,6 +1866,12 @@ function loadHash(){
   if(p.get("sr")==="1")$("scourChk").checked=true;
   if(p.get("fv")==="1")$("flowChk").checked=true;
   if(p.get("gn")==="1")$("gwNaChk").checked=true;
+  if(p.get("cb")==="1"){$("countyBndChk").checked=true;countyBorderLayer.addTo(map);}
+  if(p.get("tb")==="1"){$("townBndChk").checked=true;townBorderLayer.addTo(map);}
+  if(p.get("vb")==="1"){$("villageBndChk").checked=true;villageBorderLayer.addTo(map);}
+  if(p.get("sb")==="1"){$("seaBndChk").checked=true;if(getSeaBorderLayer())getSeaBorderLayer().addTo(map);}
+  if(p.get("rb")==="1"&&$("reservoirChk")){$("reservoirChk").checked=true;if(getReservoirLayer())getReservoirLayer().addTo(map);}
+  if(p.get("ws")==="1"&&$("watershedChk")){$("watershedChk").checked=true;if(getWatershedLayer())getWatershedLayer().addTo(map);}
   hashLoading=false;
   return {c:p.get("c")||"",b:p.get("b")||"",r:p.get("r")||"",z:p.get("gz")||"",fo:p.get("fo")||""};
 }

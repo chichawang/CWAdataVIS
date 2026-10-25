@@ -631,6 +631,22 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2)}
         <input type="checkbox" id="coastChk" checked style="width:14px;height:14px;cursor:pointer">
         <span>🗺️ 強化海岸線 / 國界（海陸邊界）</span>
       </label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:4px;font-size:13px;user-select:none">
+        <input type="checkbox" id="countyBndChk" style="width:14px;height:14px;cursor:pointer">
+        <span>🏛️ 臺灣縣市邊界</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:4px;font-size:13px;user-select:none">
+        <input type="checkbox" id="townBndChk" style="width:14px;height:14px;cursor:pointer">
+        <span>🏡 臺灣鄉鎮市區邊界</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:4px;font-size:13px;user-select:none">
+        <input type="checkbox" id="villageBndChk" style="width:14px;height:14px;cursor:pointer">
+        <span>🏘️ 村里邊界</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:4px;font-size:13px;user-select:none">
+        <input type="checkbox" id="seaBndChk" style="width:14px;height:14px;cursor:pointer">
+        <span>🌊 臺灣海域界線（基線/12浬/24浬）</span>
+      </label>
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:6px;font-size:13px;user-select:none">
         <input type="checkbox" id="dayNightChk" checked style="width:14px;height:14px;cursor:pointer">
         <span>🌗 日夜變化陰影區（晨昏線）</span>
@@ -792,6 +808,7 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2)}
 <!-- D3 與 d3-contour：氣象平滑等值線與標籤 (Observable @d3/volcano-contours & @christophe-yamahata) -->
 <script src="https://cdn.jsdelivr.net/npm/d3-array@3/dist/d3-array.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/d3-contour@4/dist/d3-contour.min.js"></script>
+<script src="taiwan_territorial_sea.js"></script>
 <script>
 /* ═══════════════════════════════════════════════
    CWA GFS GRIB2 Visualization
@@ -841,6 +858,76 @@ $('baseSel').onchange=function(e){
   curBase=BASES[e.target.value].addTo(map);
   curBase.bringToBack();
 };
+
+map.createPane('bndPane');
+map.getPane('bndPane').style.zIndex = 375;
+map.getPane('bndPane').style.pointerEvents = 'none';
+
+var countyBorderLayer = L.tileLayer("https://wmts.nlsc.gov.tw/wmts/CITY/default/GoogleMapsCompatible/{z}/{y}/{x}", {
+  pane: "bndPane", maxZoom: 19, attribution: "© 國土測繪中心 (NLSC)"
+});
+var townBorderLayer = L.tileLayer("https://wmts.nlsc.gov.tw/wmts/TOWN/default/GoogleMapsCompatible/{z}/{y}/{x}", {
+  pane: "bndPane", maxZoom: 19, attribution: "© 國土測繪中心 (NLSC)"
+});
+var villageBorderLayer = L.tileLayer("https://wmts.nlsc.gov.tw/wmts/Village/default/GoogleMapsCompatible/{z}/{y}/{x}", {
+  pane: "bndPane", maxZoom: 19, attribution: "© 國土測繪中心 (NLSC)"
+});
+
+$('countyBndChk').addEventListener('change', function(e) {
+  if(e.target.checked) countyBorderLayer.addTo(map);
+  else map.removeLayer(countyBorderLayer);
+});
+$('townBndChk').addEventListener('change', function(e) {
+  if(e.target.checked) townBorderLayer.addTo(map);
+  else map.removeLayer(townBorderLayer);
+});
+$('villageBndChk').addEventListener('change', function(e) {
+  if(e.target.checked) villageBorderLayer.addTo(map);
+  else map.removeLayer(villageBorderLayer);
+});
+
+var seaBorderLayer = null;
+function getSeaBorderLayer(){
+  if(!seaBorderLayer && window.TAIWAN_TERRITORIAL_SEA){
+    seaBorderLayer = L.geoJSON(window.TAIWAN_TERRITORIAL_SEA, {
+      pane: "bndPane",
+      style: (feature) => {
+        const t = feature?.properties?.limit_type;
+        if (t === "24nm") {
+          return { color: "#818cf8", weight: 2.0, opacity: 0.95, dashArray: "3, 6" };
+        } else if (t === "12nm") {
+          return { color: "#06b6d4", weight: 2.2, opacity: 0.95, dashArray: "8, 6" };
+        } else {
+          return { color: "#0284c7", weight: 2.4, opacity: 1.0, dashArray: "12, 4" };
+        }
+      },
+      onEachFeature: (feature, layer) => {
+        const p = feature.properties || {};
+        const title = p.name || "中華民國海域界線";
+        const tag = p.limit_name || "海域界線";
+        const z = p.zone || p.region || "臺灣海域";
+        layer.bindTooltip(`🌊 ${tag}（${z}）`, { sticky: true, direction: "top" });
+        layer.bindPopup(`
+          <div style="font-size:13px;line-height:1.6;min-width:220px;">
+            <strong style="color:${p.stroke_color || '#0284c7'};font-size:14px;">🌊 ${title}</strong>
+            <div style="margin-top:4px;color:#cbd5e1;font-size:12px;">依據《中華民國領海及鄰接區法》公告之法定界線</div>
+            ${z ? `<div style="margin-top:2px;">涵蓋區域：<b>${z}</b></div>` : ""}
+            ${p.limit_desc ? `<div style="margin-top:2px;font-size:11.5px;color:#cbd5e1;">定義：${p.limit_desc}</div>` : ""}
+            ${p.points ? `<div style="margin-top:2px;font-size:11px;color:#94a3b8;">基準基點：${p.points}</div>` : ""}
+            <div style="margin-top:4px;font-size:10.5px;color:#94a3b8;border-top:1px dashed rgba(255,255,255,0.15);padding-top:4px;">來源：內政部地政司（政府資料開放平臺）</div>
+          </div>
+        `);
+      }
+    });
+  }
+  return seaBorderLayer;
+}
+$('seaBndChk').addEventListener('change', function(e) {
+  var l = getSeaBorderLayer();
+  if(!l) return;
+  if(e.target.checked) l.addTo(map);
+  else map.removeLayer(l);
+});
 
 map.createPane('datapane');
 map.getPane('datapane').style.zIndex=350;

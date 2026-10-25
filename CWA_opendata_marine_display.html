@@ -16,6 +16,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="taiwan_territorial_sea.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root{
@@ -364,7 +365,7 @@
 
 <div id="topbar">
   <h1>🌊 海象自動監控儀表板</h1>
-  <span class="sub">O-B0075-001 ＋ 商港海氣象（運研所 XML）實時健康監控</span>
+  <span class="sub">O-B0075-001 ＋ 商港海氣象（運研所 JSON）實時健康監控</span>
   <span class="sp"></span>
   <select id="mapVarSel" title="地圖著色變數"></select>
   <select id="stSel" title="選擇測站"><option value="">— 選擇測站 —</option></select>
@@ -378,13 +379,13 @@
     <option value="topo">地形圖</option>
     <option value="light">淺色底圖</option>
   </select>
-  <label class="chk" id="portToggle" title="交通部運輸研究所運輸技術研究中心／臺灣港務公司 商港海氣象觀測（風力＋潮位）">
+  <label class="chk" title="臺灣縣市邊界"><input type="checkbox" id="countyBndChk"> 🏛️ 縣市</label>
+  <label class="chk" title="臺灣鄉鎮市區邊界"><input type="checkbox" id="townBndChk"> 🏡 鄉鎮</label>
+  <label class="chk" title="臺灣村里邊界"><input type="checkbox" id="villageBndChk"> 🏘️ 村里</label>
+  <label class="chk" title="臺灣海域界線（領海基線、12浬領海、24浬鄰接區）"><input type="checkbox" id="seaBndChk"> 🌊 海域界線（12/24浬）</label>
+  <label class="chk" id="portToggle" title="交通部運輸研究所運輸技術研究中心／臺灣港務公司 商港海氣象觀測（波浪＋潮位＋風力）">
     <input type="checkbox" id="ckPort" checked> ⚓ 商港海氣象 <span id="portStat">—</span>
   </label>
-  <div id="portProxyWrap" title="isohe.ihmt.gov.tw 未回應 CORS 標頭，瀏覽器無法直連，必須經轉送。建議部署專案內的 cors-proxy-worker.js（Cloudflare Worker，免費），把網址貼進來。">
-    <input id="portProxy" type="text" placeholder="CORS 轉送網址（建議填自己的 Worker，可用 {url} 佔位）" autocomplete="off" spellcheck="false">
-    <button class="ghost" id="portProxySave">儲存並重試</button>
-  </div>
   <div class="top-actions-group">
     <div class="top-buttons">
       <button id="reload">↻ 重新整理</button>
@@ -628,7 +629,7 @@ function flatObs(o){
 }
 const NUMKEYS=["TideHeight","WaveHeight","WavePeriod","WaveDirection","SeaTemperature","Temperature",
   "StationPressure","WindSpeed","MaximumWindSpeed","WindDirection","CurrentSpeed","CurrentDirection",
-  /* 商港（運研所 ISOHE）專用 */ "TideCDL","TideREF","WaveTmean"];
+  /* 商港（運研所 ISOHE JSON）專用 */ "TideCDL","TideREF"];
 
 function checkStationStatus(st) {
   // 檢查最新觀測中是否有任何有效數據 (若近 48 小時皆為缺值則視為無有效數據)
@@ -707,56 +708,69 @@ function parseObs(j){
 /* ===================================================================
    商港海氣象觀測（交通部運輸研究所運輸技術研究中心／臺灣港務公司）
 
-   主來源（每港一支，含波浪＋潮位＋風力，資料量小、上圖快）：
-     https://isohe.ihmt.gov.tw/station/OpenData/XML/Get{CODE}StationXML.aspx
-     ※ 網址大小寫不一致：TP 是 GetTPstationXML.aspx（小寫 s），故逐港記在 PORTS.xml，
-       另備一組大小寫互換的候選以防官方改動。
-   長時序（僅風力／潮位，48 小時，點選測站時才抓）：
-     https://isohe.ihmt.gov.tw/opendata/{Wind|Tide}?port=XX&format=JSON
+   純 JSON 開放資料端點（48 小時長時序，含波浪＋潮位＋風力）：
+     https://isohe.ihmt.gov.tw/opendata/{Wave|Tide|Wind}?port=XX&format=JSON
 
-   一個港最多 3 個測站點位，座標各自不同（安平：波浪 120.147/22.960、
-   風力南堤燈塔 120.149/22.960、潮位 7 號碼頭 120.176/22.978）：
-     IHMT-XX-V 波浪站（XML History：HS/TP/MDIR/Tmean/Velocity/Vmdir）
-     IHMT-XX-W 風力站（XML WindData：WS_AVG/WD_AVG；長時序來自 JSON Wind）
-     IHMT-XX-T 潮位站（XML TideData：TideValue；長時序來自 JSON Tide）
+   每港 3 個測站點位，座標各自不同：
+     IHMT-XX-V 波浪站（JSON Wave：Hs_m / Tp_sec / Wave_Direction_degree）
+     IHMT-XX-W 風力站（JSON Wind：Wind_Speed_ms / Wind_Direction_degree）
+     IHMT-XX-T 潮位站（JSON Tide：Tide_TWVD_m / Tide_CDL_m / Tide_REF_m）
 
-   XML 格式陷阱（2026-08-19 以安平實檔確認）：
-   - 缺值是 -999.99（不是 -999），時間缺值是字串 "-"。
-   - Status: 0 正常、-1 該站無資料（安平就沒有波浪站，History 只有 1 筆全空）。
-   - 紀錄為時間降冪；Date_Time 無時區，實為臺灣時間。
-   - TideData 48 筆 ×6 分（約 4.8 小時）、WindData 48 筆 ×10 分（約 8 小時）、
-     History 逐時（基隆 12 筆，安平 0 筆）→ 長時序仍須靠 JSON。
-
-   ※ 實測 isohe.ihmt.gov.tw 的 XML 與 JSON 端點都「沒有」回應
-     Access-Control-Allow-Origin，瀏覽器直連必被 CORS 擋 → 一定要走轉送。
-     最穩的做法是自行部署 cors-proxy-worker.js（Cloudflare Worker，免費）。
+   ※ 實測 isohe.ihmt.gov.tw 的 JSON 端點未回應 Access-Control-Allow-Origin，
+     瀏覽器直連會被 CORS 阻擋，故透過支援跨域之轉送管道取檔。
    =================================================================== */
-const PORT_XML_BASE="https://isohe.ihmt.gov.tw/station/OpenData/XML/";
 const PORT_JSON_BASE="https://isohe.ihmt.gov.tw/opendata/";
 const PORTS=[
-  {code:"KL",name:"基隆商港",county:"基隆市",xml:"GetKLStationXML.aspx"},
-  {code:"TP",name:"臺北商港",county:"新北市",xml:"GetTPstationXML.aspx"},
-  {code:"TC",name:"臺中商港",county:"臺中市",xml:"GetTCStationXML.aspx"},
-  {code:"BD",name:"布袋商港",county:"嘉義縣",xml:"GetBDStationXML.aspx"},
-  {code:"AP",name:"安平商港",county:"臺南市",xml:"GetAPStationXML.aspx"},
-  {code:"KH",name:"高雄商港",county:"高雄市",xml:"GetKHStationXML.aspx"},
-  {code:"HL",name:"花蓮商港",county:"花蓮縣",xml:"GetHLStationXML.aspx"},
-  {code:"SA",name:"蘇澳商港",county:"宜蘭縣",xml:"GetSAStationXML.aspx"},
-  {code:"NG",name:"馬祖（南竿）商港",county:"連江縣",xml:"GetNGStationXML.aspx"}
+  {code:"KL",name:"基隆商港",county:"基隆市",
+   waveLat:25.16583,waveLon:121.76277,waveInfo:"基隆港資料浮標站",
+   tideLat:25.139189,tideLon:121.750778,tideInfo:"基隆港東7碼頭",
+   windLat:25.155208,windLon:121.752183,windInfo:"基隆港光華塔1站"},
+  {code:"TP",name:"臺北商港",county:"新北市",
+   waveLat:25.18055,waveLon:121.37277,waveInfo:"臺北港資料浮標站",
+   tideLat:25.165389,tideLon:121.3935,tideInfo:"臺北港北2碼頭",
+   windLat:25.156583,windLon:121.371833,windInfo:"臺北港北9碼頭"},
+  {code:"TC",name:"臺中商港",county:"臺中市",
+   waveLat:24.303264,waveLon:120.481978,waveInfo:"臺中港底碇式波流主站",
+   tideLat:24.267611,tideLon:120.524083,tideInfo:"臺中港15碼頭",
+   windLat:24.299614,windLon:120.486617,windInfo:"臺中港北堤綠燈塔"},
+  {code:"BD",name:"布袋商港",county:"嘉義縣",
+   waveLat:23.37344,waveLon:120.1165,waveInfo:"布袋港浮球式波流主站",
+   tideLat:23.378417,tideLon:120.138306,tideInfo:"布袋港E3碼頭",
+   windLat:23.380175,windLon:120.147517,windInfo:"布袋港管理處辦公大樓"},
+  {code:"AP",name:"安平商港",county:"臺南市",
+   waveLat:22.959722,waveLon:120.146667,waveInfo:"安平港底碇式波流站",
+   tideLat:22.978472,tideLon:120.175694,tideInfo:"安平港7號碼頭",
+   windLat:22.960483,windLon:120.149,windInfo:"安平港南堤燈塔"},
+  {code:"KH",name:"高雄商港",county:"高雄市",
+   waveLat:22.616833,waveLon:120.253694,waveInfo:"高雄港第一港口底碇式波流主站",
+   tideLat:22.6144444,tideLon:120.288306,tideInfo:"高雄港10號碼頭",
+   windLat:22.551133,windLon:120.300783,windInfo:"高雄港二港口北堤綠燈塔"},
+  {code:"HL",name:"花蓮商港",county:"花蓮縣",
+   waveLat:23.9672167,waveLon:121.6260139,waveInfo:"花蓮港底碇式波流主站",
+   tideLat:24.000694,tideLon:121.637389,tideInfo:"花蓮港9號碼頭",
+   windLat:23.980372,windLon:121.620092,windInfo:"花蓮港信號臺"},
+  {code:"SA",name:"蘇澳商港",county:"宜蘭縣",
+   waveLat:24.5901194,waveLon:121.8854472,waveInfo:"蘇澳港底碇式波流主站",
+   tideLat:24.595139,tideLon:121.860278,tideInfo:"蘇澳港3號碼頭",
+   windLat:24.597022,windLon:121.868042,windInfo:"蘇澳港綠燈塔"},
+  {code:"NG",name:"馬祖（南竿）商港",county:"連江縣",
+   waveLat:26.1646,waveLon:119.9356,waveInfo:"馬祖南竿底碇式波流主站",
+   tideLat:26.160947,tideLon:119.943328,tideInfo:"馬祖南竿2號浮動碼頭",
+   windLat:26.1622232,windLon:119.943522,windInfo:"馬祖南竿小白屋上方"}
 ];
 const PORT_BY_CODE={};PORTS.forEach(p=>{PORT_BY_CODE[p.code]=p;});
 
 const PORT_ON_STORE="marine_port_on";
 const PORT_PROXY_STORE="marine_port_proxy";
+const PORT_CACHE_TTL=5*60*1000; // 5 分鐘 sessionStorage 快取
 let PORT_ST={};            // id -> station
 let portOn=true;
 let portProxy="";
-let portProxyIdx=null;     // 記住上次成功的取檔管道，避免每次都重試
-let portProxyName="";      // 該管道的顯示名稱
+let portProxyName="";      // 最近成功的取檔管道名稱
 try{const v=localStorage.getItem(PORT_ON_STORE);if(v!=null)portOn=(v==="1");}catch(e){}
 try{portProxy=localStorage.getItem(PORT_PROXY_STORE)||"";}catch(e){}
 
-/* 缺值：XML 用 -999.99、JSON 用 -999，時間缺值為 "-" */
+/* 缺值：JSON 用 -999，時間缺值為 "-" */
 const pnum=v=>{
   if(v==null)return null;
   const t=String(v).trim();
@@ -764,13 +778,6 @@ const pnum=v=>{
   const f=parseFloat(t);
   return (isNaN(f)||f<=-900)?null:f;
 };
-/* "2026-08-19 23:54:00"（臺灣時間，無時區）→ ISO */
-function portTimeXML(t){
-  const m=/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/.exec(String(t||"").trim());
-  if(!m)return null;
-  const ms=Date.UTC(+m[1],+m[2]-1,+m[3],+m[4]-8,+m[5],+m[6]);
-  return isNaN(ms)?null:new Date(ms).toISOString();
-}
 /* 20260819235400（臺灣時間，時字段規格 00-24）→ ISO */
 function portTimeJSON(n){
   const t=String(n);
@@ -780,61 +787,91 @@ function portTimeJSON(n){
   return isNaN(ms)?null:new Date(ms).toISOString();
 }
 
-/* ===================== 取檔（一律需經轉送） ===================== */
-const PORT_TIMEOUT=15000;   // 單支請求逾時
-const PORT_CONC=3;          // 同時併發數（公開轉送多有每秒上限）
-function portCandidates(url){
-  const c=[];
-  if(portProxy){
-    c.push({n:"自訂轉送",u:portProxy.indexOf("{url}")>=0
-      ? portProxy.replace("{url}",encodeURIComponent(url))
-      : portProxy+(portProxy.indexOf("?")>=0?"&":"?")+"url="+encodeURIComponent(url)});
+/* ===================== 商港測站定義與純 JSON 多管道 CORS 取檔 ===================== */
+const PORT_TIMEOUT=14000;
+const PORT_CONC=3;
+const portSleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+/* 自動剝除轉送服務（r.jina.ai / allorigins 等）附加之外層包裝，取出純 JSON 陣列字串 */
+function portExtractJSON(txt){
+  let s=String(txt||"").trim();
+  if(s.startsWith("{")&&s.indexOf('"Markdown Content"')<0){
+    try{
+      const o=JSON.parse(s);
+      if(o&&!Array.isArray(o)){
+        if(o.data&&typeof o.data.content==="string")s=o.data.content.trim();
+        else if(typeof o.contents==="string")s=o.contents.trim();
+      }
+    }catch(e){}
   }
-  c.push({n:"codetabs",  u:"https://api.codetabs.com/v1/proxy/?quest="+encodeURIComponent(url)});
-  c.push({n:"allorigins",u:"https://api.allorigins.win/raw?url="+encodeURIComponent(url)});
-  c.push({n:"corsproxy", u:"https://corsproxy.io/?url="+encodeURIComponent(url)});
-  c.push({n:"直連",      u:url});   // 已知會被 CORS 擋，只留給網路層已處理的情況
-  return c;
+  const mc=s.indexOf("Markdown Content:");
+  if(mc>=0)s=s.slice(mc+"Markdown Content:".length).trim();
+  const bi=s.indexOf("[{");
+  const ei=s.lastIndexOf("}]");
+  if(bi>=0&&ei>bi)return s.slice(bi,ei+2);
+  return s;
 }
-async function portTry(cand,kind){
+
+async function portTryOne(u,timeoutMs){
   const ac=new AbortController();
-  const tm=setTimeout(()=>ac.abort(),PORT_TIMEOUT);
+  const tm=setTimeout(()=>ac.abort(),timeoutMs||PORT_TIMEOUT);
   try{
-    const r=await fetch(cand.u,{cache:"no-store",signal:ac.signal});
-    if(!r.ok)throw new Error("HTTP "+r.status);
-    const txt=await r.text();
-    if(kind==="xml"){
-      if(txt.indexOf("_Station")<0)throw new Error("格式非預期");
-      const doc=new DOMParser().parseFromString(txt,"text/xml");
-      if(doc.getElementsByTagName("parsererror").length)throw new Error("XML 解析失敗");
-      return doc;
+    const r=await fetch(u,{cache:"no-store",signal:ac.signal});
+    if(!r.ok){
+      const err=new Error("HTTP "+r.status);
+      err.status=r.status;
+      throw err;
     }
-    const j=JSON.parse(txt);
+    const raw=await r.text();
+    const j=JSON.parse(portExtractJSON(raw));
     if(!Array.isArray(j)||!j.length)throw new Error("格式非預期");
     return j;
   }finally{clearTimeout(tm);}
 }
-/* 已知可用管道就只走那一條；否則依序試 */
-async function portFetch(url,kind){
-  const cands=portCandidates(url);
-  if(portProxyIdx!=null&&portProxyIdx<cands.length){
-    try{return await portTry(cands[portProxyIdx],kind);}catch(e){/* 該管道掛了才往下試 */}
-  }
+
+/* 依序透過自訂轉送 → r.jina.ai（含 429 權杖回補重試） → allorigins → 直連 取得 JSON */
+async function portFetchJSON(url){
   let lastErr=null;
-  for(let i=0;i<cands.length;i++){
-    if(i===portProxyIdx)continue;
-    try{const v=await portTry(cands[i],kind);portProxyIdx=i;portProxyName=cands[i].n;return v;}
-    catch(e){lastErr=e;}
+  const p=(portProxy||"").trim();
+  if(p){
+    const customUrl=p.indexOf("{url}")>=0?p.replace("{url}",encodeURIComponent(url))
+      :(p.indexOf("?")>=0?p+encodeURIComponent(url):p.replace(/\/+$/,"")+"/?url="+encodeURIComponent(url));
+    try{
+      const j=await portTryOne(customUrl,PORT_TIMEOUT);
+      portProxyName="自訂轉送";
+      return j;
+    }catch(e){lastErr=e;}
+  }
+  // r.jina.ai 支援瀏覽器跨域（含 file:// 與 https://），若遇瞬間 429 限流自動等待回補重試
+  for(let attempt=0;attempt<3;attempt++){
+    try{
+      const j=await portTryOne("https://r.jina.ai/"+url,PORT_TIMEOUT);
+      portProxyName="jina";
+      return j;
+    }catch(e){
+      lastErr=e;
+      if(e&&e.status===429){
+        await portSleep(3200*(attempt+1));
+        continue;
+      }
+      break;
+    }
+  }
+  const fallbacks=[
+    {n:"allorigins-get",u:"https://api.allorigins.win/get?url="+encodeURIComponent(url)},
+    {n:"allorigins-raw",u:"https://api.allorigins.win/raw?url="+encodeURIComponent(url)},
+    {n:"直連",u:url}
+  ];
+  for(const fb of fallbacks){
+    try{
+      const j=await portTryOne(fb.u,PORT_TIMEOUT);
+      portProxyName=fb.n;
+      return j;
+    }catch(e){lastErr=e;}
   }
   throw lastErr||new Error("取檔失敗");
 }
-/* 探測：所有候選同時發，取最快成功的那條，決定之後全部走哪個管道 */
-async function portProbe(url,kind){
-  const cands=portCandidates(url);
-  const res=await Promise.any(cands.map((c,i)=>portTry(c,kind).then(v=>({i,v}))));
-  portProxyIdx=res.i;portProxyName=cands[res.i].n;
-  return res.v;
-}
+
 /* 限流執行池 */
 async function portPool(items,worker,conc){
   let idx=0;
@@ -842,67 +879,38 @@ async function portPool(items,worker,conc){
     while(idx<items.length){const i=idx++;try{await worker(items[i]);}catch(e){}}
   }));
 }
-/* 網址大小寫官方不一致 → 主網址失敗時再試互換大小寫的那一種 */
-function portXmlUrls(p){
-  const alt=p.xml.indexOf("StationXML")>=0
-    ? p.xml.replace("StationXML","stationXML")
-    : p.xml.replace("stationXML","StationXML");
-  return [PORT_XML_BASE+p.xml, PORT_XML_BASE+alt];
-}
-async function portFetchXML(p){
-  const urls=portXmlUrls(p);
-  try{return await portFetch(urls[0],"xml");}
-  catch(e){return await portFetch(urls[1],"xml");}
-}
-
-/* ===================== XML 解析 ===================== */
-const TAG=(el,name)=>{const n=el.getElementsByTagName(name)[0];return n?n.textContent:null;};
 
 function portStationBase(p,kind,label,attr){
   return{id:"IHMT-"+p.code+"-"+kind,src:"port",portKind:kind,portCode:p.code,
     name:p.name+"　"+label,nameEN:"",attr:attr,county:p.county,addr:"",
     lat:null,lon:null,obs:[],latest:{},latestT:null,
-    srcNote:"XML 即時",longLoaded:false,longLoading:false};
-}
-/* 逐筆取座標：以最後一筆有效座標為準（官方提醒儀器重置時位置會變） */
-function portPickLatLon(st,rec){
-  const la=pnum(TAG(rec,"Latitude")),lo=pnum(TAG(rec,"Longitude"));
-  if(la!=null&&lo!=null&&Math.abs(la)<=90&&Math.abs(lo)<=180){st.lat=la;st.lon=lo;}
+    srcNote:"JSON 48 小時長時序",longLoaded:false,longLoading:false,longError:false,_longPromise:null};
 }
 
-function parsePortXML(doc,p){
-  const out=[];
-  const mk=(tagName,kind,label,attr,rowOf)=>{
-    const recs=doc.getElementsByTagName(tagName);
-    if(!recs.length)return;
-    const st=portStationBase(p,kind,label,attr);
-    for(let i=0;i<recs.length;i++){
-      const r=recs[i];
-      portPickLatLon(st,r);
-      const nm=TAG(r,"Station");
-      if(nm&&String(nm).trim()&&String(nm).trim()!=="-")st.addr=String(nm).trim();
-      const t=portTimeXML(TAG(r,"Date_Time"));
-      if(!t)continue;                       // Date_Time 為 "-" 代表該站無資料
-      const row=rowOf(r);row.t=t;
-      out.push(0);                          // 佔位，實際 push 到 st.obs
-      st.obs.push(row);
+function initPortStations(){
+  PORTS.forEach(p=>{
+    const idV="IHMT-"+p.code+"-V";
+    if(!PORT_ST[idV]){
+      const stV=portStationBase(p,"V","波浪站","商港波浪站");
+      stV.lat=p.waveLat; stV.lon=p.waveLon; stV.addr=p.waveInfo||(p.name+"波浪站");
+      PORT_ST[idV]=stV;
     }
-    if(st.lat==null)return;                 // 連座標都沒有就不建站
-    finishPortStation(st);
-    out.push(st);
-  };
-  mk("History","V","波浪站","商港波浪站",r=>({
-    WaveHeight:pnum(TAG(r,"HS")), WavePeriod:pnum(TAG(r,"TP")),
-    WaveDirection:pnum(TAG(r,"MDIR")), WaveTmean:pnum(TAG(r,"Tmean")),
-    CurrentSpeed:pnum(TAG(r,"Velocity")), CurrentDirection:pnum(TAG(r,"Vmdir"))}));
-  mk("TideData","T","潮位站","商港潮位站",r=>({
-    TideHeight:pnum(TAG(r,"TideValue"))}));
-  mk("WindData","W","風力站","商港風力站",r=>({
-    WindSpeed:pnum(TAG(r,"WS_AVG")), WindDirection:pnum(TAG(r,"WD_AVG"))}));
-  return out.filter(x=>x&&x.id);
+    const idT="IHMT-"+p.code+"-T";
+    if(!PORT_ST[idT]){
+      const stT=portStationBase(p,"T","潮位站","商港潮位站");
+      stT.lat=p.tideLat; stT.lon=p.tideLon; stT.addr=p.tideInfo||(p.name+"潮位站");
+      PORT_ST[idT]=stT;
+    }
+    const idW="IHMT-"+p.code+"-W";
+    if(!PORT_ST[idW]){
+      const stW=portStationBase(p,"W","風力站","商港風力站");
+      stW.lat=p.windLat; stW.lon=p.windLon; stW.addr=p.windInfo||(p.name+"風力站");
+      PORT_ST[idW]=stW;
+    }
+  });
 }
 
-/* ===================== JSON 長時序（點選測站才抓） ===================== */
+/* ===================== JSON 長時序解析 ===================== */
 /* 潮位單位判定：Tide_TWVD_m / Tide_CDL_m 欄名雖為 _m，實際多以「公分」提供，
    而 Tide_REF_m 為公尺。兩者差值應為固定常數，故取變異數較小者決定倍率。 */
 function tideScale(raw){
@@ -960,31 +968,124 @@ function parseLongTide(j){
     TideCDL:r.cdl==null?null:+(r.cdl*k).toFixed(3),
     TideREF:r.ref==null?null:+r.ref.toFixed(3)})))};
 }
+function parseLongWave(j){
+  const h=j[0]||{};
+  const waveNum=v=>{
+    const f=pnum(v);
+    return (f==null||f<0)?null:f;
+  };
+  return trim48(arr(h.Datas).map(d=>{
+    const t=portTimeJSON(d.DateTime);if(!t)return null;
+    return{
+      t,
+      WaveHeight:waveNum(d.Hs_m),
+      WavePeriod:waveNum(d.Tp_sec),
+      WaveDirection:waveNum(d.Wave_Direction_degree),
+      WaveDirectionDesc:(d.Wave_Direction&&String(d.Wave_Direction).trim()&&String(d.Wave_Direction).trim()!=="-")?String(d.Wave_Direction).trim():null
+    };
+  }).filter(Boolean));
+}
 
-/* 點選風力／潮位站時才抓 48 小時長時序，抓到就整段換掉（避免混用不同基準面） */
-async function loadPortLongSeries(st){
-  if(!st||st.src!=="port"||st.longLoaded||st.longLoading)return false;
-  if(st.portKind!=="W"&&st.portKind!=="T")return false;
-  st.longLoading=true;
+/* ===================== 商港純 JSON 載入（含 5 分鐘快取） ===================== */
+function applyPortCache(st){
   try{
-    const kind=st.portKind==="W"?"Wind":"Tide";
-    const j=await portFetch(PORT_JSON_BASE+kind+"?port="+st.portCode+"&format=JSON","json");
-    if(st.portKind==="W"){
-      st.obs=parseLongWind(j);
-      st.srcNote="JSON 48 小時長時序";
-    }else{
-      const r=parseLongTide(j);
-      st.obs=r.rows;st.tideUnitCm=r.cm;
-      st.srcNote="JSON 48 小時長時序（潮位為中潮系統 TWVD）";
-    }
+    const raw=sessionStorage.getItem("port_json_v1_"+st.id);
+    if(!raw)return false;
+    const c=JSON.parse(raw);
+    if(!c||!c.ts||(Date.now()-c.ts>PORT_CACHE_TTL)||!Array.isArray(c.obs))return false;
+    st.obs=c.obs;
+    if(c.lat!=null&&c.lon!=null){st.lat=c.lat;st.lon=c.lon;}
+    if(c.addr)st.addr=c.addr;
+    if(c.srcNote)st.srcNote=c.srcNote;
+    if(c.tideUnitCm!=null)st.tideUnitCm=c.tideUnitCm;
     finishPortStation(st);
     st.status=checkStationStatus(st);
     st.longLoaded=true;
+    st.longError=false;
+    return true;
+  }catch(e){return false;}
+}
+
+function savePortCache(st){
+  try{
+    sessionStorage.setItem("port_json_v1_"+st.id,JSON.stringify({
+      ts:Date.now(),obs:st.obs,lat:st.lat,lon:st.lon,addr:st.addr,
+      srcNote:st.srcNote,tideUnitCm:st.tideUnitCm
+    }));
+  }catch(e){}
+}
+
+async function loadPortData(stId, kindName, forceRefresh){
+  const st = PORT_ST[stId];
+  if(!st) return false;
+  if(!forceRefresh && applyPortCache(st)) return true;
+  const url = PORT_JSON_BASE + kindName + "?port=" + st.portCode + "&format=JSON";
+  try{
+    const j = await portFetchJSON(url);
+    if(!Array.isArray(j) || !j.length) return false;
+
+    if(kindName === "Wave"){
+      st.obs = parseLongWave(j);
+      st.srcNote = "JSON 48 小時長時序（波浪資訊）";
+    }else if(kindName === "Tide"){
+      const rTide = parseLongTide(j);
+      st.obs = rTide.rows; st.tideUnitCm = rTide.cm;
+      st.srcNote = "JSON 48 小時長時序（潮位 TWVD）";
+    }else if(kindName === "Wind"){
+      st.obs = parseLongWind(j);
+      st.srcNote = "JSON 48 小時長時序（風力資訊）";
+    }
+
+    const h = j[0] || {};
+    if(h.Station_Latitude && h.Station_Longitude){
+      const la = pnum(h.Station_Latitude), lo = pnum(h.Station_Longitude);
+      if(la != null && lo != null){ st.lat = la; st.lon = lo; }
+    }
+    if(h.Station_Info && (!st.addr || st.addr === "-")){
+      st.addr = String(h.Station_Info).replace(/^測站位置[：:]/,"").trim();
+    }
+    finishPortStation(st);
+    st.status = checkStationStatus(st);
+    st.longLoaded = true;
+    st.longError = false;
+    savePortCache(st);
     return true;
   }catch(e){
-    console.warn("長時序載入失敗",st.id,e);
+    console.warn("商港 JSON 載入失敗", stId, e);
+    st.longError = true;
     return false;
-  }finally{st.longLoading=false;}
+  }
+}
+
+/* 點選測站或背景排程時抓取 48 小時 JSON 長時序（共用進行中的 Promise） */
+function loadPortLongSeries(st, forceRefresh){
+  if(!st || st.src !== "port") return Promise.resolve(false);
+  if(!forceRefresh && st.longLoaded) return Promise.resolve(true);
+  if(st._longPromise) return st._longPromise;
+  const kindMap = { W: "Wind", T: "Tide", V: "Wave" };
+  const kind = kindMap[st.portKind];
+  if(!kind) return Promise.resolve(false);
+  st.longLoading = true;
+  st.longError = false;
+  st._longPromise = loadPortData(st.id, kind, forceRefresh).finally(() => {
+    st.longLoading = false;
+    st._longPromise = null;
+  });
+  return st._longPromise;
+}
+
+function retryPortLong(stId){
+  const st = PORT_ST[stId] || STATIONS[stId];
+  if(!st) return;
+  st.longLoaded = false;
+  st.longError = false;
+  loadPortLongSeries(st, true).then(done => {
+    if(done){
+      renderMap(false);updateDashboardUI();updateObsLine();
+    }
+    if(selectedId===st.id)selectStation(st.id,false);
+  });
+  selectStation(stId, false);
 }
 
 /* ===================== 載入流程 ===================== */
@@ -1004,7 +1105,7 @@ function updateObsLine(){
   $("mDetail").textContent=$("obsTime").textContent.replace(/^🕒\s*/,"");
 }
 
-/* 背景漸進式載入：不阻擋主畫面，每取到一港就併入並（節流）重繪 */
+/* 背景漸進式載入：不阻擋主畫面，每取到一站就併入並（節流）重繪 */
 let portLoadSeq=0, portLoading=false, portRenderTimer=null, portRenderPending=false;
 let popupOpen=false;
 
@@ -1015,75 +1116,64 @@ function portMergeAndRender(){
   renderMap(false);
   updateDashboardUI();
   updateObsLine();
+  if(selectedId&&STATIONS[selectedId]&&STATIONS[selectedId].src==="port"){
+    selectStation(selectedId,false);
+  }
 }
 /* 使用者正開著彈窗時先不重繪，避免彈窗被關掉 */
 function schedulePortRender(){
   if(popupOpen){portRenderPending=true;return;}
   if(portRenderTimer)return;
-  portRenderTimer=setTimeout(()=>{portRenderTimer=null;portMergeAndRender();},1200);
+  portRenderTimer=setTimeout(()=>{portRenderTimer=null;portMergeAndRender();},800);
 }
 
 async function loadPorts(){
-  if(portLoading)return 0;
-  portLoading=true;
-  const seq=++portLoadSeq;
-  const alive=()=>seq===portLoadSeq&&portOn;
+  if(portLoading) return 0;
+  portLoading = true;
+  const seq = ++portLoadSeq;
+  const alive = () => seq === portLoadSeq && portOn;
 
-  const jobs=PORTS.slice();
-  const total=jobs.length;
-  let ok=0,fail=0,done=0;
-  const prog=()=>portStat(`載入中 ${done}/${total} 港`,"");
-  prog();
+  // 1) 先立即初始化 9 大港 27 個測站座標，並優先套用 sessionStorage 快取
+  initPortStations();
+  Object.values(PORT_ST).forEach(st => applyPortCache(st));
+  portMergeAndRender();
 
-  const take=(p,doc)=>{
-    const sts=parsePortXML(doc,p);
-    sts.forEach(st=>{PORT_ST[st.id]=st;});
-    return sts.length;
-  };
+  // 建立 27 個純 JSON 測站工作清單（若目前使用者已選取某商港站，將該港排在最優先）
+  const allSt = Object.values(PORT_ST);
+  const total = allSt.length;
+  let ok = allSt.filter(s => s.longLoaded).length;
+  let fail = 0;
+  let done = ok;
+  const prog = () => portStat(`商港 JSON 載入中 ${done}/${total} 站`, "");
 
-  // 1) 探測：所有轉送候選同時試，取最快的一條，之後全部走它
-  const first=jobs.shift();
-  try{
-    take(first,await portProbe(portXmlUrls(first)[0],"xml"));
-    ok++;done++;
-  }catch(e){
-    // 探測用的網址可能大小寫不對，再用備援網址完整試一輪
-    try{take(first,await portFetchXML(first));ok++;done++;}
-    catch(e2){
-      portLoading=false;
-      portStat("⚠ 取不到（轉送全失敗）","err");
-      $("portStat").title="isohe.ihmt.gov.tw 沒有回應 CORS 標頭，必須經轉送。請填入自己的轉送網址。";
-      $("portProxyWrap").style.display="flex";
-      throw e2;
-    }
+  const pending = allSt.filter(s => !s.longLoaded);
+  if(selectedId && PORT_ST[selectedId]){
+    const selPort = PORT_ST[selectedId].portCode;
+    pending.sort((a, b) => (a.id === selectedId ? -2 : a.portCode === selPort ? -1 : 0) - (b.id === selectedId ? -2 : b.portCode === selPort ? -1 : 0));
   }
-  if(!alive()){portLoading=false;return ok;}
-  portMergeAndRender();
-  prog();
 
-  // 2) 其餘各港限流併發，邊到邊上圖
-  await portPool(jobs,async p=>{
-    if(!alive())return;
-    try{take(p,await portFetchXML(p));ok++;}
-    catch(e){fail++;}
-    done++;
-    if(!alive())return;
+  if(pending.length){
     prog();
-    schedulePortRender();
-  },PORT_CONC);
+    await portPool(pending, async st => {
+      if(!alive()) return;
+      const res = await loadPortLongSeries(st);
+      if(res) ok++; else fail++;
+      done++;
+      if(!alive()) return;
+      prog();
+      schedulePortRender();
+    }, PORT_CONC);
+  }
 
-  portLoading=false;
-  if(!alive())return ok;
-  if(portRenderTimer){clearTimeout(portRenderTimer);portRenderTimer=null;}
+  portLoading = false;
+  if(!alive()) return ok;
+  if(portRenderTimer){clearTimeout(portRenderTimer); portRenderTimer=null;}
   portMergeAndRender();
-  const nSt=Object.keys(PORT_ST).length;
-  if(!ok){
-    portStat("⚠ 取不到（轉送全失敗）","err");
-    $("portProxyWrap").style.display="flex";
+  if(ok){
+    portStat(`${PORTS.length} 港 ‧ ${ok}/${total} 站就緒`, "ok");
+    $("portStat").title = "純 JSON 開放資料（經由 " + (portProxyName || "快取") + " 取得" + (fail ? `，${fail} 站失敗` : "") + "）";
   }else{
-    portStat(`${ok}/${total} 港 ‧ ${nSt} 站`,fail?"":"ok");
-    $("portStat").title="經由 "+(portProxyName||"—")+" 取得"+(fail?`，${fail} 港失敗`:"");
-    $("portProxyWrap").style.display="none";
+    portStat(`⚠ 商港 JSON 連線受阻`, "err");
   }
   return ok;
 }
@@ -1245,6 +1335,76 @@ map.on("popupclose",()=>{
   if(portRenderPending){portRenderPending=false;schedulePortRender();}
 });
 let curBase=BASES.sat.addTo(map);
+
+map.createPane('bndPane');
+map.getPane('bndPane').style.zIndex = 375;
+map.getPane('bndPane').style.pointerEvents = 'none';
+
+const countyBorderLayer = L.tileLayer("https://wmts.nlsc.gov.tw/wmts/CITY/default/GoogleMapsCompatible/{z}/{y}/{x}", {
+  pane: "bndPane", maxZoom: 19, attribution: "© 國土測繪中心 (NLSC)"
+});
+const townBorderLayer = L.tileLayer("https://wmts.nlsc.gov.tw/wmts/TOWN/default/GoogleMapsCompatible/{z}/{y}/{x}", {
+  pane: "bndPane", maxZoom: 19, attribution: "© 國土測繪中心 (NLSC)"
+});
+const villageBorderLayer = L.tileLayer("https://wmts.nlsc.gov.tw/wmts/Village/default/GoogleMapsCompatible/{z}/{y}/{x}", {
+  pane: "bndPane", maxZoom: 19, attribution: "© 國土測繪中心 (NLSC)"
+});
+
+$("countyBndChk").addEventListener("change", e => {
+  if(e.target.checked) countyBorderLayer.addTo(map);
+  else map.removeLayer(countyBorderLayer);
+});
+$("townBndChk").addEventListener("change", e => {
+  if(e.target.checked) townBorderLayer.addTo(map);
+  else map.removeLayer(townBorderLayer);
+});
+$("villageBndChk").addEventListener("change", e => {
+  if(e.target.checked) villageBorderLayer.addTo(map);
+  else map.removeLayer(villageBorderLayer);
+});
+
+let seaBorderLayer = null;
+function getSeaBorderLayer(){
+  if(!seaBorderLayer && window.TAIWAN_TERRITORIAL_SEA){
+    seaBorderLayer = L.geoJSON(window.TAIWAN_TERRITORIAL_SEA, {
+      pane: "bndPane",
+      style: (feature) => {
+        const t = feature?.properties?.limit_type;
+        if (t === "24nm") {
+          return { color: "#818cf8", weight: 2.0, opacity: 0.95, dashArray: "3, 6" };
+        } else if (t === "12nm") {
+          return { color: "#06b6d4", weight: 2.2, opacity: 0.95, dashArray: "8, 6" };
+        } else {
+          return { color: "#0284c7", weight: 2.4, opacity: 1.0, dashArray: "12, 4" };
+        }
+      },
+      onEachFeature: (feature, layer) => {
+        const p = feature.properties || {};
+        const title = p.name || "中華民國海域界線";
+        const tag = p.limit_name || "海域界線";
+        const z = p.zone || p.region || "臺灣海域";
+        layer.bindTooltip(`🌊 ${tag}（${z}）`, { sticky: true, direction: "top" });
+        layer.bindPopup(`
+          <div style="font-size:13px;line-height:1.6;min-width:220px;">
+            <strong style="color:${p.stroke_color || '#0284c7'};font-size:14px;">🌊 ${title}</strong>
+            <div style="margin-top:4px;color:#cbd5e1;font-size:12px;">依據《中華民國領海及鄰接區法》公告之法定界線</div>
+            ${z ? `<div style="margin-top:2px;">涵蓋區域：<b>${z}</b></div>` : ""}
+            ${p.limit_desc ? `<div style="margin-top:2px;font-size:11.5px;color:#cbd5e1;">定義：${p.limit_desc}</div>` : ""}
+            ${p.points ? `<div style="margin-top:2px;font-size:11px;color:#94a3b8;">基準基點：${p.points}</div>` : ""}
+            <div style="margin-top:4px;font-size:10.5px;color:#94a3b8;border-top:1px dashed rgba(255,255,255,0.15);padding-top:4px;">來源：內政部地政司（政府資料開放平臺）</div>
+          </div>
+        `);
+      }
+    });
+  }
+  return seaBorderLayer;
+}
+$("seaBndChk").addEventListener("change", e => {
+  const l = getSeaBorderLayer();
+  if(!l) return;
+  if(e.target.checked) l.addTo(map);
+  else map.removeLayer(l);
+});
 const layerG=L.layerGroup().addTo(map);
 let markers={},selectedId=null;
 
@@ -1383,8 +1543,8 @@ function renderMap(fit){
     if (v.key === "WindSpeed") {
       dirDeg = st.latest.WindDirection;
       isWindOrWave = true;
-    } else if (v.key === "__type" && st.src === "port" && st.portKind === "W") {
-      dirDeg = st.latest.WindDirection;
+    } else if (v.key === "__type" && st.src === "port" && (st.portKind === "W" || st.portKind === "V")) {
+      dirDeg = st.portKind === "W" ? st.latest.WindDirection : st.latest.WaveDirection;
       isWindOrWave = true;
     } else if (v.key === "WaveHeight") {
       dirDeg = st.latest.WaveDirection;
@@ -1487,6 +1647,16 @@ function selectStation(id,openPopup){
   updateSheetTxt();
   if(openPopup&&isMobileP())setSheet(true);
 
+  // 商港風力／潮位／波浪站：點選後立即觸發 48 小時 JSON 長時序載入，完成（成功或失敗）皆即時刷新卡片
+  if(st.src==="port"&&!st.longLoaded&&!st.longError&&(st.portKind==="W"||st.portKind==="T"||st.portKind==="V")){
+    loadPortLongSeries(st).then(done=>{
+      if(done){
+        renderMap(false);updateDashboardUI();updateObsLine();
+      }
+      if(selectedId===st.id)selectStation(st.id,false);
+    });
+  }
+
   /* 卡片 */
   $("side").scrollTop=0;
   $("emptyMsg").style.display="none";
@@ -1494,19 +1664,29 @@ function selectStation(id,openPopup){
   const l=st.latest;
   const chip=(k,val,unit)=>val==null||val===""?"":`<div class="chip">${k}<b>${val}${unit?" "+unit:""}</b></div>`;
   
+  const isFetchingEmpty = st.src==="port" && !st.latestT && (st.longLoading || portLoading);
   const stat = st.status || { health: "normal", ageHrs: 0, alertState: "none", alertMsgs: [] };
   let statusText = "🟢 正常運作";
-  if (stat.health === "warning") statusText = `🟡 延遲 (${Math.round(stat.ageHrs)}小時前更新)`;
-  else if (stat.health === "offline") statusText = `🔴 離線 (${stat.ageHrs ? Math.round(stat.ageHrs) + "小時前更新" : "無資料"})`;
+  let statusColor = "#10b981";
+  if (isFetchingEmpty) {
+    statusText = "⏳ 正在載入觀測資料…";
+    statusColor = "#8ab4f8";
+  } else if (stat.health === "warning") {
+    statusText = `🟡 延遲 (${Math.round(stat.ageHrs)}小時前更新)`;
+    statusColor = "#f59e0b";
+  } else if (stat.health === "offline") {
+    statusText = `🔴 離線 (${stat.ageHrs ? Math.round(stat.ageHrs) + "小時前更新" : "無資料"})`;
+    statusColor = "#ef4444";
+  }
   
   card.innerHTML=`<h2>${st.name||st.id} <small>${st.id}${st.nameEN?" ‧ "+st.nameEN:""}</small>
       <span class="tag ${stType(st)}">${typeLabel(st)}</span></h2>
-    <div style="font-size:12px;margin:4px 0 8px;font-weight:600;color:${stat.health==='normal'?'#10b981':(stat.health==='warning'?'#f59e0b':'#ef4444')}">${statusText}</div>
+    <div style="font-size:12px;margin:4px 0 8px;font-weight:600;color:${statusColor}">${statusText}</div>
     <div class="meta">${st.county||""}${st.addr?" ‧ "+st.addr:""}
       ${st.lat!=null?` ‧ ${st.lat.toFixed(3)}°N, ${st.lon.toFixed(3)}°E`:""}
       ‧ 最新觀測：${fmtFull(st.latestT)}（共 ${st.obs.length} 筆）</div>
     <div class="chips">
-      ${chip("波高",l.WaveHeight,"m")}${chip(st.src==="port"?"尖峰週期":"波週期",l.WavePeriod,"s")}${chip("平均週期",l.WaveTmean,"s")}${chip("波向",formatDirArrow(l.WaveDirection,true),"")}
+      ${chip("波高",l.WaveHeight,"m")}${chip(st.src==="port"?"尖峰週期":"波週期",l.WavePeriod,"s")}${chip("波向",formatDirArrow(l.WaveDirection,true),"")}
       ${chip("潮高",l.TideHeight,"m")}${chip("潮汐",l.TideLevel,"")}
       ${chip("海溫",l.SeaTemperature,"°C")}${chip("氣溫",l.Temperature,"°C")}
       ${chip("風速",l.WindSpeed,"m/s")}${chip("風向",formatDirArrow(l.WindDirection,true),"")}${chip("最大陣風",l.MaximumWindSpeed,"m/s")}
@@ -1515,9 +1695,12 @@ function selectStation(id,openPopup){
     </div>
     ${st.src==="port"?`<div class="meta" style="margin-top:10px;margin-bottom:0;font-size:11px;line-height:1.5">
       ⚓ 商港海氣象觀測 ‧ 資料：交通部運輸研究所運輸技術研究中心／臺灣港務股份有限公司
-      <br>📈 時序來源：${st.srcNote||"XML 即時"}
-      ${(!st.longLoaded&&(st.portKind==="W"||st.portKind==="T"))
-        ?`<span style="color:var(--accent)"> ‧ ⏳ 正在載入 48 小時長時序…</span>`:""}
+      <br>📈 時序來源：${st.srcNote||"JSON 48 小時長時序"}
+      ${st.longLoading
+        ?`<span style="color:var(--accent)"> ‧ ⏳ 正在載入 48 小時長時序…</span>`
+        :(!st.longLoaded&&st.longError
+            ?`<span style="color:#f28b82"> ‧ ⚠ 48 小時長時序暫無法取得 <button onclick="retryPortLong('${st.id}')" style="margin-left:4px;padding:1px 8px;font-size:10.5px;border-radius:10px;border:1px solid var(--accent);background:rgba(138,180,248,0.12);color:var(--accent);cursor:pointer">↻ 重試</button></span>`
+            :"")}
       ${st.tideUnitCm?"<br>※ JSON 的 Tide_TWVD_m／Tide_CDL_m 實以公分提供，已自動換算為公尺。":""}
       <br>※ 資料未經嚴密品管，僅供參考，不提供爭議及訴訟使用。
     </div>`:""}`;
@@ -1531,12 +1714,11 @@ function selectStation(id,openPopup){
         ws=g("WindSpeed"),mx=g("MaximumWindSpeed"),
         wd=g("WindDirection"),vd=g("WaveDirection"),
         cs=g("CurrentSpeed"),cd=g("CurrentDirection"),
-        tcdl=g("TideCDL"),tref=g("TideREF"),wtm=g("WaveTmean");
+        tcdl=g("TideCDL"),tref=g("TideREF");
 
-  if(any(wh)||any(wp)||any(wtm))addChart("🌊 波高與波週期",labels,[
+  if(any(wh)||any(wp))addChart("🌊 波高與波週期",labels,[
       {label:"波高 (m)",data:wh,borderColor:"#4fc3f7",backgroundColor:"rgba(79,195,247,.15)",fill:true,...LSTYLE},
-      {label:"尖峰週期 (s)",data:wp,borderColor:"#b39ddb",yAxisID:"y2",...LSTYLE},
-      ...(any(wtm)?[{label:"平均週期 (s)",data:wtm,borderColor:"#80cbc4",borderDash:[5,3],yAxisID:"y2",...LSTYLE}]:[])
+      {label:"尖峰週期 (s)",data:wp,borderColor:"#b39ddb",yAxisID:"y2",...LSTYLE}
     ],{yTitle:"m",y2Title:"s"});
   if(any(th))addChart("🌙 潮高",labels,[
       {label:"潮高 (m)",data:th,borderColor:"#4dd0e1",backgroundColor:"rgba(77,208,225,.18)",fill:"origin",...LSTYLE}
@@ -1564,16 +1746,7 @@ function selectStation(id,openPopup){
       {label:"築港高程 CDL (m)",data:tcdl,borderColor:"#f06292",...LSTYLE},
       {label:"相對潮位 REF (m)",data:tref,borderColor:"#ffb74d",borderDash:[5,3],...LSTYLE}
     ],{yTitle:"m"});
-  if(!charts.length)$("charts").innerHTML='<div id="emptyMsg" style="display:block">此測站近期皆為缺測</div>';
-
-  // 商港風力／潮位站：XML 只有數小時，點選後才背景補抓 JSON 的 48 小時長時序
-  if(st.src==="port"&&!st.longLoaded&&(st.portKind==="W"||st.portKind==="T")){
-    loadPortLongSeries(st).then(done=>{
-      if(!done)return;
-      if(selectedId===st.id)selectStation(st.id,false);
-      renderMap(false);updateDashboardUI();updateObsLine();
-    });
-  }
+  if(!charts.length)$("charts").innerHTML=`<div id="emptyMsg" style="display:block">${isFetchingEmpty?"⏳ 正在載入 48 小時觀測時序資料…":"此測站近期皆為缺測"}</div>`;
 }
 
 /* ===================== 控制列 ===================== */
@@ -1609,18 +1782,19 @@ $("ckPort").onchange=e=>{
   }
   refreshAfterPortToggle();
 };
-$("portProxy").value=portProxy;
-$("portProxySave").onclick=()=>{
-  portProxy=$("portProxy").value.trim();
-  try{
-    if(portProxy)localStorage.setItem(PORT_PROXY_STORE,portProxy);
-    else localStorage.removeItem(PORT_PROXY_STORE);
-  }catch(err){}
-  portProxyIdx=null;portProxyName="";
-  portLoadSeq++;portLoading=false;      // 中斷進行中的載入後重來
-  portStat("載入中…","");
-  loadPorts().catch(err=>console.warn("商港資料載入失敗",err));
-};
+if($("portProxy")) $("portProxy").value=portProxy;
+if($("portProxySave")) {
+  $("portProxySave").onclick=()=>{
+    portProxy=$("portProxy").value.trim();
+    try{
+      if(portProxy)localStorage.setItem(PORT_PROXY_STORE,portProxy);
+      else localStorage.removeItem(PORT_PROXY_STORE);
+    }catch(err){}
+    portLoadSeq++;portLoading=false;
+    portStat("載入中…","");
+    loadPorts().catch(err=>console.warn("商港資料載入失敗",err));
+  };
+}
 
 function fillStationSel(){
   const buoys=[],tides=[],pwave=[],pwind=[],ptide=[];

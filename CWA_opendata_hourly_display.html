@@ -16,6 +16,10 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="taiwan_territorial_sea.js"></script>
+<script src="taiwan_reservoirs.js"></script>
+<script src="cctv_data.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.13/hls.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <!-- 空間克利金內插、等值面與等值線函式庫 (kriging.js, kriging-contour, d3, d3-contour) -->
 <script src="https://cdn.jsdelivr.net/npm/@sakitam-gis/kriging/dist/kriging.min.js"></script>
@@ -283,6 +287,49 @@
   .moenv-marker:hover{transform:translate(-50%,-50%) scale(1.18);z-index:9999}
   .moenv-marker .badge-txt{font-size:10px;line-height:1;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.8);font-family:ui-monospace,Menlo,monospace}
   .moenv-badge-tag{display:inline-block;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:700;color:#0b1220;margin-left:6px}
+
+  /* ===== 即時影像：檢視器與分類清單 ===== */
+  #camBox{position:absolute;right:12px;top:12px;z-index:1600;width:min(420px,calc(100% - 24px));display:none;
+    background:rgba(23,28,40,0.9);backdrop-filter:blur(24px) saturate(1.8);-webkit-backdrop-filter:blur(24px) saturate(1.8);
+    border:1px solid var(--line);border-radius:16px;padding:12px 14px;
+    box-shadow:0 12px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1)}
+  #camBox .chead{display:flex;align-items:flex-start;gap:8px}
+  #camBox .ctitle{flex:1;font-size:13.5px;font-weight:700;color:#fff;line-height:1.35}
+  #camBox .csub{font-size:11px;color:var(--muted);margin-top:2px}
+  #camMedia{margin-top:8px;background:#000;border:1px solid var(--line);border-radius:12px;overflow:hidden;
+    min-height:150px;display:flex;align-items:center;justify-content:center;position:relative}
+  #camMedia img,#camMedia video,#camMedia iframe{width:100%;display:block;border:0;max-height:340px;object-fit:contain}
+  #camMedia iframe{height:300px}
+  .camph{color:var(--muted);font-size:12px;padding:26px 14px;text-align:center;line-height:1.6}
+  .camlive{position:absolute;left:8px;top:8px;z-index:2;background:rgba(0,0,0,.6);border-radius:10px;
+    padding:2px 8px;font-size:10.5px;color:#fff;display:flex;align-items:center;gap:5px}
+  .camdot{width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.25)}
+  #camBox .cbtns{display:flex;gap:6px;margin-top:8px}
+  #camBox .cbtns button,#camBox .cbtns a{flex:1;padding:7px 6px;font-size:11.5px;border-radius:14px;
+    text-decoration:none;text-align:center;line-height:1.6}
+  .camcats{margin-top:4px}
+  .camcats details{border:1px solid var(--line);border-radius:12px;margin-top:5px;background:rgba(255,255,255,0.03)}
+  .camcats summary{cursor:pointer;font-size:12px;font-weight:600;padding:6px 9px;color:var(--txt);outline:none}
+  .camcats .cbody{padding:2px 9px 7px}
+  .camcats .ckrow{font-size:12px;margin:2px 0}
+  .camdotc{width:9px;height:9px;border-radius:50%;display:inline-block;flex:0 0 auto}
+  .camcnt{margin-left:auto;font-size:10.5px;color:var(--muted)}
+
+  /* ===== 水利署水庫水情資訊樣式 ===== */
+  .res-card{background:rgba(255,255,255,0.04);border:1px solid var(--line);border-radius:12px;padding:9px 11px;margin-bottom:6px;cursor:pointer;transition:background .2s, border-color .2s, box-shadow .2s}
+  .res-card:hover{background:rgba(138,180,248,0.12);border-color:var(--accent)}
+  .res-card.active{background:rgba(14,165,233,0.22);border-color:#38bdf8;box-shadow:0 0 12px rgba(56,189,248,0.45)}
+  .res-card-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+  .res-card-name{font-weight:700;font-size:13px;color:#fff;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .res-card-badge{font-size:11px;font-weight:700;padding:2px 7px;border-radius:10px}
+  .res-bar-wrap{width:100%;height:6px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;margin:5px 0 6px}
+  .res-bar-inner{height:100%;border-radius:3px;transition:width .4s ease}
+  .res-card-meta{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);line-height:1.4}
+  .res-div-icon{background:transparent;border:none}
+  .res-marker{display:flex;flex-direction:column;align-items:center;cursor:pointer}
+  .res-marker-bubble{background:rgba(15,23,42,0.92);border:1.5px solid #fff;border-radius:12px;padding:2px 7px;font-size:11px;font-weight:700;color:#fff;box-shadow:0 3px 10px rgba(0,0,0,0.5);white-space:nowrap;display:flex;align-items:center;gap:4px;transition:transform .15s, box-shadow .15s}
+  .res-marker:hover .res-marker-bubble{transform:scale(1.08);box-shadow:0 4px 14px rgba(0,0,0,0.7)}
+  .res-marker-drop{width:8px;height:8px;border-radius:50%;box-shadow:0 0 6px currentColor;margin-top:2px}
 </style>
 </head>
 <body>
@@ -447,7 +494,61 @@
     </div>
   </details>
 
-  <!-- 區塊 5: 底圖與日夜變化 -->
+  <!-- 區塊: 📹 即時影像鏡頭 (CCTV) -->
+  <details class="sec" id="camSec">
+    <summary>📹 即時影像鏡頭<span class="car">▾</span></summary>
+    <div class="sec-body">
+      <label class="ckrow" style="margin-top:0"><input type="checkbox" id="camChk"> 📹 顯示全臺即時影像鏡頭（不需金鑰）</label>
+      <span class="chip" id="camStat" style="display:none"></span>
+      <div id="camPanel" style="display:none">
+        <input id="camSearch" placeholder="搜尋鏡頭：台1線、和平溪、板橋…" style="margin-top:7px">
+        <div class="camcats" id="camCats"></div>
+        <div class="btns">
+          <button class="ghost" id="camThbLive" title="改抓公路局最新 CCTV 清單">↻ 更新省道鏡頭清單</button>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <!-- 區塊: 💧 水利署水庫即時水情資訊 -->
+  <details class="sec" id="wraResSec">
+    <summary>💧 水庫即時水情資訊<span class="car">▾</span></summary>
+    <div class="sec-body">
+      <label class="ckrow" style="margin-top:0"><input type="checkbox" id="wraResChk"> 💧 顯示全臺水庫即時水情（標記與蓄水範圍）</label>
+      <span class="chip" id="wraResStat" style="display:none"></span>
+      <div id="wraResPanel" style="display:none">
+        <div class="btns" style="margin-top:6px">
+          <button id="wraResRefresh">🔄 更新水情資料</button>
+          <button class="ghost" id="wraResFit">🎯 全臺水庫視野</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;padding:7px 9px;background:rgba(255,255,255,0.03);border:1px solid var(--line);border-radius:8px">
+          <label class="ckrow" style="margin:0;font-size:11.5px"><input type="checkbox" id="wraResMarkerChk" checked> 💧 點標記（蓄水率%）</label>
+          <label class="ckrow" style="margin:0;font-size:11.5px"><input type="checkbox" id="wraResPolyChk" checked> 🌊 水庫蓄水區域（依水情著色）</label>
+          <label class="ckrow" style="margin:0;font-size:11.5px"><input type="checkbox" id="wraResWatershedChk"> 🏞️ 水庫集水區</label>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.6">
+          蓄水率燈號：
+          <b style="color:#ef4444">🔴 嚴重枯旱 (&lt;25%)</b> · 
+          <b style="color:#f59e0b">🟡 水情吃緊 (&lt;50%)</b> · 
+          <b style="color:#06b6d4">🔵 水情尚可 (&lt;75%)</b> · 
+          <b style="color:#10b981">🟢 水情充沛 (≥75%)</b>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:8px">
+          <select id="wraResRegionSel" style="flex:1">
+            <option value="">全部地區</option>
+            <option value="北部地區">北部地區</option>
+            <option value="中部地區">中部地區</option>
+            <option value="南部地區">南部地區</option>
+            <option value="離島地區">離島地區</option>
+          </select>
+          <input id="wraResSearch" placeholder="搜尋水庫名稱…" style="flex:1.2">
+        </div>
+        <div id="wraResCards" style="max-height:360px;overflow-y:auto;margin-top:8px;padding-right:2px"></div>
+      </div>
+    </div>
+  </details>
+
+  <!-- 區塊: 底圖與日夜變化 -->
   <details class="sec" id="baseSec">
     <summary>🗺️ 底圖與日夜變化<span class="car">▾</span></summary>
     <div class="sec-body">
@@ -464,7 +565,11 @@
       </select>
       <label class="ckrow" style="margin-top:8px"><input type="checkbox" id="dayNightChk" checked> 🌗 日夜變化動態遮罩（日夜線）</label>
       <label class="ckrow"><input type="checkbox" id="countyBndChk"> 🏛️ 臺灣縣市邊界</label>
+      <label class="ckrow"><input type="checkbox" id="townBndChk"> 🏡 臺灣鄉鎮市區邊界</label>
       <label class="ckrow"><input type="checkbox" id="villageBndChk"> 🏘️ 村里邊界</label>
+      <label class="ckrow"><input type="checkbox" id="seaBndChk"> 🌊 臺灣海域界線（基線/12浬/24浬）</label>
+      <label class="ckrow"><input type="checkbox" id="reservoirChk"> 💧 水庫蓄水範圍</label>
+      <label class="ckrow"><input type="checkbox" id="watershedChk"> 🏞️ 水庫集水區</label>
     </div>
   </details>
 
@@ -557,6 +662,22 @@
     </details>
 
   </div><!-- /lbody -->
+</div>
+
+<!-- 即時影像檢視器 -->
+<div id="camBox">
+  <div class="chead">
+    <div>
+      <div class="ctitle" id="camTitle">--</div>
+      <div class="csub" id="camSub">--</div>
+    </div>
+    <button type="button" class="mini" id="camClose" title="關閉">✕</button>
+  </div>
+  <div id="camMedia"></div>
+  <div class="cbtns">
+    <button id="camRefresh">↻ 更新畫面</button>
+    <a id="camOpen" href="#" target="_blank" rel="noopener" class="ghost" style="background:transparent;border:1px solid var(--line);color:var(--txt)">↗ 開新分頁</a>
+  </div>
 </div>
 
 <!-- 行動裝置底部快捷抽屜 (Mobile Bottom Sheet UI) -->
@@ -700,7 +821,24 @@ map.createPane("bndPane");
 map.getPane("bndPane").style.zIndex=375;
 map.getPane("bndPane").style.pointerEvents="none";
 
+map.createPane("camPane");
+map.getPane("camPane").style.zIndex=420;
+
+map.createPane("watershedPane");
+map.getPane("watershedPane").style.zIndex=380;
+
+map.createPane("resPolyPane");
+map.getPane("resPolyPane").style.zIndex=390;
+
+map.createPane("resPane");
+map.getPane("resPane").style.zIndex=430;
+
 const countyBorderLayer = L.tileLayer("https://wmts.nlsc.gov.tw/wmts/CITY/default/GoogleMapsCompatible/{z}/{y}/{x}", {
+  pane: "bndPane",
+  maxZoom: 19,
+  attribution: "© 國土測繪中心 (NLSC)"
+});
+const townBorderLayer = L.tileLayer("https://wmts.nlsc.gov.tw/wmts/TOWN/default/GoogleMapsCompatible/{z}/{y}/{x}", {
   pane: "bndPane",
   maxZoom: 19,
   attribution: "© 國土測繪中心 (NLSC)"
@@ -714,9 +852,143 @@ $("countyBndChk").addEventListener("change", e => {
   if(e.target.checked) countyBorderLayer.addTo(map);
   else map.removeLayer(countyBorderLayer);
 });
+$("townBndChk").addEventListener("change", e => {
+  if(e.target.checked) townBorderLayer.addTo(map);
+  else map.removeLayer(townBorderLayer);
+});
 $("villageBndChk").addEventListener("change", e => {
   if(e.target.checked) villageBorderLayer.addTo(map);
   else map.removeLayer(villageBorderLayer);
+});
+
+let seaBorderLayer = null;
+function getSeaBorderLayer(){
+  if(!seaBorderLayer && window.TAIWAN_TERRITORIAL_SEA){
+    seaBorderLayer = L.geoJSON(window.TAIWAN_TERRITORIAL_SEA, {
+      pane: "bndPane",
+      style: (feature) => {
+        const t = feature?.properties?.limit_type;
+        if (t === "24nm") {
+          return { color: "#818cf8", weight: 2.0, opacity: 0.95, dashArray: "3, 6" };
+        } else if (t === "12nm") {
+          return { color: "#06b6d4", weight: 2.2, opacity: 0.95, dashArray: "8, 6" };
+        } else {
+          return { color: "#0284c7", weight: 2.4, opacity: 1.0, dashArray: "12, 4" };
+        }
+      },
+      onEachFeature: (feature, layer) => {
+        const p = feature.properties || {};
+        const title = p.name || "中華民國海域界線";
+        const tag = p.limit_name || "海域界線";
+        const z = p.zone || p.region || "臺灣海域";
+        layer.bindTooltip(`🌊 ${tag}（${z}）`, { sticky: true, direction: "top" });
+        layer.bindPopup(`
+          <div style="font-size:13px;line-height:1.6;min-width:220px;">
+            <strong style="color:${p.stroke_color || '#0284c7'};font-size:14px;">🌊 ${title}</strong>
+            <div style="margin-top:4px;color:#cbd5e1;font-size:12px;">依據《中華民國領海及鄰接區法》公告之法定界線</div>
+            ${z ? `<div style="margin-top:2px;">涵蓋區域：<b>${z}</b></div>` : ""}
+            ${p.limit_desc ? `<div style="margin-top:2px;font-size:11.5px;color:#cbd5e1;">定義：${p.limit_desc}</div>` : ""}
+            ${p.points ? `<div style="margin-top:2px;font-size:11px;color:#94a3b8;">基準基點：${p.points}</div>` : ""}
+            <div style="margin-top:4px;font-size:10.5px;color:#94a3b8;border-top:1px dashed rgba(255,255,255,0.15);padding-top:4px;">來源：內政部地政司（政府資料開放平臺）</div>
+          </div>
+        `);
+      }
+    });
+  }
+  return seaBorderLayer;
+}
+$("seaBndChk").addEventListener("change", e => {
+  const l = getSeaBorderLayer();
+  if(!l) return;
+  if(e.target.checked) l.addTo(map);
+  else map.removeLayer(l);
+});
+
+let reservoirLayer = null;
+function getReservoirLayer(){
+  if(!reservoirLayer && window.TAIWAN_RESERVOIRS){
+    const data = window.TAIWAN_RESERVOIRS.storage || window.TAIWAN_RESERVOIRS;
+    reservoirLayer = L.geoJSON(data, {
+      pane: "resPolyPane",
+      style: {
+        color: "#0284c7",
+        weight: 1.5,
+        opacity: 0.9,
+        fillColor: "#0ea5e9",
+        fillOpacity: 0.35
+      },
+      onEachFeature: (feature, layer) => {
+        const p = feature.properties || {};
+        const title = p.name || "水庫蓄水範圍";
+        layer.bindTooltip(`💧 ${title}`, { sticky: true, direction: "top" });
+        layer.bindPopup(`
+          <div style="font-size:13px;line-height:1.6;min-width:200px;">
+            <strong style="color:#0284c7;font-size:14px;">💧 ${title}</strong>
+            <div style="margin-top:4px;color:#cbd5e1;font-size:12px;">經濟部水利署公告之水庫蓄水範圍</div>
+            ${p.area_ha ? `<div style="margin-top:2px;font-size:12px;">蓄水面積：<b>${p.area_ha.toLocaleString()} 公頃</b></div>` : ""}
+            <div style="margin-top:2px;font-size:11px;color:#94a3b8;">來源：水利署地理資訊倉儲 (GIC)</div>
+          </div>
+        `);
+      }
+    });
+  }
+  return reservoirLayer;
+}
+$("reservoirChk").addEventListener("change", e => {
+  const l = getReservoirLayer();
+  if(!l) return;
+  if(e.target.checked) {
+    l.addTo(map);
+    l.bringToFront();
+  } else {
+    map.removeLayer(l);
+  }
+});
+
+let watershedLayer = null;
+function getWatershedLayer(){
+  if(!watershedLayer && window.TAIWAN_RESERVOIRS && window.TAIWAN_RESERVOIRS.watershed){
+    watershedLayer = L.geoJSON(window.TAIWAN_RESERVOIRS.watershed, {
+      pane: "watershedPane",
+      style: {
+        color: "#059669",
+        weight: 1.8,
+        opacity: 0.85,
+        dashArray: "6, 4",
+        fillColor: "#10b981",
+        fillOpacity: 0.12
+      },
+      onEachFeature: (feature, layer) => {
+        const p = feature.properties || {};
+        const title = p.name || "水庫集水區";
+        layer.bindTooltip(`🏞️ ${title} 集水區`, { sticky: true, direction: "top" });
+        layer.bindPopup(`
+          <div style="font-size:13px;line-height:1.6;min-width:220px;">
+            <strong style="color:#059669;font-size:14px;">🏞️ ${title} 集水區</strong>
+            <div style="margin-top:4px;color:#cbd5e1;font-size:12px;">經濟部水利署公告之水庫集水區</div>
+            ${p.area_km2 ? `<div style="margin-top:2px;">集水面積：<b>${p.area_km2.toLocaleString()} 平方公里</b>（${p.area_ha ? p.area_ha.toLocaleString() : ''} 公頃）</div>` : ""}
+            ${p.class_1 ? `<div style="margin-top:2px;">水庫分級：<b>${p.class_1}</b>${p.type ? `（${p.type}）` : ''}</div>` : ""}
+            ${p.unit ? `<div style="margin-top:2px;font-size:11.5px;color:#94a3b8;">管理機關：${p.unit}</div>` : ""}
+            ${p.zone ? `<div style="margin-top:2px;font-size:11px;color:#94a3b8;">區域：${p.zone} ｜ 狀態：${p.state || '已查認'}</div>` : ""}
+            ${p.note ? `<div style="margin-top:3px;font-size:10.5px;color:#94a3b8;border-top:1px dashed rgba(255,255,255,0.15);padding-top:3px;">備註：${p.note}</div>` : ""}
+            <div style="margin-top:4px;font-size:10px;color:#64748b;">來源：水利署地理資訊倉儲 (GIC)</div>
+          </div>
+        `);
+      }
+    });
+  }
+  return watershedLayer;
+}
+$("watershedChk").addEventListener("change", e => {
+  const l = getWatershedLayer();
+  if(!l) return;
+  if(e.target.checked) {
+    l.addTo(map);
+    l.bringToBack();
+    if(reservoirLayer && map.hasLayer(reservoirLayer)) reservoirLayer.bringToFront();
+  } else {
+    map.removeLayer(l);
+  }
 });
 
 const DN_W=1024, DN_H=768, DN_LATMAX=85.0511287798066, DN_MAXA=.42;
@@ -4609,6 +4881,12 @@ function getSharedParams(){
   put("z", map.getZoom());
   if($("baseSel") && $("baseSel").value !== "osm") put("base", $("baseSel").value);
   if($("dayNightChk") && !$("dayNightChk").checked) put("dn", "0");
+  if($("countyBndChk") && $("countyBndChk").checked) put("cbnd", "1");
+  if($("townBndChk") && $("townBndChk").checked) put("tbnd", "1");
+  if($("villageBndChk") && $("villageBndChk").checked) put("vbnd", "1");
+  if($("seaBndChk") && $("seaBndChk").checked) put("sbnd", "1");
+  if($("reservoirChk") && $("reservoirChk").checked) put("rbnd", "1");
+  if($("watershedChk") && $("watershedChk").checked) put("wsbnd", "1");
 
   // 2. 氣象觀測
   if($("varSel") && $("varSel").value) put("var", $("varSel").value);
@@ -4706,6 +4984,30 @@ function restoreSharedState(){
   if(p.has("dn") && $("dayNightChk")){
     $("dayNightChk").checked = p.get("dn") !== "0";
     localStorage.setItem(DAYNIGHT_LS, $("dayNightChk").checked ? "1" : "0");
+  }
+  if(p.has("cbnd") && $("countyBndChk")){
+    $("countyBndChk").checked = p.get("cbnd") === "1";
+    if($("countyBndChk").checked) countyBorderLayer.addTo(map);
+  }
+  if(p.has("tbnd") && $("townBndChk")){
+    $("townBndChk").checked = p.get("tbnd") === "1";
+    if($("townBndChk").checked) townBorderLayer.addTo(map);
+  }
+  if(p.has("vbnd") && $("villageBndChk")){
+    $("villageBndChk").checked = p.get("vbnd") === "1";
+    if($("villageBndChk").checked) villageBorderLayer.addTo(map);
+  }
+  if(p.has("sbnd") && $("seaBndChk")){
+    $("seaBndChk").checked = p.get("sbnd") === "1";
+    if($("seaBndChk").checked && getSeaBorderLayer()) getSeaBorderLayer().addTo(map);
+  }
+  if(p.has("rbnd") && $("reservoirChk")){
+    $("reservoirChk").checked = p.get("rbnd") === "1";
+    if($("reservoirChk").checked && getReservoirLayer()) getReservoirLayer().addTo(map);
+  }
+  if(p.has("wsbnd") && $("watershedChk")){
+    $("watershedChk").checked = p.get("wsbnd") === "1";
+    if($("watershedChk").checked && getWatershedLayer()) getWatershedLayer().addTo(map);
   }
 
   // 3. 氣象觀測選單
@@ -5128,6 +5430,856 @@ if($("clearSavedKeyBtn")){
     showToast("🧹 已清除記住的金鑰設定");
   };
 }
+
+
+/* ==================== 即時影像圖層（來源：臺灣即時影像地圖） ==================== */
+const GROUPS = {
+  all:   { label: "全部類別", icon: "dashboard", color: "#a8c7fa" },
+  road:  { label: "道路監視器", icon: "directions_car", color: "#ef4444" },
+  city:  { label: "縣市監視", icon: "location_city", color: "#a855f7" },
+  other: { label: "其他監控", icon: "monitoring", color: "#06b6d4" }
+};
+const CATS = {
+  thb:             { label: "省道交控", group: "road", color: "#e11d48", icon: "alt_route", def: true },
+  freeway:         { label: "國道路況", group: "road", color: "#dc2626", icon: "directions_car", def: true },
+  ntpc:            { label: "新北CCTV", group: "city", color: "#9333ea", icon: "location_city", def: false },
+  chiayi_road_ods: { label: "嘉義縣路況", group: "city", color: "#ea580c", icon: "add_road", def: false },
+  thb_chiayi:      { label: "嘉義縣公路監視", group: "city", color: "#ca8a04", icon: "alt_route", def: false },
+  river:           { label: "河川監控", group: "other", color: "#0284c7", icon: "waves", def: true },
+  flood:           { label: "水利防災", group: "other", color: "#0891b2", icon: "rainy", def: true },
+  soil:            { label: "水土保持", group: "other", color: "#65a30d", icon: "landscape", def: true },
+  debris:          { label: "土石流監測", group: "other", color: "#d97706", icon: "warning", def: true },
+  tainan:          { label: "臺南水情", group: "other", color: "#db2777", icon: "water_drop", def: true },
+  chiayi_water:    { label: "嘉義水情", group: "other", color: "#2563eb", icon: "water", def: true }
+};
+
+const CCTV_DATA = window.CCTV_DATA || [];
+const camRenderer = L.canvas({padding:0.3, pane:"camPane"});
+const camLayer = L.layerGroup();
+const camGroupsL = {};
+let camActive = new Set(Object.keys(CATS).filter(k=>CATS[k].def));
+let camMarkers = [], camCur = null, camHls = null, camBuilt = false;
+
+function camCounts(){
+  const c = {};
+  CCTV_DATA.forEach(p=>{c[p.cat]=(c[p.cat]||0)+1;});
+  return c;
+}
+
+function buildCamCats(){
+  const cnt = camCounts(), host = $("camCats");
+  if (!host) return;
+  host.innerHTML = Object.keys(GROUPS).filter(g=>g!=="all").map(g=>{
+    const keys = Object.keys(CATS).filter(k=>CATS[k].group===g);
+    if(!keys.length) return "";
+    const on = keys.filter(k=>camActive.has(k)).length;
+    const tot = keys.reduce((s,k)=>s+(cnt[k]||0),0);
+    return `<details${on?" open":""}><summary>${GROUPS[g].label}
+      <span class="camcnt">${on}/${keys.length} 類 ‧ ${tot.toLocaleString("zh-TW")} 支</span></summary>
+      <div class="cbody">${keys.map(k=>
+        `<label class="ckrow"><input type="checkbox" class="camcat" value="${k}"${camActive.has(k)?" checked":""}>
+          <span class="camdotc" style="background:${CATS[k].color}"></span>
+          <span>${CATS[k].label}</span><span class="camcnt">${(cnt[k]||0).toLocaleString("zh-TW")}</span></label>`
+      ).join("")}</div></details>`;
+  }).join("");
+  host.querySelectorAll("input.camcat").forEach(el=>{
+    el.onchange=()=>{
+      if(el.checked) camActive.add(el.value); else camActive.delete(el.value);
+      camApply(); buildCamCats();
+    };
+  });
+}
+
+function buildCamMarkers(){
+  if(camBuilt) return;
+  Object.keys(CATS).forEach(k=>{ camGroupsL[k]=L.layerGroup(); });
+  camMarkers=[];
+  CCTV_DATA.forEach(p=>{
+    if(!isFinite(p.lat)||!isFinite(p.lng)) return;
+    const cfg = CATS[p.cat] || {color:"#999", label:p.src};
+    const mk = L.circleMarker([p.lat,p.lng], {pane:"camPane", renderer:camRenderer, radius:4,
+      fillColor:cfg.color, color:"#fff", weight:1, fillOpacity:.92});
+    mk.on("click", ()=>openCam(p));
+    mk.bindTooltip(p.name||cfg.label, {direction:"top", opacity:.9});
+    if(camGroupsL[p.cat]) camGroupsL[p.cat].addLayer(mk);
+    camMarkers.push({p, mk});
+  });
+  camBuilt = true;
+}
+
+function camApply(){
+  if(!$("camChk") || !$("camChk").checked){
+    Object.values(camGroupsL).forEach(g=>camLayer.removeLayer(g));
+    if(map.hasLayer(camLayer)) map.removeLayer(camLayer);
+    if($("camStat")) $("camStat").style.display="none";
+    if($("camPanel")) $("camPanel").style.display="none";
+    return;
+  }
+  buildCamMarkers();
+  if($("camPanel")) $("camPanel").style.display="block";
+  if(!map.hasLayer(camLayer)) camLayer.addTo(map);
+  let n=0;
+  Object.keys(CATS).forEach(k=>{
+    const g=camGroupsL[k]; if(!g) return;
+    if(camActive.has(k)){
+      if(!camLayer.hasLayer(g)) camLayer.addLayer(g);
+      n += g.getLayers().length;
+    } else if(camLayer.hasLayer(g)) {
+      camLayer.removeLayer(g);
+    }
+  });
+  const st=$("camStat");
+  if(st){
+    st.style.display="block";
+    st.textContent=`📹 顯示 ${n.toLocaleString("zh-TW")} 支鏡頭 / 共 ${CCTV_DATA.length.toLocaleString("zh-TW")} 支｜點鏡頭看即時畫面`;
+  }
+}
+
+if($("camChk")){
+  $("camChk").onchange=()=>{ camApply(); if($("camChk").checked) buildCamCats(); };
+}
+
+function openCam(p){
+  camCur=p;
+  const cfg=CATS[p.cat]||{label:p.src,color:"#999"};
+  if($("camBox")) $("camBox").style.display="block";
+  if($("camTitle")) $("camTitle").textContent=p.name||cfg.label;
+  if($("camSub")) $("camSub").innerHTML=`<span class="camdotc" style="background:${cfg.color};display:inline-block;vertical-align:-1px"></span>
+    ${cfg.label} ‧ ${p.src||""}${p.ex?" ‧ "+p.ex:""}`;
+  if($("camOpen")) $("camOpen").href=p.video||"#";
+  renderCam(p);
+}
+
+function renderCam(p){
+  const box=$("camMedia");
+  if(!box) return;
+  if(camHls){camHls.destroy();camHls=null;}
+  if(!p.video){box.innerHTML='<div class="camph">此站點無影像網址</div>';return;}
+  const isHls=/\.m3u8(\?|$)/i.test(p.video);
+  const isFrame=p.mtype==="iframe"||(p.mtype==="auto"&&/\.html?(\?|$)/i.test(p.video));
+  if(isHls){
+    box.innerHTML='<div class="camlive"><span class="camdot"></span>HLS 串流</div><video id="camVid" controls autoplay muted playsinline></video>';
+    const v=$("camVid");
+    if(window.Hls&&Hls.isSupported()){
+      camHls=new Hls();camHls.loadSource(p.video);camHls.attachMedia(v);
+      camHls.on(Hls.Events.ERROR,()=>{box.innerHTML='<div class="camph">⚠️ 串流載入失敗，請按「開新分頁」觀看</div>';});
+    }else if(v.canPlayType("application/vnd.apple.mpegurl")){v.src=p.video;}
+    return;
+  }
+  if(isFrame){
+    box.innerHTML=`<iframe src="${p.video}" loading="lazy" referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin allow-popups"></iframe>`;
+    return;
+  }
+  box.innerHTML='<div class="camph">⏳ 載入影像…</div>';
+  const sep=p.video.includes("?")?"&":"?";
+  const img=new Image();img.referrerPolicy="no-referrer";
+  img.onload=()=>{box.innerHTML='<div class="camlive"><span class="camdot"></span>即時畫面</div>';box.appendChild(img);};
+  img.onerror=()=>{box.innerHTML='<div class="camph">無法直接內嵌此影像<br>請按「開新分頁」觀看'
+    +(p.video.startsWith("http://")?'<br><span style="color:#fca5a5">（此來源為 http，若本頁以 https 開啟會被瀏覽器阻擋）</span>':'')+'</div>';};
+  img.src=p.video+sep+"_t="+Date.now();
+}
+
+if($("camClose")){
+  $("camClose").onclick=()=>{
+    if($("camBox")) $("camBox").style.display="none";
+    if(camHls){camHls.destroy();camHls=null;}
+    if($("camMedia")) $("camMedia").innerHTML="";
+    camCur=null;
+  };
+}
+if($("camRefresh")){
+  $("camRefresh").onclick=()=>{if(camCur)renderCam(camCur);};
+}
+if($("camSearch")){
+  $("camSearch").oninput=e=>{
+    const q=e.target.value.trim().toLowerCase();
+    if(q.length<2)return;
+    const hit=CCTV_DATA.find(p=>camActive.has(p.cat)&&
+      ((p.name||"").toLowerCase().includes(q)||(p.ex||"").toLowerCase().includes(q)));
+    if(hit){map.setView([hit.lat,hit.lng],14);openCam(hit);}
+  };
+  $("camSearch").addEventListener("keydown",e=>{
+    if(e.key!=="Enter")return;
+    const q=e.target.value.trim().toLowerCase();
+    const hits=CCTV_DATA.filter(p=>camActive.has(p.cat)&&
+      ((p.name||"").toLowerCase().includes(q)||(p.ex||"").toLowerCase().includes(q)));
+    if(hits.length){map.fitBounds(L.latLngBounds(hits.map(h=>[h.lat,h.lng])),{padding:[50,50]});}
+  });
+}
+
+const THB_XML="https://cctv-maintain.thb.gov.tw/opendataCCTVs.xml";
+if($("camThbLive")){
+  $("camThbLive").onclick=async()=>{
+    const st=$("camStat");if(st){st.style.display="block";st.textContent="⏳ 下載公路局最新 CCTV 清單…";}
+    try{
+      const t=await fetch(THB_XML,{cache:"no-store"}).then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.text();});
+      const xml=new DOMParser().parseFromString(t,"application/xml");
+      if(xml.querySelector("parsererror"))throw new Error("XML 解析失敗");
+      const nodes=Array.from(xml.getElementsByTagName("CCTV"));
+      if(!nodes.length)throw new Error("查無 CCTV 節點");
+      const gt=(n,tag)=>{const el=n.getElementsByTagName(tag)[0];return el?el.textContent.trim():"";};
+      let id=CCTV_DATA.reduce((mx,p)=>Math.max(mx,p.id||0),0)+1;
+      const live=[];
+      nodes.forEach(n=>{
+        const lat=parseFloat(gt(n,"PositionLat")),lng=parseFloat(gt(n,"PositionLon"));
+        const video=gt(n,"VideoImageURL")||gt(n,"VideoStreamURL");
+        if(!video||isNaN(lat)||isNaN(lng))return;
+        const road=gt(n,"RoadName"),mile=gt(n,"LocationMile"),dir=gt(n,"RoadDirection");
+        live.push({id:id++,src:"省道交控路側設備",cat:"thb",
+          name:`${road} ${mile}${dir?"("+dir+")":""}`.trim()||("省道監視器 "+id),
+          lat,lng,video,mtype:"img",ex:road});
+      });
+      if(!live.length)throw new Error("解析後無有效資料");
+      const others=CCTV_DATA.filter(p=>p.cat!=="thb");
+      CCTV_DATA.length=0;CCTV_DATA.push(...others,...live);
+      Object.values(camGroupsL).forEach(g=>{camLayer.removeLayer(g);g.clearLayers();});
+      camBuilt=false;buildCamMarkers();camApply();buildCamCats();
+      if(st) st.textContent=`✅ 省道交控已更新為即時清單 ${live.length} 支｜共 ${CCTV_DATA.length.toLocaleString("zh-TW")} 支`;
+    }catch(e){if(st) st.textContent="省道即時清單載入失敗："+e.message+"（維持內建快照）";}
+  };
+}
+
+/* ==================== 經濟部水利署水庫即時水情資訊 ==================== */
+const WRA_RES_API = "https://opendata.wra.gov.tw/api/v2/2be9044c-6e44-4856-aad5-dd108c2e6679?sort=_importdate%20asc&format=JSON";
+const WRA_RES_META_API = "https://opendata.wra.gov.tw/api/v2/708a43b0-24dc-40b7-9ed2-fca6a291e7ae?sort=_importdate%20asc&format=JSON";
+
+// 四大重點水庫專屬高頻即時水情資料來源（單站每小時更新，含時雨量與分站降雨）
+const DEDICATED_RES_APIS = [
+  {
+    id: "31201",
+    name: "牡丹水庫",
+    sourceName: "水利署南區分署專線",
+    url: "https://opendata.wra.gov.tw/api/v2/6d7ba910-b627-4844-882b-df232064db0c?sort=_importdate%20asc&format=JSON",
+    type: "wra_station"
+  },
+  {
+    id: "30502",
+    name: "曾文水庫",
+    sourceName: "水利署南區分署專線",
+    url: "https://opendata.wra.gov.tw/api/v2/598befe9-a6fe-4126-a8cc-52ccbbecfc68?sort=_importdate%20asc&format=JSON",
+    type: "wra_station"
+  },
+  {
+    id: "30802",
+    name: "阿公店水庫",
+    sourceName: "水利署南區分署專線",
+    url: "https://opendata.wra.gov.tw/api/v2/ecc4ce8d-0942-474a-8705-53e9aaa7c4e8?sort=_importdate%20asc&format=JSON",
+    type: "wra_station"
+  },
+  {
+    id: "10205",
+    name: "翡翠水庫",
+    sourceName: "臺北翡翠水庫管理局專線",
+    url: "https://w3.feitsui.gov.tw/FeitsuiWebService/tpe/Feitsui_HourlyJSON.ashx",
+    type: "feitsui_bureau"
+  }
+];
+const WRA_RES_DICT = {"10201":{"name":"石門水庫","capacity":20441.1,"area":"桃園市龍潭區、 大溪區、復興區","region":"北部地區","lat":24.89501,"lon":121.29138},"10203":{"name":"西勢水庫","capacity":37.8,"area":"基隆巿暖暖區","region":"北部地區","lat":25.08534,"lon":121.73502},"10204":{"name":"新山水庫","capacity":996,"area":"基隆巿安樂區","region":"北部地區","lat":25.12903,"lon":121.70754},"10205":{"name":"翡翠水庫","capacity":33347.3,"area":"新北市新店區","region":"北部地區","lat":24.91351,"lon":121.62906},"10211":{"name":"青潭堰","capacity":15,"area":"新北市新店區","region":"北部地區","lat":24.957,"lon":121.545},"10212":{"name":"直潭壩","capacity":174.9,"area":"新北市新店區","region":"北部地區","lat":24.92431,"lon":121.53288},"10401":{"name":"寶山水庫","capacity":500.8,"area":"新竹縣寶山鄉","region":"北部地區","lat":24.72796,"lon":121.05568},"10405":{"name":"寶山第二水庫","capacity":3174.3,"area":"新竹縣寶山鄉","region":"北部地區","lat":24.72796,"lon":121.05568},"10501":{"name":"永和山水庫","capacity":2993.4,"area":"苗栗縣頭份鎮、三灣鄉","region":"中部地區","lat":24.65342,"lon":120.92479},"10503":{"name":"大埔水庫","capacity":507.6,"area":"新竹縣峨眉鄉","region":"中部地區","lat":24.68825,"lon":120.99899},"10601":{"name":"明德水庫","capacity":1251,"area":"苗栗縣頭屋鄉","region":"中部地區","lat":24.58744,"lon":120.90364},"10802":{"name":"羅東攔河堰","capacity":20,"area":"宜蘭縣三星鄉","region":"北部地區","lat":24.673,"lon":121.725},"20101":{"name":"鯉魚潭水庫","capacity":11550.5,"area":"苗栗縣卓蘭鎮 大湖鄉","region":"中部地區","lat":24.34869,"lon":120.81945},"20201":{"name":"德基水庫","capacity":18796.18,"area":"臺中市和平區","region":"中部地區","lat":24.27104,"lon":121.21227},"20202":{"name":"石岡壩","capacity":138,"area":"臺中市石岡區","region":"中部地區","lat":24.28296,"lon":120.7769},"20203":{"name":"谷關水庫","capacity":421.9,"area":"臺中市和平區","region":"中部地區","lat":24.23658,"lon":121.08196},"20501":{"name":"霧社水庫","capacity":2868.56,"area":"南投縣仁愛鄉","region":"中部地區","lat":24.00109,"lon":121.14036},"20502":{"name":"日月潭水庫","capacity":12949.1,"area":"南投縣魚池鄉","region":"中部地區","lat":23.8523,"lon":120.92124},"20503":{"name":"集集攔河堰","capacity":653.2,"area":"南投縣集集鎮","region":"中部地區","lat":23.81626,"lon":120.77344},"20509":{"name":"湖山水庫","capacity":5060.8,"area":"雲林縣斗六市、古坑鄉","region":"中部地區","lat":23.68892,"lon":120.63074},"30301":{"name":"仁義潭水庫","capacity":2465.7,"area":"嘉義縣番路鄉","region":"南部地區","lat":23.46696,"lon":120.51187},"30302":{"name":"蘭潭水庫","capacity":921.8,"area":"嘉義巿","region":"南部地區","lat":23.47173,"lon":120.48392},"30303":{"name":"鹿寮溪水庫","capacity":71.4,"area":"臺南市白河區","region":"南部地區","lat":23.39098,"lon":120.48334},"30401":{"name":"白河水庫","capacity":1378.8,"area":"臺南市白河區","region":"南部地區","lat":23.35916,"lon":120.48216},"30402":{"name":"尖山埤水庫","capacity":85.3,"area":"臺南市柳營區","region":"南部地區","lat":23.26027,"lon":120.39599},"30403":{"name":"德元埤水庫","capacity":229.8,"area":"臺南市柳營區","region":"南部地區","lat":23.26852,"lon":120.3464},"30501":{"name":"烏山頭水庫","capacity":7846,"area":"臺南市六甲區、 官田區  ","region":"南部地區","lat":23.20841,"lon":120.42858},"30502":{"name":"曾文水庫","capacity":50479,"area":"嘉義縣大埔鄉","region":"南部地區","lat":23.27857,"lon":120.5841},"30503":{"name":"南化水庫","capacity":8920.1,"area":"臺南市南化區","region":"南部地區","lat":23.11274,"lon":120.55607},"30504":{"name":"鏡面水庫","capacity":97.1,"area":"臺南市南化區","region":"南部地區","lat":23.05907,"lon":120.49151},"30601":{"name":"虎頭埤水庫","capacity":122.2,"area":"臺南市新化區","region":"南部地區","lat":23.02801,"lon":120.34408},"30602":{"name":"鹽水埤水庫","capacity":47.1,"area":"臺南市新化區","region":"南部地區","lat":23.04174,"lon":120.3415},"30801":{"name":"澄清湖水庫","capacity":259.5,"area":"高雄市鳥松區","region":"南部地區","lat":22.66063,"lon":120.35013},"30802":{"name":"阿公店水庫","capacity":1502.7,"area":"高雄市燕巢區","region":"南部地區","lat":22.8198,"lon":120.36286},"30803":{"name":"鳳山水庫","capacity":684.2,"area":"高雄市林園區","region":"南部地區","lat":22.5415,"lon":120.38959},"30901":{"name":"高屏溪攔河堰","capacity":35,"area":"高雄市大樹區","region":"南部地區","lat":22.688,"lon":120.432},"31002":{"name":"甲仙攔河堰","capacity":30,"area":"高雄市甲仙區","region":"南部地區","lat":23.084,"lon":120.593},"31201":{"name":"牡丹水庫","capacity":2652.09,"area":"屏東縣牡丹鄉","region":"南部地區","lat":22.14308,"lon":120.78624},"31301":{"name":"成功水庫","capacity":121.1,"area":"澎湖縣湖西鄉","region":"北部地區","lat":23.57435,"lon":119.62332},"50102":{"name":"興仁水庫","capacity":72.1,"area":"澎湖縣馬公巿","region":"離島地區","lat":23.55091,"lon":119.60775},"50103":{"name":"東衛水庫","capacity":34.3,"area":"澎湖縣馬公巿","region":"離島地區","lat":23.56681,"lon":119.5974},"50104":{"name":"赤崁地下水庫","capacity":6.8,"area":"澎湖縣白沙鄉","region":"離島地區","lat":23.662,"lon":119.601},"50105":{"name":"西安水庫","capacity":22.7,"area":"澎湖縣望安鄉","region":"離島地區","lat":23.36516,"lon":119.49747},"50106":{"name":"七美水庫","capacity":28.1,"area":"澎湖縣七美鄉","region":"離島地區","lat":23.21229,"lon":119.43502},"50108":{"name":"小池水庫","capacity":17.9,"area":"澎湖縣西嶼鄉","region":"離島地區","lat":23.60989,"lon":119.51004},"50109":{"name":"烏溝蓄水塘","capacity":5.5,"area":"澎湖縣七美鄉","region":"離島地區","lat":23.21,"lon":119.428},"50201":{"name":"太湖水庫","capacity":148,"area":"金門縣金湖鎮","region":"離島地區","lat":24.444,"lon":118.411},"50202":{"name":"田埔水庫","capacity":59,"area":"金門縣金沙鎮","region":"離島地區","lat":24.492,"lon":118.452},"50203":{"name":"陽明湖水庫","capacity":33,"area":"金門縣金沙鎮","region":"離島地區","lat":24.498,"lon":118.423},"50204":{"name":"山西水庫","capacity":22,"area":"金門縣金沙鎮","region":"離島地區","lat":24.512,"lon":118.435},"50205":{"name":"榮湖水庫","capacity":41,"area":"金門縣金沙鎮","region":"離島地區","lat":24.487,"lon":118.406},"50206":{"name":"擎天水庫","capacity":36,"area":"金門縣金湖鎮","region":"離島地區","lat":24.455,"lon":118.405},"50207":{"name":"金沙水庫","capacity":54,"area":"金門縣金沙鎮","region":"離島地區","lat":24.491,"lon":118.401},"50208":{"name":"蓮湖水庫","capacity":11,"area":"金門縣金寧鄉","region":"離島地區","lat":24.471,"lon":118.315},"50209":{"name":"菱湖水庫","capacity":10,"area":"金門縣金寧鄉","region":"離島地區","lat":24.474,"lon":118.312},"50210":{"name":"西湖水庫","capacity":50,"area":"金門縣烈嶼鄉","region":"離島地區","lat":24.432,"lon":118.225},"50212":{"name":"金湖水庫","capacity":34,"area":"金門縣金湖鎮","region":"離島地區","lat":24.446,"lon":118.431},"50213":{"name":"瓊林水庫","capacity":32,"area":"金門縣金湖鎮","region":"離島地區","lat":24.452,"lon":118.375},"50214":{"name":"蘭湖水庫","capacity":38,"area":"金門縣金湖鎮","region":"離島地區","lat":24.448,"lon":118.388}};
+
+
+function fmtT(t){
+  if(!t) return "—";
+  const d = (t instanceof Date) ? t : new Date(t);
+  if(isNaN(d.getTime())) return String(t);
+  return d.toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false });
+}
+
+const wraResLayer = L.layerGroup();          // 水庫點標記
+const wraResPolyLayer = L.featureGroup();     // 水庫蓄水範圍面（依水情著色）
+const wraResWatershedLayer = L.layerGroup();  // 水庫集水區
+let wraResList = [];
+let wraResLoaded = false;
+let wraResLoading = false;
+
+const WRA_RES_ALIASES = {
+  "田埔水庫": "田浦水庫",
+  "高屏溪攔河堰": "高屏溪攔河堰水庫",
+  "烏溝蓄水塘": "烏溝水庫",
+  "青潭堰": "青潭壩"
+};
+
+function findReservoirStorageFeatures(name){
+  if(!window.TAIWAN_RESERVOIRS || !window.TAIWAN_RESERVOIRS.storage) return [];
+  const targetName = WRA_RES_ALIASES[name] || name;
+  const features = window.TAIWAN_RESERVOIRS.storage.features || [];
+  let matched = features.filter(f => f.properties && f.properties.name === targetName);
+  if(matched.length) return matched;
+  const norm = targetName.replace(/水庫|攔河堰|防砂壩|壩|調整池|蓄水塘|池|（.*?）|\(.*?\)/g, "").trim();
+  if(norm){
+    matched = features.filter(f => {
+      const fn = (f.properties && f.properties.name) ? f.properties.name.replace(/水庫|攔河堰|防砂壩|壩|調整池|蓄水塘|池|（.*?）|\(.*?\)/g, "").trim() : "";
+      return fn === norm || (fn && targetName.includes(fn)) || (fn && fn.includes(norm));
+    });
+  }
+  return matched;
+}
+
+function getResColor(pct){
+  if(pct == null || isNaN(pct)) return "#94a3b8";
+  if(pct >= 75) return "#10b981";
+  if(pct >= 50) return "#06b6d4";
+  if(pct >= 25) return "#f59e0b";
+  return "#ef4444";
+}
+
+function getResPolyStyle(pct, isHover = false){
+  const color = getResColor(pct);
+  if(isHover){
+    return {
+      color: "#ffffff",
+      weight: 3.8,
+      opacity: 1,
+      fillColor: color,
+      fillOpacity: 0.75
+    };
+  }
+  return {
+    color: color,
+    weight: 2,
+    opacity: 0.95,
+    fillColor: color,
+    fillOpacity: 0.45
+  };
+}
+
+function getResStatusText(row){
+  const stMap = {
+    "0": "洩洪中 ⚠️",
+    "1": "川流式",
+    "2": "空庫排砂",
+    "3": "自由溢流",
+    "4": "調節性放水 ℹ️",
+    "5": "預計放流"
+  };
+  return stMap[String(row.statustype)] || "正常蓄水中";
+}
+
+function makeResIcon(name, pct, color){
+  const pctTxt = (pct != null && !isNaN(pct)) ? (pct + "%") : "--";
+  const html = `
+    <div class="res-marker" title="${name} 蓄水率: ${pctTxt}">
+      <div class="res-marker-bubble" style="border-color:${color}">
+        <span>💧 ${name}</span>
+        <span style="background:${color};color:#041e49;padding:1px 5px;border-radius:8px;font-size:10px">${pctTxt}</span>
+      </div>
+      <div class="res-marker-drop" style="background:${color};color:${color}"></div>
+    </div>
+  `;
+  return L.divIcon({
+    className: "res-div-icon",
+    html: html,
+    iconSize: [110, 36],
+    iconAnchor: [55, 34],
+    popupAnchor: [0, -32]
+  });
+}
+
+function makeResPopup(res){
+  const pctTxt = (res.pct != null && !isNaN(res.pct)) ? (res.pct + "%") : "未提供";
+  const color = getResColor(res.pct);
+  const timeDisp = res.time ? fmtT(res.time) : "即時快照";
+  const areaDisp = res.area || res.region || "臺灣";
+  const hasPoly = res.polyLayers && res.polyLayers.length > 0;
+  return `
+    <div style="font-family:inherit;min-width:250px;line-height:1.5">
+      <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.15);padding-bottom:5px;margin-bottom:8px">
+        <strong style="font-size:14px;color:#fff">💧 ${res.name}</strong>
+        <span style="background:${color};color:#041e49;font-weight:700;font-size:11px;padding:2px 7px;border-radius:10px">${pctTxt}</span>
+      </div>
+      <div style="font-size:11.5px;color:var(--muted);margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px">
+        <span>📍 地區：${areaDisp} ‧ 代碼：${res.id}</span>
+        ${hasPoly ? `<span style="color:#38bdf8;font-size:10.5px">🌊 蓄水面</span>` : ''}
+      </div>
+      ${res.dedicatedSource ? `
+        <div style="margin-bottom:6px">
+          <span style="background:rgba(56,189,248,0.15);color:#38bdf8;font-size:10.5px;padding:2px 6px;border-radius:6px;border:1px solid rgba(56,189,248,0.3)">
+            📡 ${res.dedicatedSource}
+          </span>
+        </div>` : ''}
+      <div style="background:rgba(255,255,255,0.06);border-radius:8px;padding:8px 10px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+          <span>蓄水率</span><strong style="color:${color}">${pctTxt}</strong>
+        </div>
+        <div class="res-bar-wrap" style="margin:0 0 4px">
+          <div class="res-bar-inner" style="width:${Math.min(res.pct||0, 100)}%;background:${color}"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted)">
+          <span>有效蓄水量: <b style="color:#fff">${res.curStorage != null ? res.curStorage.toLocaleString("zh-TW") : "--"} 萬噸</b></span>
+          <span>有效容量: ${res.capacity > 0 ? res.capacity.toLocaleString("zh-TW") + " 萬噸" : "--"}</span>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11.5px">
+        <div>📏 當前水位: <b style="color:#fff">${res.waterlevel != null ? res.waterlevel + " m" : "--"}</b></div>
+        <div>🌧️ 集水區降雨: <b style="color:#fff">${(res.basinRain != null ? res.basinRain : (res.rain != null ? res.rain : "--"))} mm</b></div>
+        ${res.hourlyRain != null ? `<div>⏱️ 當前時雨量: <b style="color:#38bdf8">${res.hourlyRain} mm</b></div>` : ''}
+        <div>⬇️ 進流量: <b style="color:#fff">${res.inflow != null ? res.inflow + " cms" : "--"}</b></div>
+        <div>⬆️ 出流量: <b style="color:#fff">${res.outflow != null ? res.outflow + " cms" : "--"}</b></div>
+      </div>
+      ${res.subRainfall ? `
+        <div style="margin-top:6px;padding:6px 8px;background:rgba(255,255,255,0.04);border-radius:6px;font-size:11px">
+          <div style="color:#38bdf8;font-weight:600;margin-bottom:3px">🏞️ 集水區各站降雨量 (翡翠管理局)：</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;color:#cbd5e1">
+            <span>坪林: <b>${res.subRainfall['坪林']}mm</b></span>
+            <span>碧湖: <b>${res.subRainfall['碧湖']}mm</b></span>
+            <span>太平: <b>${res.subRainfall['太平']}mm</b></span>
+            <span>壩區: <b>${res.subRainfall['翡翠壩區']}mm</b></span>
+            <span>十三股: <b>${res.subRainfall['十三股']}mm</b></span>
+            <span>九芎根: <b>${res.subRainfall['九芎根']}mm</b></span>
+          </div>
+          ${res.weightedRain != null ? `<div style="margin-top:3px;color:#94a3b8">加權平均雨量: <b style="color:#fff">${res.weightedRain} mm</b></div>` : ''}
+        </div>` : ''}
+      <div style="margin-top:8px;padding-top:6px;border-top:1px dashed rgba(255,255,255,0.1);display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--muted)">
+        <span>狀態：<b style="color:#fff">${res.statusText}</b></span>
+        <span>🕒 ${timeDisp}</span>
+      </div>
+    </div>
+  `;
+}
+
+function highlightResCard(id){
+  const container = $("wraResCards");
+  if(!container) return;
+  container.querySelectorAll(".res-card").forEach(c => {
+    if(c.getAttribute("data-id") === id){
+      c.classList.add("active");
+      c.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    } else {
+      c.classList.remove("active");
+    }
+  });
+}
+
+async function loadWraReservoirs(){
+  if(wraResLoading) return;
+  wraResLoading = true;
+  const st = $("wraResStat");
+  if(st){ st.style.display = "block"; st.textContent = "⏳ 載入水利署水庫即時水情…"; }
+  try {
+    const dedicatedFetchJobs = DEDICATED_RES_APIS.map(async (cfg) => {
+      try {
+        const res = await fetch(cfg.url, { cache: "no-store" });
+        if(!res.ok) return null;
+        const json = await res.json();
+        return { cfg, json };
+      } catch(err) {
+        return null;
+      }
+    });
+
+    const [baseLive, dedicatedSettled] = await Promise.all([
+      fetch(WRA_RES_API, { cache: "no-store" }).then(r=>{
+        if(!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      }).catch(fetchErr => {
+        console.warn("WRA 主表連線異常，將使用中繼快照:", fetchErr);
+        return [];
+      }),
+      Promise.allSettled(dedicatedFetchJobs)
+    ]);
+
+    const latestMap = {};
+    if(Array.isArray(baseLive) && baseLive.length){
+      baseLive.forEach(row => {
+        const id = String(row.reservoiridentifier);
+        if(!latestMap[id] || new Date(row.observationtime) > new Date(latestMap[id].observationtime)){
+          latestMap[id] = row;
+        }
+      });
+    }
+
+    // 若 API 回傳資料，用 live mapping；否則 fallback 到靜態清單以保證水庫點位與蓄水區域可正常顯示
+    const idList = Object.keys(latestMap).length ? Object.keys(latestMap) : Object.keys(WRA_RES_DICT);
+
+    wraResList = idList.map(id => {
+      const meta = WRA_RES_DICT[id] || { name: '水庫 ' + id, capacity: 0, region: '其他', lat: 23.5, lon: 121 };
+      const row = latestMap[id] || {};
+      const cur = parseFloat(row.effectivewaterstoragecapacity);
+      const cap = meta.capacity || 0;
+      const pct = (cap > 0 && !isNaN(cur)) ? +((cur / cap) * 100).toFixed(1) : null;
+      return {
+        id,
+        name: meta.name,
+        region: meta.region,
+        area: meta.area,
+        capacity: cap,
+        curStorage: isNaN(cur) ? null : cur,
+        pct,
+        waterlevel: row.waterlevel ? parseFloat(row.waterlevel) : null,
+        inflow: row.inflowdischarge ? parseFloat(row.inflowdischarge) : null,
+        outflow: row.totaloutflow ? parseFloat(row.totaloutflow) : null,
+        rain: row.accumulaterainfallincatchment ? parseFloat(row.accumulaterainfallincatchment) : null,
+        statusText: row.statustype ? getResStatusText(row) : "未提供即時狀態",
+        time: row.observationtime || null,
+        lat: meta.lat,
+        lon: meta.lon,
+        polyLayers: [],
+        bounds: null,
+        hourlyRain: null,
+        basinRain: null,
+        dedicatedSource: null
+      };
+    });
+
+    // 合併四大重點水庫專屬高頻水情資料 (牡丹、曾文、阿公店、翡翠)
+    if(Array.isArray(dedicatedSettled)){
+      dedicatedSettled.forEach(item => {
+        if(item.status !== "fulfilled" || !item.value || !item.value.json) return;
+        const { cfg, json } = item.value;
+        if(cfg.type === "wra_station" && Array.isArray(json) && json.length){
+          const latest = json.reduce((max, cur) => {
+            return (!max || new Date(cur.datetime) > new Date(max.datetime)) ? cur : max;
+          }, null);
+          if(!latest) return;
+          const targetId = String(latest.reservoiridentifier || cfg.id);
+          const res = wraResList.find(x => x.id === targetId);
+          if(!res) return;
+
+          // 專線時間若較新或同時間，更新水位與蓄水量
+          if(!res.time || new Date(latest.datetime) >= new Date(res.time)){
+            res.time = latest.datetime;
+            if(latest.waterlevel) res.waterlevel = parseFloat(latest.waterlevel);
+            if(latest.effectivewaterstoragecapacity){
+              const curVal = parseFloat(latest.effectivewaterstoragecapacity);
+              if(!isNaN(curVal)){
+                res.curStorage = curVal;
+                if(res.capacity > 0) res.pct = +((curVal / res.capacity) * 100).toFixed(1);
+              }
+            }
+          }
+          if(latest.precipitationhourly != null && latest.precipitationhourly !== ""){
+            const hr = parseFloat(latest.precipitationhourly);
+            if(!isNaN(hr)) res.hourlyRain = hr;
+          }
+          if(latest.basinrainfall != null && latest.basinrainfall !== ""){
+            const br = parseFloat(latest.basinrainfall);
+            if(!isNaN(br)) res.basinRain = br;
+          }
+          res.dedicatedSource = cfg.sourceName;
+        } else if(cfg.type === "feitsui_bureau" && Array.isArray(json) && json.length){
+          const row = json[0];
+          if(!row) return;
+          const res = wraResList.find(x => x.id === "10205");
+          if(!res) return;
+          if(row.DTime && (!res.time || new Date(row.DTime) >= new Date(res.time))){
+            res.time = row.DTime;
+            if(row.WLevel_capacity) res.waterlevel = parseFloat(row.WLevel_capacity);
+            if(row.EffVol_capacity){
+              const m3 = parseFloat(row.EffVol_capacity);
+              if(!isNaN(m3)){
+                res.curStorage = +(m3 / 10000).toFixed(2);
+                if(res.capacity > 0) res.pct = +((res.curStorage / res.capacity) * 100).toFixed(1);
+              }
+            }
+            if(row.EVpercentage != null){
+              const ev = parseFloat(row.EVpercentage);
+              if(!isNaN(ev)) res.pct = +ev.toFixed(1);
+            }
+          }
+          res.dedicatedSource = cfg.sourceName;
+          res.subRainfall = {
+            "翡翠壩區": row.Feutsui,
+            "坪林": row.PingLin,
+            "十三股": row.ShiSanGu,
+            "九芎根": row.JiuQiongGen,
+            "碧湖": row.BiHu,
+            "太平": row.TaiPing
+          };
+          if(row.Watershed_weighted_average != null){
+            res.weightedRain = parseFloat(row.Watershed_weighted_average);
+          }
+        }
+      });
+    }
+
+    wraResList.sort((a,b) => (b.pct||0) - (a.pct||0));
+
+    wraResLayer.clearLayers();
+    wraResPolyLayer.clearLayers();
+
+    const usedFeatureIds = new Set();
+
+    wraResList.forEach(res => {
+      // 1. 水庫點標記 (Point Marker)
+      if(res.lat && res.lon){
+        const color = getResColor(res.pct);
+        const icon = makeResIcon(res.name, res.pct, color);
+        const mk = L.marker([res.lat, res.lon], { icon, pane: "resPane" });
+        mk.bindPopup(() => makeResPopup(res));
+        mk.on("click", () => highlightResCard(res.id));
+        wraResLayer.addLayer(mk);
+        res.marker = mk;
+      }
+
+      // 2. 水庫蓄水區域面 (Storage Polygon)
+      const feats = findReservoirStorageFeatures(res.name);
+      if(feats.length){
+        const b = L.latLngBounds();
+        feats.forEach(feat => {
+          if(feat.properties && feat.properties.id) usedFeatureIds.add(feat.properties.id);
+          const polyColor = getResColor(res.pct);
+          const polyL = L.geoJSON(feat, {
+            pane: "resPolyPane",
+            style: getResPolyStyle(res.pct, false)
+          });
+          const pctLabel = (res.pct != null && !isNaN(res.pct)) ? `${res.pct}%` : "未提供";
+          polyL.bindTooltip(`💧 ${res.name}｜蓄水率：${pctLabel}`, { sticky: true, direction: "top" });
+          polyL.bindPopup(() => makeResPopup(res));
+          polyL.on({
+            mouseover: (e) => {
+              e.target.setStyle(getResPolyStyle(res.pct, true));
+              if(!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+                try { e.target.bringToFront(); } catch(err){}
+              }
+            },
+            mouseout: (e) => {
+              e.target.setStyle(getResPolyStyle(res.pct, false));
+            },
+            click: () => {
+              highlightResCard(res.id);
+            }
+          });
+          wraResPolyLayer.addLayer(polyL);
+          res.polyLayers.push(polyL);
+          if(polyL.getBounds) b.extend(polyL.getBounds());
+        });
+        if(b.isValid()) res.bounds = b;
+      }
+    });
+
+    // 3. 補充其他未在水情觀測清單中的水庫蓄水範圍 (淡藍色呈現)
+    if(window.TAIWAN_RESERVOIRS && window.TAIWAN_RESERVOIRS.storage && window.TAIWAN_RESERVOIRS.storage.features){
+      window.TAIWAN_RESERVOIRS.storage.features.forEach(feat => {
+        if(feat.properties && feat.properties.id && usedFeatureIds.has(feat.properties.id)) return;
+        const otherPoly = L.geoJSON(feat, {
+          pane: "resPolyPane",
+          style: {
+            color: "#0284c7",
+            weight: 1.5,
+            opacity: 0.85,
+            fillColor: "#0ea5e9",
+            fillOpacity: 0.35
+          }
+        });
+        const p = feat.properties || {};
+        otherPoly.bindTooltip(`💧 ${p.name || '水庫蓄水範圍'}（非主要水情站）`, { sticky: true, direction: "top" });
+        otherPoly.bindPopup(`
+          <div style="font-size:13px;line-height:1.6;min-width:200px;">
+            <strong style="color:#0284c7;font-size:14px;">💧 ${p.name || '水庫蓄水範圍'}</strong>
+            <div style="margin-top:4px;color:#cbd5e1;font-size:12px;">經濟部水利署公告之水庫蓄水範圍</div>
+            ${p.area_ha ? `<div style="margin-top:2px;font-size:12px;">蓄水面積：<b>${p.area_ha.toLocaleString()} 公頃</b></div>` : ""}
+            <div style="margin-top:2px;font-size:11px;color:#94a3b8;">來源：水利署地理資訊倉儲 (GIC)</div>
+          </div>
+        `);
+        wraResPolyLayer.addLayer(otherPoly);
+      });
+    }
+
+    // 4. 水庫集水區 (Catchment Watersheds)
+    if(window.TAIWAN_RESERVOIRS && window.TAIWAN_RESERVOIRS.watershed){
+      wraResWatershedLayer.clearLayers();
+      const wsLayer = L.geoJSON(window.TAIWAN_RESERVOIRS.watershed, {
+        pane: "watershedPane",
+        style: {
+          color: "#059669",
+          weight: 1.8,
+          opacity: 0.85,
+          dashArray: "6, 4",
+          fillColor: "#10b981",
+          fillOpacity: 0.12
+        },
+        onEachFeature: (feature, layer) => {
+          const p = feature.properties || {};
+          const title = p.name || "水庫集水區";
+          layer.bindTooltip(`🏞️ ${title} 集水區`, { sticky: true, direction: "top" });
+          layer.bindPopup(`
+            <div style="font-size:13px;line-height:1.6;min-width:220px;">
+              <strong style="color:#059669;font-size:14px;">🏞️ ${title} 集水區</strong>
+              <div style="margin-top:4px;color:#cbd5e1;font-size:12px;">經濟部水利署公告之水庫集水區</div>
+              ${p.area_km2 ? `<div style="margin-top:2px;">集水面積：<b>${p.area_km2.toLocaleString()} 平方公里</b>（${p.area_ha ? p.area_ha.toLocaleString() : ''} 公頃）</div>` : ""}
+              ${p.class_1 ? `<div style="margin-top:2px;">水庫分級：<b>${p.class_1}</b>${p.type ? `（${p.type}）` : ''}</div>` : ""}
+              ${p.unit ? `<div style="margin-top:2px;font-size:11.5px;color:#94a3b8;">管理機關：${p.unit}</div>` : ""}
+              ${p.zone ? `<div style="margin-top:2px;font-size:11px;color:#94a3b8;">區域：${p.zone} ｜ 狀態：${p.state || '已查認'}</div>` : ""}
+              ${p.note ? `<div style="margin-top:3px;font-size:10.5px;color:#94a3b8;border-top:1px dashed rgba(255,255,255,0.15);padding-top:3px;">備註：${p.note}</div>` : ""}
+              <div style="margin-top:4px;font-size:10px;color:#64748b;">來源：水利署地理資訊倉儲 (GIC)</div>
+            </div>
+          `);
+        }
+      });
+      wraResWatershedLayer.addLayer(wsLayer);
+    }
+
+    renderWraResCards();
+    wraResLoaded = true;
+    if(st){
+      st.style.display = "block";
+      const latestTime = wraResList[0]?.time ? fmtT(wraResList[0].time) : "即時";
+      st.textContent = `✅ 水庫水情已更新：共 ${wraResList.length} 處水庫（最新：${latestTime}）`;
+    }
+  } catch(e) {
+    console.error("水庫水情載入例外:", e);
+    if(st){ st.style.display = "block"; st.textContent = "水庫水情載入失敗：" + (e.message || e); }
+  } finally {
+    wraResLoading = false;
+  }
+}
+
+function renderWraResCards(){
+  const container = $("wraResCards");
+  if(!container) return;
+  const reg = $("wraResRegionSel") ? $("wraResRegionSel").value : "";
+  const kw = ($("wraResSearch") ? $("wraResSearch").value : "").trim().toLowerCase();
+
+  const filtered = wraResList.filter(r => {
+    if(reg && r.region !== reg) return false;
+    if(kw && !(r.name.toLowerCase().includes(kw) || (r.area && r.area.toLowerCase().includes(kw)))) return false;
+    return true;
+  });
+
+  if(!filtered.length){
+    container.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:14px;text-align:center">查無符合條件的水庫水情</div>';
+    return;
+  }
+
+  container.innerHTML = filtered.map(r => {
+    const color = getResColor(r.pct);
+    const pctTxt = r.pct != null ? (r.pct + "%") : "--";
+    const hasPoly = r.polyLayers && r.polyLayers.length > 0;
+    return `
+      <div class="res-card" data-id="${r.id}" title="點擊定位至 ${r.name}">
+        <div class="res-card-top">
+          <div class="res-card-name">
+            <span>💧 ${r.name}</span>
+            <span style="font-size:10.5px;color:var(--muted);font-weight:400">(${r.region.slice(0,2)})</span>
+            ${hasPoly ? `<span style="font-size:9.5px;background:rgba(14,165,233,0.2);color:#38bdf8;padding:1px 4px;border-radius:4px;font-weight:400">🌊 蓄水面</span>` : ''}
+            ${r.dedicatedSource ? `<span style="font-size:9.5px;background:rgba(56,189,248,0.18);color:#38bdf8;padding:1px 4px;border-radius:4px;font-weight:400" title="${r.dedicatedSource}">📡 專線</span>` : ''}
+          </div>
+          <span class="res-card-badge" style="background:${color};color:#041e49">${pctTxt}</span>
+        </div>
+        <div class="res-bar-wrap">
+          <div class="res-bar-inner" style="width:${Math.min(r.pct||0, 100)}%;background:${color}"></div>
+        </div>
+        <div class="res-card-meta">
+          <span>蓄水: <b style="color:#fff">${r.curStorage != null ? r.curStorage.toLocaleString("zh-TW") : "--"} 萬噸</b></span>
+          <span>水位: ${r.waterlevel != null ? r.waterlevel + "m" : "--"}</span>
+          ${r.hourlyRain != null ? `<span>時雨量: <b style="color:#38bdf8">${r.hourlyRain}mm</b></span>` : `<span>狀態: ${r.statusText}</span>`}
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  container.querySelectorAll(".res-card").forEach(el => {
+    el.onclick = () => {
+      const id = el.getAttribute("data-id");
+      const target = wraResList.find(x => x.id === id);
+      if(!target) return;
+      highlightResCard(id);
+
+      // 1. 移動地圖至水庫視野（優先使用蓄水範圍邊界，否則飛至點位）
+      if(target.bounds && target.bounds.isValid()){
+        map.fitBounds(target.bounds, { maxZoom: 14, padding: [60, 60] });
+      } else if(target.lat && target.lon){
+        map.flyTo([target.lat, target.lon], 13);
+      }
+
+      // 2. 蓄水範圍面高亮光暈動畫
+      if(target.polyLayers && target.polyLayers.length){
+        target.polyLayers.forEach(pl => {
+          pl.setStyle({ weight: 4.5, color: "#ffffff", fillOpacity: 0.8 });
+          setTimeout(() => {
+            pl.setStyle(getResPolyStyle(target.pct, false));
+          }, 2500);
+        });
+      }
+
+      // 3. 開啟水情彈窗
+      setTimeout(() => {
+        if(target.marker){
+          target.marker.openPopup();
+        } else if(target.bounds && target.bounds.isValid()){
+          L.popup().setLatLng(target.bounds.getCenter()).setContent(makeResPopup(target)).openOn(map);
+        } else if(target.lat && target.lon){
+          L.popup().setLatLng([target.lat, target.lon]).setContent(makeResPopup(target)).openOn(map);
+        }
+      }, 200);
+    };
+  });
+}
+
+function wraResApply(){
+  const isMasterOn = $("wraResChk") && $("wraResChk").checked;
+  const showMarker = $("wraResMarkerChk") ? $("wraResMarkerChk").checked : true;
+  const showPoly = $("wraResPolyChk") ? $("wraResPolyChk").checked : true;
+  const showWatershed = $("wraResWatershedChk") ? $("wraResWatershedChk").checked : false;
+
+  if(!isMasterOn){
+    if(map.hasLayer(wraResLayer)) map.removeLayer(wraResLayer);
+    if(map.hasLayer(wraResPolyLayer)) map.removeLayer(wraResPolyLayer);
+    if(map.hasLayer(wraResWatershedLayer)) map.removeLayer(wraResWatershedLayer);
+    if($("wraResPanel")) $("wraResPanel").style.display = "none";
+    if($("wraResStat")) $("wraResStat").style.display = "none";
+    return;
+  }
+
+  if($("wraResPanel")) $("wraResPanel").style.display = "block";
+
+  // 點標記圖層
+  if(showMarker){
+    if(!map.hasLayer(wraResLayer)) wraResLayer.addTo(map);
+  } else {
+    if(map.hasLayer(wraResLayer)) map.removeLayer(wraResLayer);
+  }
+
+  // 蓄水範圍面圖層
+  if(showPoly){
+    if(!map.hasLayer(wraResPolyLayer)) wraResPolyLayer.addTo(map);
+  } else {
+    if(map.hasLayer(wraResPolyLayer)) map.removeLayer(wraResPolyLayer);
+  }
+
+  // 集水區圖層
+  if(showWatershed){
+    if(!map.hasLayer(wraResWatershedLayer)) wraResWatershedLayer.addTo(map);
+  } else {
+    if(map.hasLayer(wraResWatershedLayer)) map.removeLayer(wraResWatershedLayer);
+  }
+
+  if(!wraResLoaded){
+    loadWraReservoirs();
+  }
+}
+
+if($("wraResChk")){
+  $("wraResChk").onchange = wraResApply;
+}
+if($("wraResMarkerChk")){
+  $("wraResMarkerChk").onchange = wraResApply;
+}
+if($("wraResPolyChk")){
+  $("wraResPolyChk").onchange = wraResApply;
+}
+if($("wraResWatershedChk")){
+  $("wraResWatershedChk").onchange = wraResApply;
+}
+if($("wraResRefresh")){
+  $("wraResRefresh").onclick = loadWraReservoirs;
+}
+if($("wraResRegionSel")){
+  $("wraResRegionSel").onchange = renderWraResCards;
+}
+if($("wraResSearch")){
+  $("wraResSearch").oninput = renderWraResCards;
+}
+if($("wraResFit")){
+  $("wraResFit").onclick = () => {
+    if(wraResPolyLayer && wraResPolyLayer.getLayers().length > 0){
+      map.fitBounds(wraResPolyLayer.getBounds(), { padding: [30, 30] });
+    } else {
+      const pts = wraResList.filter(r => r.lat && r.lon).map(r => [r.lat, r.lon]);
+      if(pts.length) map.fitBounds(L.latLngBounds(pts), { padding: [40, 40] });
+    }
+  };
+}
+
 
 // 啟動：若瀏覽器已記住金鑰則直接載入，否則顯示金鑰輸入畫面
 (function init(){

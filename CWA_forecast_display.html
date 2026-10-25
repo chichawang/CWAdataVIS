@@ -19,6 +19,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="taiwan_territorial_sea.js"></script>
 <style>
 :root{
   --bg:#0e1217;
@@ -554,6 +555,10 @@ body.panel-collapsed #legend{max-width:min(330px,calc(100% - 24px))}
         <option value="topo">地形圖</option>
       </select>
       <div class="rowline"><label><input type="checkbox" id="ckDayNight" checked> 日夜變化陰影區（晨昏線）</label></div>
+      <div class="rowline"><label><input type="checkbox" id="countyBndChk"> 🏛️ 臺灣縣市邊界</label></div>
+      <div class="rowline"><label><input type="checkbox" id="townBndChk"> 🏡 臺灣鄉鎮市區邊界</label></div>
+      <div class="rowline"><label><input type="checkbox" id="villageBndChk"> 🏘️ 村里邊界</label></div>
+      <div class="rowline"><label><input type="checkbox" id="seaBndChk"> 🌊 臺灣海域界線（基線/12浬/24浬）</label></div>
       <div class="rowline"><label><input type="checkbox" id="ckAuto" checked> 自動更新（10 分鐘）</label></div>
       <div class="rowline" style="gap:6px">
         <button class="btn2" id="btnKey">更換金鑰</button>
@@ -1463,6 +1468,77 @@ function initMap(){
   S.map.createPane('regionPane');
   S.map.getPane('regionPane').style.zIndex = 410;
   S.map.getPane('regionPane').style.pointerEvents = 'none';
+  S.map.createPane('bndPane');
+  S.map.getPane('bndPane').style.zIndex = 375;
+  S.map.getPane('bndPane').style.pointerEvents = 'none';
+
+  const countyBorderLayer = L.tileLayer("https://wmts.nlsc.gov.tw/wmts/CITY/default/GoogleMapsCompatible/{z}/{y}/{x}", {
+    pane: "bndPane", maxZoom: 19, attribution: "© 國土測繪中心 (NLSC)"
+  });
+  const townBorderLayer = L.tileLayer("https://wmts.nlsc.gov.tw/wmts/TOWN/default/GoogleMapsCompatible/{z}/{y}/{x}", {
+    pane: "bndPane", maxZoom: 19, attribution: "© 國土測繪中心 (NLSC)"
+  });
+  const villageBorderLayer = L.tileLayer("https://wmts.nlsc.gov.tw/wmts/Village/default/GoogleMapsCompatible/{z}/{y}/{x}", {
+    pane: "bndPane", maxZoom: 19, attribution: "© 國土測繪中心 (NLSC)"
+  });
+
+  $('countyBndChk').addEventListener('change', e => {
+    if(e.target.checked) countyBorderLayer.addTo(S.map);
+    else S.map.removeLayer(countyBorderLayer);
+  });
+  $('townBndChk').addEventListener('change', e => {
+    if(e.target.checked) townBorderLayer.addTo(S.map);
+    else S.map.removeLayer(townBorderLayer);
+  });
+  $('villageBndChk').addEventListener('change', e => {
+    if(e.target.checked) villageBorderLayer.addTo(S.map);
+    else S.map.removeLayer(villageBorderLayer);
+  });
+
+  let seaBorderLayer = null;
+  function getSeaBorderLayer(){
+  if(!seaBorderLayer && window.TAIWAN_TERRITORIAL_SEA){
+    seaBorderLayer = L.geoJSON(window.TAIWAN_TERRITORIAL_SEA, {
+      pane: "bndPane",
+      style: (feature) => {
+        const t = feature?.properties?.limit_type;
+        if (t === "24nm") {
+          return { color: "#818cf8", weight: 2.0, opacity: 0.95, dashArray: "3, 6" };
+        } else if (t === "12nm") {
+          return { color: "#06b6d4", weight: 2.2, opacity: 0.95, dashArray: "8, 6" };
+        } else {
+          return { color: "#0284c7", weight: 2.4, opacity: 1.0, dashArray: "12, 4" };
+        }
+      },
+      onEachFeature: (feature, layer) => {
+        const p = feature.properties || {};
+        const title = p.name || "中華民國海域界線";
+        const tag = p.limit_name || "海域界線";
+        const z = p.zone || p.region || "臺灣海域";
+        layer.bindTooltip(`🌊 ${tag}（${z}）`, { sticky: true, direction: "top" });
+        layer.bindPopup(`
+          <div style="font-size:13px;line-height:1.6;min-width:220px;">
+            <strong style="color:${p.stroke_color || '#0284c7'};font-size:14px;">🌊 ${title}</strong>
+            <div style="margin-top:4px;color:#cbd5e1;font-size:12px;">依據《中華民國領海及鄰接區法》公告之法定界線</div>
+            ${z ? `<div style="margin-top:2px;">涵蓋區域：<b>${z}</b></div>` : ""}
+            ${p.limit_desc ? `<div style="margin-top:2px;font-size:11.5px;color:#cbd5e1;">定義：${p.limit_desc}</div>` : ""}
+            ${p.points ? `<div style="margin-top:2px;font-size:11px;color:#94a3b8;">基準基點：${p.points}</div>` : ""}
+            <div style="margin-top:4px;font-size:10.5px;color:#94a3b8;border-top:1px dashed rgba(255,255,255,0.15);padding-top:4px;">來源：內政部地政司（政府資料開放平臺）</div>
+          </div>
+        `);
+      }
+    });
+  }
+  return seaBorderLayer;
+}
+  $('seaBndChk').addEventListener('change', e => {
+    const l = getSeaBorderLayer();
+    if(!l) return;
+    if(e.target.checked) l.addTo(S.map);
+    else S.map.removeLayer(l);
+  });
+  S.bnd = { county: countyBorderLayer, town: townBorderLayer, village: villageBorderLayer, getSea: getSeaBorderLayer };
+
   dayNightLayer.addTo(S.map);
   L.control.zoom({position:'bottomleft'}).addTo(S.map);
   S.base=BASES[$('selBase').value||'osm']().addTo(S.map);
@@ -5537,7 +5613,11 @@ function saveHash(){
   const pts=Object.entries(S.pts).filter(([k,v])=>v).map(([k])=>k).join(',');
   const h=new URLSearchParams({land:S.land,sea:S.sea,grid:S.grid,t:S.t,
     blue:S.blue?1:0,bv:S.blueVar,pts,lc:[...S.leisureOn].join(','),
-    warn:S.warn?1:0, wcap:S.warnCap?1:0, wc:[...S.warnOn].join(',')});
+    warn:S.warn?1:0, wcap:S.warnCap?1:0, wc:[...S.warnOn].join(','),
+    cb:$('countyBndChk')&&$('countyBndChk').checked?1:0,
+    tb:$('townBndChk')&&$('townBndChk').checked?1:0,
+    vb:$('villageBndChk')&&$('villageBndChk').checked?1:0,
+    sb:$('seaBndChk')&&$('seaBndChk').checked?1:0});
   history.replaceState(null,'','#'+h.toString());
 }
 function loadHash(){
@@ -5563,6 +5643,10 @@ function loadHash(){
     $('ckFreak').checked=S.pts.freak; $('ckFreakGrid').checked=S.pts.freakGrid;
     $('ckPenghu').checked=S.pts.penghu;
     $('ckWaveCur').checked=S.pts.wavecur;
+    if(h.get('cb')==='1'&&$('countyBndChk')){ $('countyBndChk').checked=true; S.bnd.county.addTo(S.map); }
+    if(h.get('tb')==='1'&&$('townBndChk')){ $('townBndChk').checked=true; S.bnd.town.addTo(S.map); }
+    if(h.get('vb')==='1'&&$('villageBndChk')){ $('villageBndChk').checked=true; S.bnd.village.addTo(S.map); }
+    if(h.get('sb')==='1'&&$('seaBndChk')){ $('seaBndChk').checked=true; const sl=S.bnd.getSea(); if(sl) sl.addTo(S.map); }
     $('leisureChips').style.display=S.pts.leisure?'flex':'none';
   }catch(e){ console.warn('hash',e); }
 }
