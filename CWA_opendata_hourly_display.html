@@ -47,6 +47,35 @@
   .light-bolt{background:none;border:0;line-height:0;filter:drop-shadow(0 0 2px rgba(0,0,0,.65))}
   .windarrow{background:none;border:none}
   .windarrow svg{filter:drop-shadow(0 0 1px rgba(0,0,0,.6))}
+  /* 綜合天氣概況（大眾模式）：遠景複合圖形符號 & 近景智慧膠囊卡片（錨點定位＋地名標籤） */
+  .wx-glyph-mk,.wx-pill-mk{background:none!important;border:none!important}
+  .wx-glyph-wrap{position:relative;display:block}
+  .wx-glyph-lbl{position:absolute;left:50%;bottom:-9px;transform:translateX(-50%);
+    background:rgba(15,23,42,0.88);border:1px solid rgba(255,255,255,0.28);color:#f8fafc;
+    font-size:10px;font-weight:700;padding:0.5px 4.5px;border-radius:4px;white-space:nowrap;
+    box-shadow:0 2px 5px rgba(0,0,0,0.65);pointer-events:none;line-height:1.25;letter-spacing:0.2px}
+  .wx-pill-anchor{position:relative;width:0;height:0}
+  .wx-pill-pin{position:absolute;left:0;top:0;width:8px;height:8px;border-radius:50%;
+    transform:translate(-50%,-50%);border:1.5px solid #ffffff;box-shadow:0 0 5px rgba(0,0,0,0.85);z-index:1;pointer-events:none}
+  .wx-pill{position:absolute;left:0;bottom:7px;transform:translateX(-50%);
+    display:inline-flex;align-items:center;gap:4px;padding:3px 8px 3px 6px;border-radius:999px;
+    background:rgba(15,23,42,0.93);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+    border:1.5px solid rgba(255,255,255,0.32);color:#f8fafc;font-size:11.5px;font-weight:700;
+    white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,0.6);
+    line-height:1.15;transition:transform .15s ease,box-shadow .15s ease;cursor:pointer;z-index:2}
+  .wx-pill::after{content:"";position:absolute;left:50%;bottom:-5px;transform:translateX(-50%);
+    border-left:5px solid transparent;border-right:5px solid transparent;border-top:5px solid rgba(255,255,255,0.45)}
+  .wx-pill:hover{transform:translateX(-50%) scale(1.08);z-index:999!important;box-shadow:0 6px 18px rgba(0,0,0,0.8)}
+  .wx-pill.wet{border-color:#38bdf8;box-shadow:0 0 0 2px rgba(56,189,248,0.3),0 4px 12px rgba(0,0,0,0.65)}
+  .wx-pill.wet::after{border-top-color:#38bdf8}
+  .wx-pill .wx-loc{color:#fde047;font-size:11px;font-weight:800;max-width:76px;overflow:hidden;text-overflow:ellipsis;
+    padding-right:4px;border-right:1px solid rgba(255,255,255,0.18);letter-spacing:0.1px}
+  .wx-pill .wx-dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto;border:1px solid rgba(255,255,255,0.85)}
+  .wx-pill .wx-temp{font-variant-numeric:tabular-nums;letter-spacing:-0.2px}
+  .wx-pill .wx-rain{color:#38bdf8;font-size:10.5px;font-weight:800;display:inline-flex;align-items:center;gap:1px;padding-left:3px;border-left:1px solid rgba(255,255,255,0.16)}
+  .wx-pill .wx-wind{color:#cbd5e1;font-size:10.5px;font-weight:600;display:inline-flex;align-items:center;gap:2px;padding-left:3px;border-left:1px solid rgba(255,255,255,0.16)}
+  @keyframes wxRainPulse{0%{transform:scale(0.85);opacity:0.85}100%{transform:scale(1.65);opacity:0}}
+  .wx-rain-ring{transform-origin:50% 50%;animation:wxRainPulse 1.8s ease-out infinite}
   /* 颱風符號：緩慢逆時針旋轉（北半球氣旋方向） */
   .tyicon,.ty-tau-tag,.ty-quad-tag{background:none!important;border:none!important}
   .tyicon svg{animation:tyspin 5.5s linear infinite;transform-origin:50% 50%;filter:drop-shadow(0 0 2px #fff) drop-shadow(0 0 2px #fff) drop-shadow(0 2px 4px rgba(0,0,0,.65))}
@@ -712,6 +741,7 @@ function fileApiKMZ(id){
 
 const NA=v=>v===null||v===undefined||v===""||v==="X"||v==="-99"||v==="-990"||v==="-99.0"||v==="-990.0"||(typeof v==="number"&&v<=-90);
 const num=v=>NA(v)?null:(isNaN(parseFloat(v))?null:parseFloat(v));
+const isValidText=v=>!NA(v)&&typeof v==="string"&&v.trim()!=="";
 
 // ===== 色階 =====
 const rgb=a=>`rgb(${a[0]},${a[1]},${a[2]})`;
@@ -750,6 +780,7 @@ const RAMP={
 };
 const rget=s=>num(s.WeatherElement?.Now?.Precipitation);   // 當日累積雨量
 const VARS=[
+  {key:"WeatherOverview",label:"🌟 綜合天氣概況（氣溫+降水+風況）",unit:"°C",overview:true,levels:TEMP_LEVELS,colors:TEMP_COLORS,get:s=>num(s.WeatherElement?.AirTemperature)},
   {key:"AirTemperature",label:"氣溫",unit:"°C",levels:TEMP_LEVELS,colors:TEMP_COLORS,get:s=>num(s.WeatherElement?.AirTemperature)},
   {key:"Precipitation",label:"日累積雨量",unit:"mm",levels:RAIN_LEVELS,colors:RAIN_COLORS,get:s=>rget(s)},
   {key:"WindVector",label:"風向＋風速（箭號）",unit:"m/s",ramp:RAMP.wind,wind:true,get:s=>num(s.WeatherElement?.WindSpeed)},
@@ -1071,9 +1102,28 @@ function sizeScale(){
   return Math.max(0.7,Math.min(2.6,Math.pow(2,(map.getZoom()-refZoom)*0.45)));
 }
 {const o=document.createElement("option");o.value="__none__";o.textContent="無（不顯示測站）";$("varSel").appendChild(o);}
-VARS.forEach(v=>{const o=document.createElement("option");o.value=v.key;o.textContent=v.unit?`${v.label} (${v.unit})`:v.label;$("varSel").appendChild(o);});
-$("varSel").value=VARS[0].key;   // 預設仍為氣溫
-function curVar(){return VARS.find(v=>v.key===$("varSel").value)||VARS[0];}
+VARS.forEach(v=>{const o=document.createElement("option");o.value=v.key;o.textContent=v.overview?v.label:(v.unit?`${v.label} (${v.unit})`:v.label);$("varSel").appendChild(o);});
+[
+  { key: "overview", label: "綜合天氣概況 (overview)" },
+  { key: "temp", label: "氣溫 (temp)" },
+  { key: "press", label: "氣壓 (press)" },
+  { key: "rain", label: "日累積雨量 (rain)" }
+].forEach(a => {
+  const o = document.createElement("option");
+  o.value = a.key;
+  o.textContent = a.label;
+  o.style.display = "none";
+  $("varSel").appendChild(o);
+});
+$("varSel").value="AirTemperature";   // 預設為「氣溫」，「🌟 綜合天氣概況」位置保持在選單最上方
+function curVar(){
+  const val = $("varSel") ? $("varSel").value : "";
+  if(val === "overview" || val === "all") return VARS.find(v => v.key === "WeatherOverview") || VARS[0];
+  if(val === "temp") return VARS.find(v => v.key === "AirTemperature") || VARS[1];
+  if(val === "press") return VARS.find(v => v.key === "AirPressure") || VARS[1];
+  if(val === "rain" || val === "rain1h") return VARS.find(v => v.key === "Precipitation") || VARS[1];
+  return VARS.find(v => v.key === val) || VARS.find(v => v.key === "AirTemperature") || VARS[0];
+}
 
 function wgs84(s){
   let cs=s.GeoInfo?.Coordinates||[];
@@ -1127,21 +1177,78 @@ function stats(){
   $("stats").style.display="block";
 }
 
+// ===== 蒲福氏風級換算、方位轉譯與大眾天氣圖示 (General Public Weather Helpers) =====
+function beaufortInfo(ms){
+  if(ms === null || !isFinite(ms) || ms < 0) return { bft: null, desc: "無資料", short: "—" };
+  const limits = [0.2, 1.5, 3.3, 5.4, 7.9, 10.7, 13.8, 17.1, 20.7, 24.4, 28.4, 32.6];
+  const descs  = ["無風","軟風","輕風","微風","和風","清風","強風","疾風","大風","烈風","狂風","暴風","颶風"];
+  let bft = 0;
+  while(bft < limits.length && ms > limits[bft]) bft++;
+  return { bft, desc: descs[bft], short: `${bft}級${descs[bft]}` };
+}
+function windCardDir(deg){
+  if(deg === null || !isFinite(deg)) return "";
+  const dirs = ["北","東北","東","東南","南","西南","西","西北"];
+  return dirs[Math.round(((deg % 360) + 360) % 360 / 45) % 8] + "風";
+}
+function stationRainInfo(s){
+  const r24 = rget(s);
+  return { r1h: null, r24 };
+}
+function stationWeatherEmoji(s, r1h, r24){
+  const we = s.WeatherElement || {};
+  const wx = isValidText(we.Weather) ? we.Weather.trim() : "";
+  const t = dayNightTime();
+  const hr = t.getHours();
+  const isNight = (hr < 6 || hr >= 18);
+  if(wx.includes("雷")) return "⛈️";
+  if(wx.includes("雪") || wx.includes("冰")) return "❄️";
+  if((r1h !== null && r1h >= 15)) return "⛈️";
+  if((r1h !== null && r1h > 0) || wx.includes("雨")) return "🌧️";
+  if(wx.includes("霧") || wx.includes("靄") || wx.includes("霾")) return "🌫️";
+  if(wx.includes("陰")) return "☁️";
+  if(wx.includes("多雲")) return isNight ? "☁️" : "⛅";
+  if(wx.includes("晴")) return isNight ? "🌙" : "☀️";
+  if(r24 !== null && r24 > 0.5) return "🌦️";
+  return isNight ? "🌙" : "🌤️";
+}
+
 function buildPopup(s,v,val,color){
   const geo=s.GeoInfo||{},we=s.WeatherElement||{};
   const disp=val===null?"無資料":val.toLocaleString("zh-TW",{maximumFractionDigits:1})+(v.unit?" "+v.unit:"");
   const row=(k,val)=>`<div class="row"><span class="k">${k}</span><span>${val}</span></div>`;
   const ext=we.DailyExtreme||{};
   const dh=num(ext.DailyHigh?.TemperatureInfo?.AirTemperature),dl=num(ext.DailyLow?.TemperatureInfo?.AirTemperature);
+  const { r1h, r24 } = stationRainInfo(s);
+  const spd = num(we.WindSpeed), dir = num(we.WindDirection);
+  const bft = beaufortInfo(spd);
+  const cDir = windCardDir(dir);
+  const wxEmoji = stationWeatherEmoji(s, r1h, r24);
+  let topSummary = `<div class="row"><span class="k">${v.label}</span><span class="big" style="color:${val===null?'#9fb0c8':color}">${disp}</span></div>`;
+  if(v.overview){
+    const tStr = val===null ? "—°C" : `${val.toFixed(1)}°C`;
+    const rStr = (r24!==null && r24>0) ? `💧 日雨 ${r24} mm` : "無降雨 (0 mm)";
+    const wStr = spd===null ? "無風速資料" : `${bft.short} (${spd} m/s${cDir ? " · " + cDir : ""})`;
+    topSummary = `<div style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.14);border-radius:10px;padding:8px 10px;margin:6px 0 8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <span style="font-size:21px;font-weight:800;color:${val===null?'#9fb0c8':color}">${wxEmoji} ${tStr}</span>
+        <span style="font-size:12px;font-weight:700;color:${(r24!==null&&r24>0)?'#38bdf8':'#94a3b8'}">${rStr}</span>
+      </div>
+      <div style="font-size:12px;color:#e2e8f0;margin-top:4px;display:flex;justify-content:space-between">
+        <span>🌬️ 風況：<b>${wStr}</b></span>
+      </div>
+    </div>`;
+  }
+  const windExtra = (spd!==null && bft.bft!==null) ? `（${bft.short}${cDir ? " · " + cDir : ""}）` : "";
   let html=`<div class="pop"><h3>${s.StationName||""} <small style="color:#9fb0c8">${s.StationId||""}</small></h3>
-    <div class="row"><span class="k">${v.label}</span><span class="big" style="color:${val===null?'#9fb0c8':color}">${disp}</span></div>
+    ${topSummary}
     ${row("縣市鄉鎮",(geo.CountyName||"")+" "+(geo.TownName||""))}
     ${row("海拔",(geo.StationAltitude||"—")+" m")}
     <div style="border-top:1px solid var(--line);margin:6px 0 4px;padding-top:5px;color:#9fb0c8;font-size:11px">逐時氣象觀測 (O-A0001-001)</div>`
-    +row("天氣",NA(we.Weather)?"—":we.Weather)
+    +row("天氣",!isValidText(we.Weather)?"—":(wxEmoji+" "+we.Weather))
     +row("氣溫 / 溼度",(num(we.AirTemperature)??"—")+"°C / "+(num(we.RelativeHumidity)??"—")+"%")
     +row("日累積雨量",(rget(s)??"—")+" mm")
-    +row("風速 / 風向",(num(we.WindSpeed)??"—")+" m/s / "+(num(we.WindDirection)??"—")+"°")
+    +row("風速 / 風向",(spd??"—")+" m/s / "+(dir??"—")+"°"+windExtra)
     +row("最大陣風",(num(we.GustInfo?.PeakGustSpeed)??"—")+" m/s")
     +row("氣壓",(num(we.AirPressure)??"—")+" hPa")
     +row("日最高 / 最低溫",(dh??"—")+"°C / "+(dl??"—")+"°C");
@@ -1155,6 +1262,136 @@ function buildPopup(s,v,val,color){
   if(ll&&USER_POS) html+=row("距您",`<span style="color:#38bdf8;font-weight:600">${fmtDist(haversineKm(USER_POS[0],USER_POS[1],ll[0],ll[1]))}</span>`);
   html+=row("觀測時間",s.ObsTime?.DateTime?new Date(s.ObsTime.DateTime).toLocaleString("zh-TW"):"—")+`</div>`;
   return html;
+}
+
+// 產生「🌟 綜合天氣概況」複合圖形符號 (Glyph Icon) 與 智慧膠囊卡片 (Smart Pill)
+function shortLocLabel(s, z){
+  const g = s.GeoInfo || {};
+  const name = (s.StationName || "").trim();
+  const town = (g.TownName || "").trim();
+  const county = (g.CountyName || "").replace(/臺/g, "台").replace(/[縣市]$/, "");
+  if(z >= 11){
+    if(town && !name.includes(town.slice(0, 2))){
+      const shortT = town.length > 3 ? town.replace(/[鄉鎮市區]$/, "") : town;
+      return `${shortT}·${name}`;
+    }
+    return name || town || county;
+  }
+  if(town && town.length <= 3) return town;
+  return name || town || county;
+}
+
+function buildOverviewGlyphIcon(s, temp, tColor, r1h, r24, spd, dir, sc, z, showLocTag){
+  const we = s.WeatherElement || {};
+  const wx = isValidText(we.Weather) ? we.Weather.trim() : "";
+  const isRainingNow = (r1h !== null && r1h > 0) || wx.includes("雨") || (r24 !== null && r24 >= 2.0);
+  const hasRain24 = (!isRainingNow && r24 !== null && r24 > 0);
+  const rainVal = (r1h !== null && r1h > 0) ? r1h : (r24 !== null && r24 > 0 ? r24 : 0);
+  const rainDef = VARS.find(x => x.key === "Precipitation") || { levels: RAIN_LEVELS, colors: RAIN_COLORS };
+  const rainCol = rainVal > 0 ? colorFor(rainVal, rainDef) : "#38bdf8";
+
+  const hasWind = (spd !== null && dir !== null && spd >= 0.8);
+  const rot = hasWind ? (dir + 180) % 360 : 0; // 風的去向
+  const windCol = (spd !== null && spd >= 8.0) ? colorAt(RAMP.wind, spd) : "#f8fafc";
+  const tipLen = hasWind ? Math.min(11, 4.5 + spd * 0.55) : 0;
+  const wingW = hasWind ? Math.min(5.5, 3.2 + spd * 0.18) : 0;
+
+  const box = Math.round(36 * sc);
+  const showNum = ((z >= 9 || showLocTag) && temp !== null);
+  const tTxt = showNum ? Math.round(temp) : "";
+
+  let svg = `<svg viewBox="0 0 40 40" width="${box}" height="${box}" style="display:block;overflow:visible;filter:drop-shadow(0 1.5px 3px rgba(0,0,0,0.65))">`;
+  // 1. 降水外環 (有雨才顯示：正在降雨或日雨量顯著時加脈動環與水滴角標)
+  if(isRainingNow){
+    svg += `<circle class="wx-rain-ring" cx="20" cy="20" r="11" fill="none" stroke="${rainCol}" stroke-width="2.5"/>`;
+    svg += `<circle cx="20" cy="20" r="10.2" fill="none" stroke="${rainCol}" stroke-width="2.4" opacity="0.95"/>`;
+  } else if(hasRain24){
+    svg += `<circle cx="20" cy="20" r="10" fill="none" stroke="#38bdf8" stroke-width="1.6" stroke-dasharray="2.5,2" opacity="0.85"/>`;
+  }
+  // 2. 風向＋風速指針 (自圓周向外指出風的去向，大小隨風速增長)
+  if(hasWind){
+    const tipY = (11.5 - tipLen).toFixed(1);
+    const wX1 = (20 - wingW).toFixed(1), wX2 = (20 + wingW).toFixed(1);
+    svg += `<g transform="rotate(${rot}, 20, 20)">
+      <path d="M 20 ${tipY} L ${wX2} 12.2 L 20 10.2 L ${wX1} 12.2 Z" fill="${windCol}" stroke="#0b1220" stroke-width="1.1" stroke-linejoin="round"/>
+    </g>`;
+  }
+  // 3. 內圓：氣溫色階填充 + 中心精準定位點
+  svg += `<circle cx="20" cy="20" r="7.5" fill="${tColor}" stroke="#0f172a" stroke-width="1.4"/>`;
+  svg += `<circle cx="20" cy="20" r="6.6" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="0.7"/>`;
+  if(showNum){
+    svg += `<text x="20" y="20.5" text-anchor="middle" dominant-baseline="central" fill="#0b1220" stroke="#ffffff" stroke-width="2.2" paint-order="stroke" font-size="8.8" font-weight="900" font-family="Roboto,sans-serif">${tTxt}</text>`;
+  } else {
+    svg += `<circle cx="20" cy="20" r="1.6" fill="#0f172a" opacity="0.65"/>`;
+  }
+  // 4. 水滴角標 (右上角)
+  if(isRainingNow){
+    svg += `<path d="M 29 5 C 29 5 25.2 9.8 25.2 12 A 3.8 3.8 0 0 0 32.8 12 C 32.8 9.8 29 5 29 5 Z" fill="${rainCol}" stroke="#0b1220" stroke-width="1"/>`;
+  }
+  svg += `</svg>`;
+
+  const locTagHtml = showLocTag ? `<span class="wx-glyph-lbl">${shortLocLabel(s, z)}</span>` : "";
+  const html = `<div class="wx-glyph-wrap" style="width:${box}px;height:${box}px">${svg}${locTagHtml}</div>`;
+
+  return L.divIcon({ className: "wx-glyph-mk", html, iconSize: [box, box], iconAnchor: [box / 2, box / 2] });
+}
+
+function buildOverviewPillIcon(s, temp, tColor, r1h, r24, spd, dir, z){
+  const we = s.WeatherElement || {};
+  const wx = isValidText(we.Weather) ? we.Weather.trim() : "";
+  const hasRain1h = (r1h !== null && r1h > 0);
+  const hasRain24 = (!hasRain1h && r24 !== null && r24 > 0);
+  const isWet = hasRain1h || wx.includes("雨") || (r24 !== null && r24 >= 2.0);
+  const wxEmoji = stationWeatherEmoji(s, r1h, r24);
+  const tStr = temp === null ? "—" : `${temp.toFixed(1)}°`;
+  const bft = beaufortInfo(spd);
+  const rot = (dir !== null && isFinite(dir)) ? (dir + 180) % 360 : null;
+
+  let rainHtml = "";
+  if(hasRain1h){
+    rainHtml = `<span class="wx-rain" title="過去1小時雨量">💧${r1h}mm</span>`;
+  } else if(hasRain24){
+    rainHtml = `<span class="wx-rain" style="color:#7dd3fc;font-weight:700" title="日累積雨量">💧${r24}mm</span>`;
+  }
+
+  let windHtml = "";
+  if(spd !== null && spd >= 0.5){
+    const arrowSvg = rot !== null
+      ? `<svg width="11" height="11" viewBox="0 0 24 24" style="transform:rotate(${rot}deg);flex:0 0 auto"><path d="M12 1 L19 19 L12 14.5 L5 19 Z" fill="${spd>=8?colorAt(RAMP.wind,spd):'#38bdf8'}"/></svg>`
+      : `<span>🌬️</span>`;
+    const wLabel = z >= 12 ? `${bft.bft}級(${spd.toFixed(1)})` : `${bft.bft}級`;
+    windHtml = `<span class="wx-wind" title="風速 ${spd} m/s (${bft.short})">${arrowSvg}${wLabel}</span>`;
+  }
+
+  // 始終標示地點名稱（如鄉鎮區名或站名），搭配下方真實座標圓點與指向箭頭，讓使用者一眼看懂實際位置
+  const locText = shortLocLabel(s, z);
+  const locHtml = locText ? `<span class="wx-loc">${locText}</span>` : "";
+
+  const html = `<div class="wx-pill-anchor">
+    <span class="wx-pill-pin" style="background:${tColor}"></span>
+    <div class="wx-pill ${isWet ? 'wet' : ''}">
+      ${locHtml}
+      <span class="wx-dot" style="background:${tColor}"></span>
+      <span>${wxEmoji}</span>
+      <span class="wx-temp">${tStr}</span>
+      ${rainHtml}
+      ${windHtml}
+    </div>
+  </div>`;
+
+  return L.divIcon({ className: "wx-pill-mk", html, iconSize: [0, 0], iconAnchor: [0, 0] });
+}
+
+function buildOverviewTooltip(s, temp, r1h, r24, spd, dir){
+  const g = s.GeoInfo || {};
+  const locPrefix = (g.CountyName || "") + (g.TownName || "");
+  const wxEmoji = stationWeatherEmoji(s, r1h, r24);
+  const bft = beaufortInfo(spd);
+  const cDir = windCardDir(dir);
+  const tStr = temp === null ? "無氣溫" : `${temp.toFixed(1)}°C`;
+  const rStr = (r1h !== null && r1h > 0) ? ` ‧ 💧時雨 ${r1h}mm` : ((r24 !== null && r24 > 0) ? ` ‧ 💧日雨 ${r24}mm` : "");
+  const wStr = (spd !== null) ? ` ‧ 🌬️${bft.short}(${spd}m/s${cDir ? " " + cDir : ""})` : "";
+  return `<b>${wxEmoji} ${locPrefix ? `[${locPrefix}] ` : ""}${s.StationName || ""}</b>｜${tStr}${rStr}${wStr}`;
 }
 
 /* ===== GPS 定位：顯示我的位置、地圖移至該處（不篩選測站） ===== */
@@ -1227,7 +1464,96 @@ function render(fit, skipKriging){
   const q=$("search").value.trim().toLowerCase();
   const county=$("countySel").value;
   const sc=sizeScale();
+  const z=map.getZoom();
   const pts=[];
+
+  if(v.overview){
+    // 綜合天氣概況模式：支援「遠景複合圖形符號 (Zoom < 12)」與「近景智慧膠囊卡片 + 防重疊網格抽樣 (Zoom >= 12)」
+    const candidates = [];
+    RAW.forEach(s=>{
+      if(county&&s.GeoInfo?.CountyName!==county)return;
+      if(q&&!((s.StationName||"").toLowerCase().includes(q)||(s.StationId||"").toLowerCase().includes(q)))return;
+      const ll=wgs84(s);if(!ll)return;
+      const temp=v.get(s);
+      const we=s.WeatherElement||{};
+      const spd=num(we.WindSpeed), dir=num(we.WindDirection);
+      const { r1h, r24 } = stationRainInfo(s);
+      const tColor=temp===null?"#7a8aa3":colorFor(temp,v);
+      // 計算測站優先權分數：有人署屬站 (46 開頭) > 有降雨站 > 強風站 > 一般有溫度站
+      const isManned = /^46\d{4}$/.test(String(s.StationId||""));
+      const score = (isManned ? 1000 : 0) + ((r24!==null && r24>0) ? 500 + r24 * 5 : 0) + (spd!==null ? spd * 5 : 0) + (temp!==null ? 10 : 0);
+      candidates.push({ s, ll, temp, tColor, r1h, r24, spd, dir, score });
+      pts.push(ll);
+    });
+
+    // 依優先權由高至低排序，確保碰撞檢測時優先保留重要或劇烈天氣測站
+    candidates.sort((a,b) => b.score - a.score);
+
+    const pillMode = (z >= 12) || (q.length > 0);
+    const pillCells = new Set();
+    const cellW = z >= 13 ? 72 : 92;
+    const cellH = z >= 13 ? 34 : 40;
+    // 球型符號模式 (Zoom < 12) 獨立網格：為各地區最具代表性測站加上精巧地名小標籤，避免縮小後迷失方位
+    const farLabelCells = new Set();
+    const farCellW = z >= 11 ? 56 : (z === 10 ? 64 : (z === 9 ? 74 : (z === 8 ? 88 : 105)));
+    const farCellH = z >= 11 ? 40 : (z === 10 ? 46 : (z === 9 ? 52 : (z === 8 ? 60 : 72)));
+    let pillShown = 0, farLabelShown = 0;
+
+    candidates.forEach(c => {
+      const { s, ll, temp, tColor, r1h, r24, spd, dir } = c;
+      let usePill = false;
+      let showFarLoc = false;
+      const pt = map.latLngToContainerPoint(ll);
+      if(pillMode){
+        if(z >= 14 || q.length > 0){
+          usePill = true;
+        } else {
+          const gx = Math.floor(pt.x / cellW), gy = Math.floor(pt.y / cellH);
+          const cellKey = gx + "_" + gy;
+          if(!pillCells.has(cellKey)){
+            pillCells.add(cellKey);
+            usePill = true;
+          }
+        }
+      } else {
+        const fgx = Math.floor(pt.x / farCellW), fgy = Math.floor(pt.y / farCellH);
+        const fKey = fgx + "_" + fgy;
+        if(!farLabelCells.has(fKey)){
+          farLabelCells.add(fKey);
+          showFarLoc = true;
+          farLabelShown++;
+        }
+      }
+      let icon;
+      if(usePill){
+        icon = buildOverviewPillIcon(s, temp, tColor, r1h, r24, spd, dir, z);
+        pillShown++;
+      } else {
+        icon = buildOverviewGlyphIcon(s, temp, tColor, r1h, r24, spd, dir, sc, z, showFarLoc);
+      }
+      const m = L.marker(ll, {
+        icon,
+        zIndexOffset: usePill ? 500 + Math.round(c.score) : (showFarLoc ? 250 + Math.round(c.score / 5) : Math.round(c.score / 10))
+      });
+      m.bindTooltip(buildOverviewTooltip(s, temp, r1h, r24, spd, dir), { direction: "top", offset: [0, usePill ? -28 : -12] });
+      m.bindPopup(()=>buildPopup(s, v, temp, tColor));
+      m.addTo(layer);
+    });
+
+    if(fit){
+      if($("countySel").value && pts.length){map.fitBounds(L.latLngBounds(pts),{padding:[40,40]});}
+      else{map.fitBounds(TAIWAN);}
+    }
+    const modeDesc = pillMode
+      ? `定點膠囊 ${pillShown} 站＋圖形符號 ${pts.length - pillShown} 站`
+      : `全臺複合符號（已標示 ${farLabelShown} 處主要地點，放大地圖自動展開更多）`;
+    $("info").textContent = `顯示 ${pts.length} 站 ‧ 🌟 綜合天氣概況（${modeDesc}）`;
+    legend(v);
+    if(!skipKriging && typeof scheduleKriging === "function") scheduleKriging(150);
+    if(typeof renderMoenvLayer === "function") renderMoenvLayer();
+    return;
+  }
+
   RAW.forEach(s=>{
     if(county&&s.GeoInfo?.CountyName!==county)return;
     if(q&&!((s.StationName||"").toLowerCase().includes(q)||(s.StationId||"").toLowerCase().includes(q)))return;
@@ -1296,28 +1622,47 @@ function discreteBarHTML(C,Lv,h){
 }
 
 function legend(v){
-  $("legTitle").textContent=v.wind
-    ?(v.key==="WindDirection"?`風向（${v.unit}）‧ 箭號`:`風速（${v.unit}）‧ 箭號`)
-    :`${v.label}${v.unit?`（${v.unit}）`:""}`;
+  $("legTitle").textContent=v.overview
+    ? `🌟 綜合天氣（氣溫 ${v.unit} ‧ 降雨 ‧ 風況）`
+    : (v.wind
+        ?(v.key==="WindDirection"?`風向（${v.unit}）‧ 箭號`:`風速（${v.unit}）‧ 箭號`)
+        :`${v.label}${v.unit?`（${v.unit}）`:""}`);
   const bar=$("legBar"),ticks=$("legTicks");
   if(v.levels){
     ticks.style.display="none";
     bar.style.background="none";bar.style.height="auto";
-    bar.innerHTML=discreteBarHTML(v.colors,v.levels,12);
+    let html=discreteBarHTML(v.colors,v.levels,12);
+    if(v.overview){
+      html = `<div style="display:flex;align-items:flex-start;gap:34px">
+        ${html}
+        <div style="font-size:11px;line-height:1.65;color:#cbd5e1;flex:1">
+          <div style="font-weight:700;color:#fff;margin-bottom:3px">🔍 符號快速解讀</div>
+          <div>🟢 <b>圓點顏色</b>：即時氣溫 (°C)</div>
+          <div>🡑 <b>外指針</b>：風吹去向與風力</div>
+          <div>💧 <b>藍光環/水滴</b>：有降雨觀測</div>
+          <div style="margin-top:6px;padding-top:5px;border-top:1px dashed var(--line);color:#93c5fd;font-size:10.5px">
+            💡 <b>放大地圖 (Zoom ≥ 12)</b> 自動展開「地名＋天氣圖示＋溫度＋雨量＋幾級風」智慧膠囊卡片！
+          </div>
+        </div>
+      </div>`;
+    }
+    bar.innerHTML=html;
   }else{
     bar.style.display="block";bar.style.height="14px";bar.innerHTML="";
     bar.style.background=gradientCSS(v.ramp);
     ticks.style.display="flex";
     ticks.innerHTML=v.ramp.map(s=>`<span>${s[0]}</span>`).join("");
   }
-  $("legNote").innerHTML=v.wind
-    ? (v.key==="WindDirection"
-        ? '🡑 箭號指向風的<b>去向</b>，顏色代表<b>風向角度</b>'
-        : '🡑 箭號指向風的<b>去向</b>，大小與顏色代表<b>風速</b>')
-    : (v.levels
-        ? (v.key==="Precipitation"?'CWB/NCL 標準雨量分級 (mm) ‧ 當日 00 時起累積':'CWB 溫度分級色階 (℃)')
-        : (v.key==="UVIndex"?'紫外線指數 0-2低 3-5中 6-7高 8-10過高 11+危險':''));
-  $("legNote").style.display=(v.wind||v.levels||v.key==="UVIndex")?"block":"none";
+  $("legNote").innerHTML=v.overview
+    ? 'CWB 溫度分級色階 (℃) ‧ 點擊測站查看完整逐時氣象資訊'
+    : (v.wind
+        ? (v.key==="WindDirection"
+            ? '🡑 箭號指向風的<b>去向</b>，顏色代表<b>風向角度</b>'
+            : '🡑 箭號指向風的<b>去向</b>，大小與顏色代表<b>風速</b>')
+        : (v.levels
+            ? (v.key==="Precipitation"?'CWB/NCL 標準雨量分級 (mm) ‧ 當日 00 時起累積':'CWB 溫度分級色階 (℃)')
+            : (v.key==="UVIndex"?'紫外線指數 0-2低 3-5中 6-7高 8-10過高 11+危險':'')));
+  $("legNote").style.display=(v.overview||v.wind||v.levels||v.key==="UVIndex")?"block":"none";
   const t=dayNightTime();
   const dn=$("dayNightChk").checked
     ? `<div style="border-top:1px solid var(--line);margin-top:7px;padding-top:6px;color:var(--muted)">🌗 日夜陰影：依資料時間 ${t.toLocaleString("zh-TW")} 估算</div>`
@@ -1515,7 +1860,7 @@ function getContourConfig(v, vMin, vMax){
   let thresholds = [];
   let formatLabel = val => Math.round(val) + (v.unit ? ' ' + v.unit : '');
 
-  if(key === 'AirTemperature' || key === 'DailyHigh' || key === 'DailyLow'){
+  if(key === 'WeatherOverview' || key === 'AirTemperature' || key === 'DailyHigh' || key === 'DailyLow'){
     isTemp = true; step = 2; majorStep = 10;
     const start = Math.floor(vMin / step) * step;
     for(let val = start; val <= vMax + 0.01; val += step){
@@ -2073,7 +2418,7 @@ const KRIGING_WORKER_SRC = [
   '    var targetDx=(maxLon-minLon)/targetNx, targetDy=(maxLat-minLat)/targetNy;',
   '    var i, j;',
   '',
-  '    var isTemp = (vKey==="AirTemperature"||vKey==="DailyHigh"||vKey==="DailyLow"||vKey.indexOf("Temperature")>=0);',
+  '    var isTemp = (vKey==="WeatherOverview"||vKey==="AirTemperature"||vKey==="DailyHigh"||vKey==="DailyLow"||vKey.indexOf("Temperature")>=0);',
   '    var isPres = (vKey==="AirPressure"||vKey.indexOf("Pressure")>=0);',
   '    var regressionMode=false, regBeta0=0, regBeta1=0, demStatusText="";',
   '',
@@ -2318,7 +2663,7 @@ function finalizeKrigingResult(ctx, r){
       $("krigingStepInfo").textContent = "全區目前無降雨（觀測值均為 0 mm）";
     } else if(obsMax - obsMin < 1e-4){
       $("krigingStepInfo").textContent = `全區觀測值均為 ${Math.round(obsMin * 10) / 10} ${v.unit}`;
-    } else if(v.key === "AirTemperature" || v.key === "DailyHigh" || v.key === "DailyLow"){
+    } else if(v.key === "WeatherOverview" || v.key === "AirTemperature" || v.key === "DailyHigh" || v.key === "DailyLow"){
       $("krigingStepInfo").textContent = `間距: ${config.step} °C · 主線 10/20/30 °C`;
     } else if(v.key === "AirPressure"){
       $("krigingStepInfo").textContent = `間距: ${config.step} hPa · 主線 1000/1010/1020 hPa`;
@@ -2355,7 +2700,7 @@ function computeKrigingGridSync(ctx){
   const baseDx = (maxLon - minLon) / baseNx, baseDy = (maxLat - minLat) / baseNy;
   const targetDx = (maxLon - minLon) / targetNx, targetDy = (maxLat - minLat) / targetNy;
 
-  const isTemp = (v.key === "AirTemperature" || v.key === "DailyHigh" || v.key === "DailyLow" || v.key.includes("Temperature"));
+  const isTemp = (v.key === "WeatherOverview" || v.key === "AirTemperature" || v.key === "DailyHigh" || v.key === "DailyLow" || v.key.includes("Temperature"));
   const isPres = (v.key === "AirPressure" || v.key.includes("Pressure"));
   let regressionMode = false, regBeta0 = 0, regBeta1 = 0, demStatusText = "";
 
@@ -2573,7 +2918,7 @@ function runKrigingInterpolation(){
         const val = v.get(s);
         if(val === null || !isFinite(val)) return;
 
-        if((v.key.includes("Temperature") || v.key === "DailyHigh" || v.key === "DailyLow") && (val < -30 || val > 55)) return;
+        if((v.key === "WeatherOverview" || v.key.includes("Temperature") || v.key === "DailyHigh" || v.key === "DailyLow") && (val < -30 || val > 55)) return;
         if(v.key === "AirPressure" && (val < 500 || val > 1100)) return;
         if((v.key === "Precipitation" || v.src === "rain") && (val < 0 || val > 1500)) return;
         if(v.key === "UVIndex" && (val < 0 || val > 25)) return;
@@ -3337,6 +3682,7 @@ async function fetchMoenvHourlyData(){
 function getMoenvValForCwaVar(st, cwaKey){
   if(!st || !st.items) return null;
   switch(cwaKey){
+    case "WeatherOverview":
     case "AirTemperature":
     case "DailyHigh":
     case "DailyLow":
