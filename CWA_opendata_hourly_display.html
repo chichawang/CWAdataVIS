@@ -17,6 +17,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="taiwan_territorial_sea.js"></script>
+<script src="place_search.js"></script>
 <script src="taiwan_reservoirs.js"></script>
 <script src="cctv_data.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.13/hls.min.js"></script>
@@ -425,6 +426,21 @@
   <div class="sub">中央氣象署公開資料集</div>
   <span class="chip time" id="obsTime">🕒 資料時間：—</span>
 
+  <details class="sec" id="placeSearchSec">
+    <summary>📍 地點搜尋／經緯度定位<span class="car">▾</span></summary>
+    <div class="sec-body">
+      <label for="placeType">查詢類型（免金鑰）</label>
+      <select id="placeType"><option value="photon">地址／道路／地標（Photon）</option><option value="coords">經緯度定位</option></select>
+      <label for="placeQuery">位置</label>
+      <input id="placeQuery" placeholder="例如：臺北車站、臺北市信義區市府路1號" maxlength="200">
+      <div style="display:flex;gap:8px;margin-top:8px"><button type="button" id="placeSearch">搜尋定位</button><button type="button" class="ghost" id="placeClear">清除定位</button></div>
+      <div id="placeStatus" role="status" aria-live="polite" style="font-size:12px;margin-top:8px">地址／道路／地標需連線 Photon；經緯度可直接定位。</div>
+      <div id="placeResults" style="display:grid;gap:6px;max-height:240px;overflow:auto;margin-top:8px"></div>
+      <p style="font-size:11px;color:var(--muted);line-height:1.6">地址查詢送至 Photon 公開服務，門牌可能不完整，公開服務可能限流。<br>
+      來源：<a href="https://github.com/komoot/photon" target="_blank" rel="noopener">Photon</a>／<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a></p>
+    </div>
+  </details>
+
   <!-- 區塊 1: 觀測變數與測站篩選 -->
   <details class="sec" id="varSec" open>
     <summary>🌡️ 觀測變數與測站篩選<span class="car">▾</span></summary>
@@ -814,6 +830,7 @@ function gradientCSS(ramp){
 // 全臺預設範圍（含金門、馬祖、澎湖及臺灣本島）
 const TAIWAN=L.latLngBounds([21.75,118.10],[26.45,122.20]);
 const map=L.map("map",{zoomControl:true}).fitBounds(TAIWAN);
+initPlaceSearch(map);
 map.zoomControl.setPosition("topright");   // 側欄改為全高靠左，縮放鈕移至右上避免被遮擋
 const BASES={
   osm:L.tileLayer((location.protocol==="file:"?"https://wsrv.nl/?url=https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png":"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"),{maxZoom:19,attribution:"© OpenStreetMap",crossOrigin:true}),
