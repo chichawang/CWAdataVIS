@@ -93,6 +93,28 @@
   .pop h3{margin:0 0 6px;font-size:15px;font-weight:700;color:#ffffff}
   .pop .row{display:flex;justify-content:space-between;gap:18px}
   .pop .k{color:var(--muted)} .pop .big{font-size:20px;font-weight:700;color:var(--accent)}
+  .pop.pop-with-ts{min-width:330px;max-width:380px}
+  .ts-box{margin-top:8px;padding:9px 10px;background:rgba(15,23,42,0.75);border:1px solid rgba(138,180,248,0.24);border-radius:10px}
+  .ts-head{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px}
+  .ts-title{font-size:12px;font-weight:700;color:#e2e8f0;display:flex;align-items:center;gap:4px}
+  .ts-badge{font-size:10px;padding:1px 6px;border-radius:999px;background:rgba(56,189,248,0.16);color:#7dd3fc;border:1px solid rgba(56,189,248,0.3);font-weight:600}
+  .ts-ctrl{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+  .ts-var-sel{flex:1;width:auto;min-width:0;padding:4px 8px;font-size:11.5px;border-radius:8px;background:rgba(14,18,23,0.85);color:var(--txt);border:1px solid var(--line)}
+  .ts-reload-btn{flex:0 0 auto;width:auto;padding:4px 9px;font-size:11.5px;border-radius:8px;background:rgba(255,255,255,0.08);color:var(--txt);border:1px solid var(--line);cursor:pointer;font-weight:600}
+  .ts-reload-btn:hover{background:rgba(138,180,248,0.2);border-color:var(--accent);color:var(--accent);box-shadow:none}
+  .ts-prog{height:3px;border-radius:2px;background:rgba(255,255,255,0.08);overflow:hidden;margin-bottom:5px;display:none}
+  .ts-prog-bar{height:100%;width:0%;background:linear-gradient(90deg,#38bdf8,#8ab4f8);transition:width .15s ease}
+  .ts-status{font-size:11px;color:var(--muted);margin-bottom:4px;min-height:15px;display:flex;justify-content:space-between;align-items:center}
+  .ts-canvas-wrap{position:relative;width:100%;height:152px;user-select:none;touch-action:none}
+  .ts-canvas{width:100%;height:100%;display:block;border-radius:6px;background:rgba(9,13,20,0.55)}
+  .ts-tip{position:absolute;top:6px;left:6px;pointer-events:none;background:rgba(15,23,42,0.95);border:1px solid rgba(138,180,248,0.45);border-radius:7px;padding:4px 7px;font-size:11px;line-height:1.45;color:#f8fafc;box-shadow:0 4px 12px rgba(0,0,0,0.6);display:none;z-index:10;white-space:nowrap}
+  .ts-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:6px;padding-top:6px;border-top:1px dashed rgba(255,255,255,0.12);font-size:11px;text-align:center}
+  .ts-stat-k{color:var(--muted);font-size:10px}
+  .ts-stat-v{color:#f8fafc;font-weight:700;font-variant-numeric:tabular-nums}
+  @media(max-width:480px){
+    .pop.pop-with-ts{min-width:265px;max-width:82vw}
+    .ts-canvas-wrap{height:132px}
+  }
 
   /* ── 氣象平滑等值線與標籤 (d3-contour + Leaflet Canvas) ── */
   .contour-label-tag {
@@ -739,12 +761,21 @@
 <script>
 const $=id=>document.getElementById(id);
 // ===== API 金鑰：進入頁面時輸入，之後才建立 API 網址 =====
-let KEY="", API_OBS="";
+let KEY="", API_OBS="", API_RAIN="";
 const STORE="cwa_api_key";
 function setKey(k){
   KEY=k.trim();
   // 氣象觀測站-全測站逐時氣象資料（自動氣象站）
   API_OBS="https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-A0001-001?Authorization="+encodeURIComponent(KEY)+"&format=JSON";
+  // 自動雨量站-雨量觀測資料（時雨量 Past1hr、日累積 Now、24小時累積 Past24hr）
+  API_RAIN="https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-A0002-001?Authorization="+encodeURIComponent(KEY)+"&format=JSON";
+}
+function historyApiUrl(datasetId, yyyy, mm, dd, hh){
+  return `https://opendata.cwa.gov.tw/historyapi/v1/getData/${datasetId}/${yyyy}/${mm}/${dd}/${hh}/00/00?Authorization=`+encodeURIComponent(KEY);
+}
+function historyS3Url(datasetId, utcStamp){
+  const suffix = datasetId === "O-A0002-001" ? "QPESUMS_GAUGE.10M.xml" : "QPESUMS_AUTO_STATION.10M.xml";
+  return `https://cwaopendata.s3.ap-northeast-1.amazonaws.com/history/Observation/${utcStamp}.${suffix}`;
 }
 function fileApi(id){
   return "https://opendata.cwa.gov.tw/fileapi/v1/opendataapi/"+id
@@ -798,6 +829,7 @@ const rget=s=>num(s.WeatherElement?.Now?.Precipitation);   // 當日累積雨量
 const VARS=[
   {key:"WeatherOverview",label:"🌟 綜合天氣概況（氣溫+降水+風況）",unit:"°C",overview:true,levels:TEMP_LEVELS,colors:TEMP_COLORS,get:s=>num(s.WeatherElement?.AirTemperature)},
   {key:"AirTemperature",label:"氣溫",unit:"°C",levels:TEMP_LEVELS,colors:TEMP_COLORS,get:s=>num(s.WeatherElement?.AirTemperature)},
+  {key:"Rain1hr",label:"時雨量 (O-A0002-001)",unit:"mm",src:"rain",levels:RAIN_LEVELS,colors:RAIN_COLORS,get:s=>num(s.RainfallElement?.Past1hr?.Precipitation)},
   {key:"Precipitation",label:"日累積雨量",unit:"mm",levels:RAIN_LEVELS,colors:RAIN_COLORS,get:s=>rget(s)},
   {key:"WindVector",label:"風向＋風速（箭號）",unit:"m/s",ramp:RAMP.wind,wind:true,get:s=>num(s.WeatherElement?.WindSpeed)},
   {key:"RelativeHumidity",label:"相對溼度",unit:"%",ramp:RAMP.humid,get:s=>num(s.WeatherElement?.RelativeHumidity)},
@@ -846,7 +878,7 @@ let curBase=BASES.osm.addTo(map);
 const layer=L.layerGroup().addTo(map);
 const dayNightLayer=L.layerGroup().addTo(map);
 
-let RAW=[],bounds=null,refZoom=null;
+let RAW=[],RAIN=[],RAW_MAP=new Map(),RAIN_MAP=new Map(),bounds=null,refZoom=null;
 const DAYNIGHT_LS="cwa_hourly_daynight";
 
 /* ── 克利金等值面與等值線向量疊層 (kriging-contour + d3-contour + Leaflet Canvas) ── */
@@ -1138,7 +1170,8 @@ function curVar(){
   if(val === "overview" || val === "all") return VARS.find(v => v.key === "WeatherOverview") || VARS[0];
   if(val === "temp") return VARS.find(v => v.key === "AirTemperature") || VARS[1];
   if(val === "press") return VARS.find(v => v.key === "AirPressure") || VARS[1];
-  if(val === "rain" || val === "rain1h") return VARS.find(v => v.key === "Precipitation") || VARS[1];
+  if(val === "rain1h") return VARS.find(v => v.key === "Rain1hr") || VARS.find(v => v.key === "Precipitation") || VARS[1];
+  if(val === "rain") return VARS.find(v => v.key === "Precipitation") || VARS[1];
   return VARS.find(v => v.key === val) || VARS.find(v => v.key === "AirTemperature") || VARS[0];
 }
 
@@ -1154,17 +1187,27 @@ async function load(fit=true){
   if(!KEY){openGate();return;}
   $("loader").style.display="flex";
   try{
-    const jw=await fetch(API_OBS).then(r=>r.json());
+    const [jw, jRain] = await Promise.all([
+      fetch(API_OBS).then(r=>r.json()),
+      fetch(API_RAIN).then(r=>r.json()).catch(()=>null)
+    ]);
     if(jw&&jw.success==="false"){throw new Error("金鑰無效或未授權，請確認 API 授權碼");}
     RAW=jw?.records?.Station||[]; window.RAW = RAW;
+    RAW_MAP = new Map(RAW.map(s=>[s.StationId, s]));
     if(!RAW.length){throw new Error("查無資料，請確認金鑰是否正確");}
-    const counties=[...new Set(RAW.map(s=>s.GeoInfo?.CountyName).filter(Boolean))].sort();
+    RAIN = (jRain && jRain.success !== "false") ? (jRain?.records?.Station || []) : [];
+    window.RAIN = RAIN;
+    RAIN_MAP = new Map(RAIN.map(s=>[s.StationId, s]));
+    if(typeof seedHistoryFromLive === "function") seedHistoryFromLive();
+    const countySrc = [...RAW, ...RAIN];
+    const counties=[...new Set(countySrc.map(s=>s.GeoInfo?.CountyName).filter(Boolean))].sort();
     const cur=$("countySel").value;
     $("countySel").innerHTML='<option value="">全部（縮放至全臺）</option>'+counties.map(c=>`<option>${c}</option>`).join("");
     $("countySel").value=cur||"";
     const t=RAW[0]?.ObsTime?.DateTime;
+    const rainNote = RAIN.length ? ` ‧ 雨量站 ${RAIN.length} 站` : "";
     $("obsTime").textContent="🕒 資料時間："+(t?new Date(t).toLocaleString("zh-TW"):"—")
-      +`（O-A0001-001 ‧ 自動站 ${RAW.length} 站）`;
+      +`（O-A0001-001 ${RAW.length} 站${rainNote}）`;
     stats();
     render(fit);
   }catch(e){
@@ -1209,8 +1252,12 @@ function windCardDir(deg){
   return dirs[Math.round(((deg % 360) + 360) % 360 / 45) % 8] + "風";
 }
 function stationRainInfo(s){
-  const r24 = rget(s);
-  return { r1h: null, r24 };
+  const sid = s.StationId || "";
+  const rainSt = s.RainfallElement ? s : RAIN_MAP.get(sid);
+  const autoSt = s.WeatherElement ? s : RAW_MAP.get(sid);
+  const r1h = rainSt ? num(rainSt.RainfallElement?.Past1hr?.Precipitation) : null;
+  const r24 = (autoSt ? rget(autoSt) : null) ?? (rainSt ? num(rainSt.RainfallElement?.Now?.Precipitation) : null);
+  return { r1h, r24 };
 }
 function stationWeatherEmoji(s, r1h, r24){
   const we = s.WeatherElement || {};
@@ -1230,8 +1277,647 @@ function stationWeatherEmoji(s, r1h, r24){
   return isNight ? "🌙" : "🌤️";
 }
 
+// ===== 過去 24 小時 History API 觀測時序引擎 (O-A0001-001 / O-A0002-001) =====
+const HIST_CACHE = { "O-A0001-001": Object.create(null), "O-A0002-001": Object.create(null) };
+const HIST_INFLIGHT = new Map();
+let TS_ACTIVE_TOKEN = 0;
+
+const TS_VARS = [
+  { key:"AirTemperature",   dataset:"O-A0001-001",  field:"AirTemperature",   label:"氣溫 (°C)",                  unit:"°C",  chartType:"line", levels:TEMP_LEVELS, colors:TEMP_COLORS, digits:1, group:"auto" },
+  { key:"Rain1hr",          dataset:"O-A0002-001",  field:"Past1hr",          label:"時雨量 Past1hr (mm)",        unit:"mm",  chartType:"bar",  levels:RAIN_LEVELS, colors:RAIN_COLORS, digits:1, isRain:true, group:"rain" },
+  { key:"Precipitation",    dataset:"AUTO_OR_RAIN", field:"Precipitation",    label:"日累積雨量 Now (mm)",        unit:"mm",  chartType:"bar",  levels:RAIN_LEVELS, colors:RAIN_COLORS, digits:1, isRain:true, group:"rain" },
+  { key:"Rain24hr",         dataset:"O-A0002-001",  field:"Past24hr",         label:"24小時累積雨量 (mm)",        unit:"mm",  chartType:"line", levels:RAIN_LEVELS, colors:RAIN_COLORS, digits:1, isRain:true, group:"rain" },
+  { key:"Rain3hr",          dataset:"O-A0002-001",  field:"Past3hr",          label:"3小時累積雨量 (mm)",         unit:"mm",  chartType:"bar",  levels:RAIN_LEVELS, colors:RAIN_COLORS, digits:1, isRain:true, group:"rain" },
+  { key:"WindSpeed",        dataset:"O-A0001-001",  field:"WindSpeed",        label:"風速＋風向 (m/s)",           unit:"m/s", chartType:"line", ramp:RAMP.wind,  digits:1, showWindDir:true, group:"auto" },
+  { key:"PeakGustSpeed",    dataset:"O-A0001-001",  field:"PeakGustSpeed",    label:"最大陣風 (m/s)",             unit:"m/s", chartType:"line", ramp:RAMP.wind,  digits:1, group:"auto" },
+  { key:"WindDirection",    dataset:"O-A0001-001",  field:"WindDirection",    label:"風向 (°)",                   unit:"°",   chartType:"dir",  ramp:RAMP.dir,   digits:0, fixedY:[0,360], group:"auto" },
+  { key:"RelativeHumidity", dataset:"O-A0001-001",  field:"RelativeHumidity", label:"相對溼度 (%)",               unit:"%",   chartType:"line", ramp:RAMP.humid, digits:0, group:"auto" },
+  { key:"AirPressure",      dataset:"O-A0001-001",  field:"AirPressure",      label:"氣壓 (hPa)",                 unit:"hPa", chartType:"line", ramp:RAMP.pres,  digits:1, group:"auto" },
+  { key:"DailyHigh",        dataset:"O-A0001-001",  field:"DailyHigh",        label:"日最高溫 (°C)",              unit:"°C",  chartType:"line", levels:TEMP_LEVELS, colors:TEMP_COLORS, digits:1, group:"auto" },
+  { key:"DailyLow",         dataset:"O-A0001-001",  field:"DailyLow",         label:"日最低溫 (°C)",              unit:"°C",  chartType:"line", levels:TEMP_LEVELS, colors:TEMP_COLORS, digits:1, group:"auto" },
+  { key:"UVIndex",          dataset:"O-A0001-001",  field:"UVIndex",          label:"紫外線指數",                 unit:"",    chartType:"bar",  ramp:RAMP.uv,    digits:1, group:"auto" }
+];
+
+function clearHistoryCache(){
+  HIST_CACHE["O-A0001-001"] = Object.create(null);
+  HIST_CACHE["O-A0002-001"] = Object.create(null);
+  HIST_INFLIGHT.clear();
+}
+
+function taiwanPartsFromMs(ms){
+  const tw = new Date(ms + 8 * 3600000);
+  const pad2 = n => String(n).padStart(2, "0");
+  return {
+    yyyy: String(tw.getUTCFullYear()),
+    mm: pad2(tw.getUTCMonth() + 1),
+    dd: pad2(tw.getUTCDate()),
+    hh: pad2(tw.getUTCHours()),
+    mi: tw.getUTCMinutes()
+  };
+}
+
+function seedHistoryFromLive(){
+  const seedList = (datasetId, arr, extractor) => {
+    if(!Array.isArray(arr) || !arr.length) return;
+    for(const s of arr){
+      const sid = s?.StationId;
+      const iso = s?.ObsTime?.DateTime;
+      if(!sid || !iso) continue;
+      const d = new Date(iso);
+      const ms = d.getTime();
+      if(!isFinite(ms)) continue;
+      const p = taiwanPartsFromMs(ms);
+      if(p.mi !== 0) continue; // 僅整點資料寫入整點快取，確保與 historyapi HH/00/00 對齊
+      const key = `${p.yyyy}/${p.mm}/${p.dd}/${p.hh}`;
+      if(!HIST_CACHE[datasetId][key]) HIST_CACHE[datasetId][key] = new Map();
+      HIST_CACHE[datasetId][key].set(sid, extractor(s, iso));
+    }
+  };
+  seedList("O-A0001-001", RAW, (s, iso) => {
+    const we = s.WeatherElement || {};
+    const wx = isValidText(we.Weather) ? we.Weather.trim() : null;
+    return {
+      obsTime: iso,
+      Weather: wx,
+      Precipitation: num(we.Now?.Precipitation),
+      WindDirection: num(we.WindDirection),
+      WindSpeed: num(we.WindSpeed),
+      AirTemperature: num(we.AirTemperature),
+      RelativeHumidity: num(we.RelativeHumidity),
+      AirPressure: num(we.AirPressure),
+      PeakGustSpeed: num(we.GustInfo?.PeakGustSpeed),
+      DailyHigh: num(we.DailyExtreme?.DailyHigh?.TemperatureInfo?.AirTemperature),
+      DailyLow: num(we.DailyExtreme?.DailyLow?.TemperatureInfo?.AirTemperature),
+      UVIndex: num(we.UVIndex)
+    };
+  });
+  seedList("O-A0002-001", RAIN, (s, iso) => {
+    const re = s.RainfallElement || {};
+    return {
+      obsTime: iso,
+      Now: num(re.Now?.Precipitation),
+      Past1hr: num(re.Past1hr?.Precipitation),
+      Past3hr: num(re.Past3hr?.Precipitation),
+      Past24hr: num(re.Past24hr?.Precipitation)
+    };
+  });
+}
+
+function latestObsEpochMs(){
+  let best = 0;
+  const scan = (arr, limit) => {
+    if(!Array.isArray(arr)) return;
+    const n = Math.min(arr.length, limit);
+    for(let i = 0; i < n; i++){
+      const iso = arr[i]?.ObsTime?.DateTime;
+      if(!iso) continue;
+      const t = new Date(iso).getTime();
+      if(isFinite(t) && t > best && t <= Date.now() + 3600000) best = t;
+    }
+  };
+  scan(RAW, 40);
+  if(!best) scan(RAIN, 40);
+  if(!best) best = Date.now();
+  // 將基準時間取整點 (UTC+8 無論瀏覽器時區皆準確)
+  const twMs = best + 8 * 3600000;
+  return (Math.floor(twMs / 3600000) * 3600000) - 8 * 3600000;
+}
+
+function build24HourSlots(){
+  const endMs = latestObsEpochMs();
+  const pad2 = n => String(n).padStart(2, "0");
+  const slots = [];
+  for(let i = 23; i >= 0; i--){
+    const ms = endMs - i * 3600000;
+    const p = taiwanPartsFromMs(ms);
+    const u = new Date(ms);
+    const utcStamp = `${u.getUTCFullYear()}${pad2(u.getUTCMonth()+1)}${pad2(u.getUTCDate())}${pad2(u.getUTCHours())}00`;
+    slots.push({
+      yyyy: p.yyyy, mm: p.mm, dd: p.dd, hh: p.hh,
+      utcStamp,
+      key: `${p.yyyy}/${p.mm}/${p.dd}/${p.hh}`,
+      label: `${p.mm}/${p.dd} ${p.hh}:00`,
+      shortLabel: p.hh === "00" ? `${Number(p.mm)}/${Number(p.dd)}` : `${p.hh}:00`,
+      isMidnight: p.hh === "00"
+    });
+  }
+  return slots;
+}
+
+function xmlTag(block, tag){
+  const open = `<${tag}>`, close = `</${tag}>`;
+  const i = block.indexOf(open);
+  if(i < 0) return null;
+  const s = i + open.length;
+  const j = block.indexOf(close, s);
+  return j < 0 ? null : block.slice(s, j).trim();
+}
+function xmlSubTag(block, parentTag, childTag){
+  const sub = xmlTag(block, parentTag);
+  return sub === null ? null : xmlTag(sub, childTag);
+}
+function parseHistoryXml(datasetId, xmlText){
+  const map = new Map();
+  if(!xmlText || xmlText.indexOf("<Station>") < 0) return map;
+  const chunks = xmlText.split("<Station>");
+  for(let i = 1; i < chunks.length; i++){
+    const endIdx = chunks[i].indexOf("</Station>");
+    const st = endIdx >= 0 ? chunks[i].slice(0, endIdx) : chunks[i];
+    const id = xmlTag(st, "StationId");
+    if(!id) continue;
+    const obsTime = xmlSubTag(st, "ObsTime", "DateTime") || "";
+    if(datasetId === "O-A0002-001"){
+      const reBlock = xmlTag(st, "RainfallElement") || st;
+      map.set(id, {
+        obsTime,
+        Now: num(xmlSubTag(reBlock, "Now", "Precipitation")),
+        Past1hr: num(xmlSubTag(reBlock, "Past1hr", "Precipitation")),
+        Past3hr: num(xmlSubTag(reBlock, "Past3hr", "Precipitation")),
+        Past24hr: num(xmlSubTag(reBlock, "Past24hr", "Precipitation"))
+      });
+    } else {
+      const weBlock = xmlTag(st, "WeatherElement") || st;
+      // 切除 DailyExtreme 與移除 GustInfo 內層同名標籤，避免混淆主氣溫與主風向
+      const deIdx = weBlock.indexOf("<DailyExtreme>");
+      const beforeDe = deIdx >= 0 ? weBlock.slice(0, deIdx) : weBlock;
+      const coreWe = beforeDe.replace(/<GustInfo>[\s\S]*?<\/GustInfo>/, "");
+      const dhBlock = xmlTag(weBlock, "DailyHigh");
+      const dlBlock = xmlTag(weBlock, "DailyLow");
+      const wx = xmlTag(coreWe, "Weather");
+      map.set(id, {
+        obsTime,
+        Weather: isValidText(wx) ? wx : null,
+        Precipitation: num(xmlSubTag(coreWe, "Now", "Precipitation")),
+        WindDirection: num(xmlTag(coreWe, "WindDirection")),
+        WindSpeed: num(xmlTag(coreWe, "WindSpeed")),
+        AirTemperature: num(xmlTag(coreWe, "AirTemperature")),
+        RelativeHumidity: num(xmlTag(coreWe, "RelativeHumidity")),
+        AirPressure: num(xmlTag(coreWe, "AirPressure")),
+        PeakGustSpeed: num(xmlSubTag(beforeDe, "GustInfo", "PeakGustSpeed")),
+        DailyHigh: dhBlock ? num(xmlSubTag(dhBlock, "TemperatureInfo", "AirTemperature")) : null,
+        DailyLow: dlBlock ? num(xmlSubTag(dlBlock, "TemperatureInfo", "AirTemperature")) : null,
+        UVIndex: num(xmlTag(weBlock, "UVIndex"))
+      });
+    }
+  }
+  return map;
+}
+
+async function fetchHistoryHour(datasetId, slot, forceRefresh){
+  if(!KEY) throw new Error("未設定 API 授權碼");
+  const cacheObj = HIST_CACHE[datasetId] || (HIST_CACHE[datasetId] = Object.create(null));
+  if(!forceRefresh && cacheObj[slot.key]) return cacheObj[slot.key];
+  const reqKey = `${datasetId}|${slot.key}`;
+  if(!forceRefresh && HIST_INFLIGHT.has(reqKey)) return HIST_INFLIGHT.get(reqKey);
+  const p = (async () => {
+    try{
+      // historyapi 302 轉址未帶 ACAO 標頭會被瀏覽器 CORS 阻擋，優先直連 CWA S3 公開歷史桶 (ACAO: *)
+      const urls = slot.utcStamp
+        ? [historyS3Url(datasetId, slot.utcStamp), historyApiUrl(datasetId, slot.yyyy, slot.mm, slot.dd, slot.hh)]
+        : [historyApiUrl(datasetId, slot.yyyy, slot.mm, slot.dd, slot.hh)];
+      let txt = "";
+      for(const url of urls){
+        try{
+          const res = await fetch(url);
+          if(!res.ok) continue;
+          const body = await res.text();
+          if(body && !body.includes('"success":"false"') && body.indexOf("<Station>") >= 0){
+            txt = body;
+            break;
+          }
+        }catch(_e){}
+      }
+      if(!txt) return null;
+      const parsed = parseHistoryXml(datasetId, txt);
+      if(parsed.size > 0){
+        cacheObj[slot.key] = parsed;
+      }
+      return parsed;
+    }catch(err){
+      return null;
+    }finally{
+      HIST_INFLIGHT.delete(reqKey);
+    }
+  })();
+  HIST_INFLIGHT.set(reqKey, p);
+  return p;
+}
+
+function resolveTsTarget(stationId, tsVar){
+  if(tsVar.dataset !== "AUTO_OR_RAIN"){
+    return { datasetId: tsVar.dataset, field: tsVar.field };
+  }
+  if(!RAW_MAP.has(stationId) && RAIN_MAP.has(stationId)){
+    return { datasetId: "O-A0002-001", field: "Now" };
+  }
+  return { datasetId: "O-A0001-001", field: "Precipitation" };
+}
+
+function extractTsSeriesPoints(stationId, datasetId, field, slots){
+  const cacheObj = HIST_CACHE[datasetId] || {};
+  return slots.map(slot => {
+    const hrMap = cacheObj[slot.key];
+    const rec = hrMap ? hrMap.get(stationId) : null;
+    const val = (rec && rec[field] !== undefined) ? rec[field] : null;
+    return {
+      slot,
+      val,
+      windDir: rec ? (rec.WindDirection ?? null) : null,
+      weather: rec ? (rec.Weather ?? null) : null,
+      loaded: Boolean(hrMap)
+    };
+  });
+}
+
+async function loadStation24hSeries(stationId, datasetId, field, slots, opts){
+  const { forceRefresh = false, onProgress, isCancelled } = opts || {};
+  const cacheObj = HIST_CACHE[datasetId] || (HIST_CACHE[datasetId] = Object.create(null));
+  const pending = [];
+  let doneCount = 0;
+  slots.forEach(s => {
+    if(!forceRefresh && cacheObj[s.key]) doneCount++;
+    else pending.push(s);
+  });
+  if(onProgress) onProgress(doneCount, slots.length, extractTsSeriesPoints(stationId, datasetId, field, slots));
+  if(!pending.length) return extractTsSeriesPoints(stationId, datasetId, field, slots);
+
+  // 最新時刻優先讀取，其餘依接近現在往回排隊，並行度 6
+  const queue = pending.slice().reverse();
+  const CONCURRENCY = 6;
+  const worker = async () => {
+    while(queue.length){
+      if(isCancelled && isCancelled()) return;
+      const slot = queue.shift();
+      await fetchHistoryHour(datasetId, slot, forceRefresh);
+      doneCount++;
+      if(onProgress && !(isCancelled && isCancelled())){
+        onProgress(doneCount, slots.length, extractTsSeriesPoints(stationId, datasetId, field, slots));
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, queue.length) }, worker));
+  return extractTsSeriesPoints(stationId, datasetId, field, slots);
+}
+
+function defaultTsVarKey(mapVar, stationId){
+  const hasAuto = RAW_MAP.has(stationId);
+  const hasRain = RAIN_MAP.has(stationId);
+  if(!hasAuto && hasRain){
+    if(mapVar?.key === "Precipitation") return "Precipitation";
+    return "Rain1hr";
+  }
+  const k = mapVar?.key || "AirTemperature";
+  if(k === "WeatherOverview") return "AirTemperature";
+  if(k === "WindVector") return "WindSpeed";
+  if(TS_VARS.some(x => x.key === k)) return k;
+  return "AirTemperature";
+}
+
+function fmtTsVal(val, tsVar){
+  if(val === null || !isFinite(val)) return "—";
+  const d = tsVar.digits ?? 1;
+  return val.toLocaleString("zh-TW", { minimumFractionDigits: 0, maximumFractionDigits: d });
+}
+
+function drawTsFrame(canvas, hoverIdx){
+  const st = canvas._tsState;
+  if(!st) return;
+  const { points, tsVar } = st;
+  const cssW = canvas.clientWidth || 320;
+  const cssH = canvas.clientHeight || 152;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const needW = Math.round(cssW * dpr), needH = Math.round(cssH * dpr);
+  if(canvas.width !== needW || canvas.height !== needH){
+    canvas.width = needW;
+    canvas.height = needH;
+  }
+  const ctx = canvas.getContext("2d");
+  ctx.save();
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, cssW, cssH);
+
+  const validVals = points.map(p => p.val).filter(v => v !== null && isFinite(v));
+  const padL = 36, padR = 10, padT = tsVar.showWindDir ? 22 : 12, padB = 22;
+  const plotW = Math.max(40, cssW - padL - padR);
+  const plotH = Math.max(40, cssH - padT - padB);
+  st.padL = padL; st.padR = padR; st.padT = padT; st.padB = padB; st.plotW = plotW; st.plotH = plotH;
+
+  if(!validVals.length){
+    ctx.fillStyle = "rgba(154,160,166,0.85)";
+    ctx.font = '12px "Noto Sans TC", sans-serif';
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const anyLoaded = points.some(p => p.loaded);
+    ctx.fillText(anyLoaded ? "此測站過去 24 小時無該變數觀測值" : "準備讀取 24 小時觀測資料…", cssW / 2, cssH / 2);
+    ctx.restore();
+    return;
+  }
+
+  let rawMin = Math.min(...validVals), rawMax = Math.max(...validVals);
+  let yMin, yMax;
+  if(tsVar.fixedY){
+    yMin = tsVar.fixedY[0];
+    yMax = tsVar.fixedY[1];
+  } else if(tsVar.isRain || tsVar.key === "WindSpeed" || tsVar.key === "PeakGustSpeed" || tsVar.key === "UVIndex"){
+    yMin = 0;
+    const minSpan = tsVar.isRain ? 2 : 3;
+    yMax = Math.max(minSpan, rawMax * 1.18);
+  } else {
+    const minSpan = tsVar.key === "RelativeHumidity" ? 15 : (tsVar.key === "AirPressure" ? 4 : 3);
+    const span = Math.max(minSpan, rawMax - rawMin);
+    const pad = span * 0.16;
+    yMin = rawMin - pad;
+    yMax = rawMax + pad;
+    if(tsVar.key === "RelativeHumidity"){ yMin = Math.max(0, yMin); yMax = Math.min(100, yMax); if(yMax - yMin < 5) yMin = Math.max(0, yMax - 10); }
+  }
+  const ySpan = Math.max(0.01, yMax - yMin);
+  const xFor = i => tsVar.chartType === "bar"
+    ? padL + (i + 0.5) * (plotW / 24)
+    : padL + (i / 23) * plotW;
+  const yFor = v => padT + plotH - ((v - yMin) / ySpan) * plotH;
+
+  // 背景水平格線與 Y 軸刻度
+  const yTicks = 4;
+  ctx.lineWidth = 1;
+  ctx.font = '10px Roboto, "Noto Sans TC", sans-serif';
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  for(let t = 0; t <= yTicks; t++){
+    const frac = t / yTicks;
+    const yVal = yMin + frac * ySpan;
+    const yy = Math.round(padT + plotH - frac * plotH) + 0.5;
+    ctx.strokeStyle = t === 0 ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.08)";
+    ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(cssW - padR, yy); ctx.stroke();
+    ctx.fillStyle = "#9aa0a6";
+    const lbl = ySpan >= 20 ? String(Math.round(yVal)) : yVal.toFixed(1).replace(/\.0$/, "");
+    ctx.fillText(lbl, padL - 5, yy);
+  }
+
+  // X 軸時間分隔與換日標記
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  for(let i = 0; i < 24; i++){
+    const pt = points[i];
+    const xx = xFor(i);
+    if(pt.slot.isMidnight){
+      ctx.save();
+      ctx.setLineDash([3, 3]);
+      ctx.strokeStyle = "rgba(125,211,252,0.4)";
+      ctx.beginPath(); ctx.moveTo(xx, padT); ctx.lineTo(xx, padT + plotH); ctx.stroke();
+      ctx.restore();
+    }
+    if(i === 0 || i === 6 || i === 12 || i === 18 || i === 23 || pt.slot.isMidnight){
+      // 若鄰近主標籤太近且不是午夜則略過，防止重疊
+      const nearMidnight = points.some((p2, j2) => p2.slot.isMidnight && j2 !== i && Math.abs(j2 - i) <= 1);
+      if(!nearMidnight || pt.slot.isMidnight || i === 23 || i === 0){
+        ctx.fillStyle = pt.slot.isMidnight ? "#7dd3fc" : "#9aa0a6";
+        ctx.fillText(pt.slot.shortLabel, xx, padT + plotH + 5);
+      }
+    }
+  }
+
+  // 風向小箭號（WindSpeed 時顯示於圖表上緣）
+  if(tsVar.showWindDir){
+    for(let i = 0; i < 24; i++){
+      const dir = points[i].windDir;
+      if(dir === null || !isFinite(dir)) continue;
+      const xx = xFor(i), yy = 10;
+      const rad = ((dir + 180) % 360) * Math.PI / 180;
+      ctx.save();
+      ctx.translate(xx, yy);
+      ctx.rotate(rad);
+      ctx.fillStyle = "#7dd3fc";
+      ctx.beginPath();
+      ctx.moveTo(0, -5);
+      ctx.lineTo(3.2, 4);
+      ctx.lineTo(0, 2);
+      ctx.lineTo(-3.2, 4);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  if(tsVar.chartType === "bar"){
+    const slotW = plotW / 24;
+    const bw = Math.max(4, slotW * 0.68);
+    for(let i = 0; i < 24; i++){
+      const v = points[i].val;
+      if(v === null || !isFinite(v)) continue;
+      const cx = xFor(i), x0 = cx - bw / 2;
+      const yTop = yFor(v), yBase = padT + plotH;
+      const h = Math.max(v > 0 ? 2 : 1, yBase - yTop);
+      ctx.fillStyle = v === 0 ? "rgba(148,163,184,0.28)" : colorFor(v, tsVar);
+      ctx.fillRect(x0, yBase - h, bw, h);
+    }
+  } else {
+    // 連續折線 / 風向散點
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "rgba(138,180,248,0.85)";
+    let seg = [];
+    const flushSeg = () => {
+      if(seg.length >= 2){
+        if(tsVar.chartType !== "dir"){
+          const grad = ctx.createLinearGradient(0, padT, 0, padT + plotH);
+          grad.addColorStop(0, "rgba(138,180,248,0.26)");
+          grad.addColorStop(1, "rgba(138,180,248,0.02)");
+          ctx.beginPath();
+          ctx.moveTo(seg[0].x, padT + plotH);
+          seg.forEach(p => ctx.lineTo(p.x, p.y));
+          ctx.lineTo(seg[seg.length - 1].x, padT + plotH);
+          ctx.closePath();
+          ctx.fillStyle = grad;
+          ctx.fill();
+        }
+        ctx.beginPath();
+        seg.forEach((p, idx) => idx === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+        ctx.stroke();
+      }
+      seg = [];
+    };
+    let prevV = null;
+    for(let i = 0; i < 24; i++){
+      const v = points[i].val;
+      if(v === null || !isFinite(v)){
+        flushSeg();
+        prevV = null;
+        continue;
+      }
+      if(tsVar.chartType === "dir" && prevV !== null && Math.abs(v - prevV) > 180){
+        flushSeg();
+      }
+      seg.push({ x: xFor(i), y: yFor(v) });
+      prevV = v;
+    }
+    flushSeg();
+
+    // 各小時彩色資料點
+    for(let i = 0; i < 24; i++){
+      const v = points[i].val;
+      if(v === null || !isFinite(v)) continue;
+      const cx = xFor(i), cy = yFor(v);
+      ctx.beginPath();
+      ctx.arc(cx, cy, i === hoverIdx ? 4.5 : 2.8, 0, Math.PI * 2);
+      ctx.fillStyle = colorFor(v, tsVar);
+      ctx.fill();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = i === hoverIdx ? "#ffffff" : "#0b1220";
+      ctx.stroke();
+    }
+  }
+
+  // Hover 準星線與高亮
+  if(hoverIdx !== null && hoverIdx >= 0 && hoverIdx < 24){
+    const cx = xFor(hoverIdx);
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,255,255,0.45)";
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(cx, padT); ctx.lineTo(cx, padT + plotH); ctx.stroke();
+    ctx.restore();
+    const hv = points[hoverIdx].val;
+    if(hv !== null && isFinite(hv)){
+      const cy = yFor(hv);
+      ctx.beginPath();
+      ctx.arc(cx, cy, 4.8, 0, Math.PI * 2);
+      ctx.fillStyle = colorFor(hv, tsVar);
+      ctx.fill();
+      ctx.lineWidth = 1.8;
+      ctx.strokeStyle = "#ffffff";
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+function bindTsCanvasEvents(canvas, tipEl){
+  if(canvas._tsBound) return;
+  canvas._tsBound = true;
+  const handleMove = clientX => {
+    const st = canvas._tsState;
+    if(!st || !st.plotW) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const rel = (x - st.padL) / st.plotW;
+    const idx = st.tsVar.chartType === "bar"
+      ? Math.max(0, Math.min(23, Math.floor(rel * 24)))
+      : Math.max(0, Math.min(23, Math.round(rel * 23)));
+    drawTsFrame(canvas, idx);
+    const pt = st.points[idx];
+    if(!pt) return;
+    const valStr = pt.val === null
+      ? '<span style="color:#94a3b8">無資料</span>'
+      : `<b style="color:${colorFor(pt.val, st.tsVar)}">${fmtTsVal(pt.val, st.tsVar)}${st.tsVar.unit ? " " + st.tsVar.unit : ""}</b>`;
+    let extra = "";
+    if(st.tsVar.key === "WindSpeed" && pt.windDir !== null){
+      const bft = beaufortInfo(pt.val);
+      extra += `<div style="color:#cbd5e1;font-size:10px">${bft.short} · ${windCardDir(pt.windDir)} (${Math.round(pt.windDir)}°)</div>`;
+    } else if(st.tsVar.key === "WindDirection" && pt.val !== null){
+      extra += `<div style="color:#cbd5e1;font-size:10px">${windCardDir(pt.val)}</div>`;
+    } else if(pt.weather){
+      extra += `<div style="color:#cbd5e1;font-size:10px">天氣：${pt.weather}</div>`;
+    }
+    tipEl.innerHTML = `<div style="color:#93c5fd;font-size:10px">${pt.slot.label}</div><div>${valStr}</div>${extra}`;
+    tipEl.style.display = "block";
+    const tipW = tipEl.offsetWidth || 100;
+    const xPos = x > rect.width * 0.58 ? Math.max(4, x - tipW - 10) : Math.min(rect.width - tipW - 4, x + 10);
+    tipEl.style.left = `${xPos}px`;
+  };
+  canvas.addEventListener("mousemove", e => handleMove(e.clientX));
+  canvas.addEventListener("touchstart", e => { if(e.touches[0]) handleMove(e.touches[0].clientX); }, { passive: true });
+  canvas.addEventListener("touchmove", e => { if(e.touches[0]) handleMove(e.touches[0].clientX); }, { passive: true });
+  canvas.addEventListener("mouseleave", () => { tipEl.style.display = "none"; drawTsFrame(canvas, null); });
+  canvas.addEventListener("touchend", () => { tipEl.style.display = "none"; drawTsFrame(canvas, null); });
+}
+
+function updateTsStats(statsEl, points, tsVar){
+  const vals = points.map(p => p.val).filter(v => v !== null && isFinite(v));
+  if(!vals.length){
+    statsEl.innerHTML = '<div><div class="ts-stat-k">最高/最大</div><div class="ts-stat-v">—</div></div>'
+      + '<div><div class="ts-stat-k">最低/平均</div><div class="ts-stat-v">—</div></div>'
+      + '<div><div class="ts-stat-k">最新</div><div class="ts-stat-v">—</div></div>';
+    return;
+  }
+  const u = tsVar.unit ? " " + tsVar.unit : "";
+  const mx = Math.max(...vals), mn = Math.min(...vals);
+  const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+  const latest = vals[vals.length - 1];
+  if(tsVar.isRain){
+    const midLabel = tsVar.key === "Rain1hr" ? "24h 總時雨量" : "有雨時數";
+    const midVal = tsVar.key === "Rain1hr"
+      ? `${fmtTsVal(vals.reduce((a, b) => a + b, 0), tsVar)}${u}`
+      : `${vals.filter(v => v > 0).length} 小時`;
+    statsEl.innerHTML = `<div><div class="ts-stat-k">24h 最大</div><div class="ts-stat-v" style="color:${mx>0?'#38bdf8':'#f8fafc'}">${fmtTsVal(mx, tsVar)}${u}</div></div>`
+      + `<div><div class="ts-stat-k">${midLabel}</div><div class="ts-stat-v">${midVal}</div></div>`
+      + `<div><div class="ts-stat-k">最新</div><div class="ts-stat-v">${fmtTsVal(latest, tsVar)}${u}</div></div>`;
+  } else {
+    statsEl.innerHTML = `<div><div class="ts-stat-k">24h 最高</div><div class="ts-stat-v" style="color:${colorFor(mx, tsVar)}">${fmtTsVal(mx, tsVar)}${u}</div></div>`
+      + `<div><div class="ts-stat-k">24h 最低</div><div class="ts-stat-v" style="color:${colorFor(mn, tsVar)}">${fmtTsVal(mn, tsVar)}${u}</div></div>`
+      + `<div><div class="ts-stat-k">24h 平均</div><div class="ts-stat-v">${fmtTsVal(avg, tsVar)}${u}</div></div>`;
+  }
+}
+
+async function runPopupTimeSeries(boxEl, forceRefresh){
+  const sid = boxEl.dataset.sid;
+  const sel = boxEl.querySelector(".ts-var-sel");
+  const badgeEl = boxEl.querySelector(".ts-badge");
+  const progWrap = boxEl.querySelector(".ts-prog");
+  const progBar = boxEl.querySelector(".ts-prog-bar");
+  const statusEl = boxEl.querySelector(".ts-status");
+  const canvas = boxEl.querySelector(".ts-canvas");
+  const tipEl = boxEl.querySelector(".ts-tip");
+  const statsEl = boxEl.querySelector(".ts-stats");
+  if(!sid || !sel || !canvas) return;
+
+  const tsVar = TS_VARS.find(x => x.key === sel.value) || TS_VARS[0];
+  const { datasetId, field } = resolveTsTarget(sid, tsVar);
+  if(badgeEl) badgeEl.textContent = datasetId;
+  bindTsCanvasEvents(canvas, tipEl);
+
+  const reqToken = ++TS_ACTIVE_TOKEN;
+  boxEl.dataset.token = String(reqToken);
+  const isCancelled = () => !document.body.contains(boxEl) || boxEl.dataset.token !== String(reqToken);
+
+  const slots = build24HourSlots();
+  progWrap.style.display = "block";
+  progBar.style.width = "0%";
+  statusEl.innerHTML = `<span>⏳ 讀取過去 24 小時歷史資料 (${datasetId})…</span><span>0/24</span>`;
+
+  const points = await loadStation24hSeries(sid, datasetId, field, slots, {
+    forceRefresh,
+    isCancelled,
+    onProgress: (done, total, partialPts) => {
+      if(isCancelled()) return;
+      const pct = Math.round((done / total) * 100);
+      progBar.style.width = `${pct}%`;
+      statusEl.innerHTML = done < total
+        ? `<span>⏳ 讀取歷史資料 (${datasetId})…</span><span>${done}/${total}</span>`
+        : `<span>✅ 已載入過去 24 小時 (${slots[0].label.slice(6)} ~ ${slots[23].label.slice(6)})</span><span>${total}/${total}</span>`;
+      canvas._tsState = { points: partialPts, tsVar };
+      drawTsFrame(canvas, null);
+      updateTsStats(statsEl, partialPts, tsVar);
+    }
+  });
+
+  if(isCancelled()) return;
+  const validCount = points.filter(p => p.val !== null && isFinite(p.val)).length;
+  const loadedHours = points.filter(p => p.loaded).length;
+  if(loadedHours === 0){
+    statusEl.innerHTML = `<span style="color:#fca5a5">⚠️ 歷史資料讀取失敗（請確認金鑰或網路連線）</span>`;
+  } else if(validCount === 0){
+    statusEl.innerHTML = `<span style="color:#fde047">ℹ️ 已檢查 ${loadedHours} 小時，此站無 ${datasetId} 該變數資料</span>`;
+  } else {
+    statusEl.innerHTML = `<span>✅ ${slots[0].label.slice(0,11)} ~ ${slots[23].label.slice(6)}</span><span>有效 ${validCount}/24h</span>`;
+  }
+  setTimeout(() => { if(!isCancelled()) progWrap.style.display = "none"; }, 400);
+}
+
 function buildPopup(s,v,val,color){
-  const geo=s.GeoInfo||{},we=s.WeatherElement||{};
+  const sid = s.StationId || "";
+  const autoSt = s.WeatherElement ? s : (RAW_MAP.get(sid) || null);
+  const rainSt = s.RainfallElement ? s : (RAIN_MAP.get(sid) || null);
+  const geo = s.GeoInfo || autoSt?.GeoInfo || rainSt?.GeoInfo || {};
+  const we = autoSt?.WeatherElement || {};
+  const re = rainSt?.RainfallElement || {};
   const disp=val===null?"無資料":val.toLocaleString("zh-TW",{maximumFractionDigits:1})+(v.unit?" "+v.unit:"");
   const row=(k,val)=>`<div class="row"><span class="k">${k}</span><span>${val}</span></div>`;
   const ext=we.DailyExtreme||{};
@@ -1240,16 +1926,16 @@ function buildPopup(s,v,val,color){
   const spd = num(we.WindSpeed), dir = num(we.WindDirection);
   const bft = beaufortInfo(spd);
   const cDir = windCardDir(dir);
-  const wxEmoji = stationWeatherEmoji(s, r1h, r24);
+  const wxEmoji = autoSt ? stationWeatherEmoji(autoSt, r1h, r24) : (r1h > 0 || (r24 !== null && r24 > 0) ? "🌧️" : "💧");
   let topSummary = `<div class="row"><span class="k">${v.label}</span><span class="big" style="color:${val===null?'#9fb0c8':color}">${disp}</span></div>`;
   if(v.overview){
     const tStr = val===null ? "—°C" : `${val.toFixed(1)}°C`;
-    const rStr = (r24!==null && r24>0) ? `💧 日雨 ${r24} mm` : "無降雨 (0 mm)";
+    const rStr = (r1h!==null && r1h>0) ? `💧 時雨 ${r1h} mm` : ((r24!==null && r24>0) ? `💧 日雨 ${r24} mm` : "無降雨 (0 mm)");
     const wStr = spd===null ? "無風速資料" : `${bft.short} (${spd} m/s${cDir ? " · " + cDir : ""})`;
     topSummary = `<div style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.14);border-radius:10px;padding:8px 10px;margin:6px 0 8px">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
         <span style="font-size:21px;font-weight:800;color:${val===null?'#9fb0c8':color}">${wxEmoji} ${tStr}</span>
-        <span style="font-size:12px;font-weight:700;color:${(r24!==null&&r24>0)?'#38bdf8':'#94a3b8'}">${rStr}</span>
+        <span style="font-size:12px;font-weight:700;color:${(r1h>0||(r24!==null&&r24>0))?'#38bdf8':'#94a3b8'}">${rStr}</span>
       </div>
       <div style="font-size:12px;color:#e2e8f0;margin-top:4px;display:flex;justify-content:space-between">
         <span>🌬️ 風況：<b>${wStr}</b></span>
@@ -1257,18 +1943,25 @@ function buildPopup(s,v,val,color){
     </div>`;
   }
   const windExtra = (spd!==null && bft.bft!==null) ? `（${bft.short}${cDir ? " · " + cDir : ""}）` : "";
-  let html=`<div class="pop"><h3>${s.StationName||""} <small style="color:#9fb0c8">${s.StationId||""}</small></h3>
+  let html=`<div class="pop pop-with-ts"><h3>${s.StationName||""} <small style="color:#9fb0c8">${sid}</small></h3>
     ${topSummary}
     ${row("縣市鄉鎮",(geo.CountyName||"")+" "+(geo.TownName||""))}
-    ${row("海拔",(geo.StationAltitude||"—")+" m")}
-    <div style="border-top:1px solid var(--line);margin:6px 0 4px;padding-top:5px;color:#9fb0c8;font-size:11px">逐時氣象觀測 (O-A0001-001)</div>`
-    +row("天氣",!isValidText(we.Weather)?"—":(wxEmoji+" "+we.Weather))
-    +row("氣溫 / 溼度",(num(we.AirTemperature)??"—")+"°C / "+(num(we.RelativeHumidity)??"—")+"%")
-    +row("日累積雨量",(rget(s)??"—")+" mm")
-    +row("風速 / 風向",(spd??"—")+" m/s / "+(dir??"—")+"°"+windExtra)
-    +row("最大陣風",(num(we.GustInfo?.PeakGustSpeed)??"—")+" m/s")
-    +row("氣壓",(num(we.AirPressure)??"—")+" hPa")
-    +row("日最高 / 最低溫",(dh??"—")+"°C / "+(dl??"—")+"°C");
+    ${row("海拔",(geo.StationAltitude||"—")+" m")}`;
+  if(autoSt){
+    html+=`<div style="border-top:1px solid var(--line);margin:6px 0 4px;padding-top:5px;color:#9fb0c8;font-size:11px">逐時氣象觀測 (O-A0001-001)</div>`
+      +row("天氣",!isValidText(we.Weather)?"—":(wxEmoji+" "+we.Weather))
+      +row("氣溫 / 溼度",(num(we.AirTemperature)??"—")+"°C / "+(num(we.RelativeHumidity)??"—")+"%")
+      +row("日累積雨量",(rget(autoSt)??"—")+" mm")
+      +row("風速 / 風向",(spd??"—")+" m/s / "+(dir??"—")+"°"+windExtra)
+      +row("最大陣風",(num(we.GustInfo?.PeakGustSpeed)??"—")+" m/s")
+      +row("氣壓",(num(we.AirPressure)??"—")+" hPa")
+      +row("日最高 / 最低溫",(dh??"—")+"°C / "+(dl??"—")+"°C");
+  }
+  if(rainSt){
+    html+=`<div style="border-top:1px solid var(--line);margin:6px 0 4px;padding-top:5px;color:#9fb0c8;font-size:11px">自動雨量站觀測 (O-A0002-001)</div>`
+      +row("時雨量 / 3h雨量",(num(re.Past1hr?.Precipitation)??"—")+" mm / "+(num(re.Past3hr?.Precipitation)??"—")+" mm")
+      +row("日累積 / 24h雨量",(num(re.Now?.Precipitation)??"—")+" mm / "+(num(re.Past24hr?.Precipitation)??"—")+" mm");
+  }
   // 游標位置格點值（若已載入）
   const ll=wgs84(s);
   if(ll&&gridKind&&gridCache[gridKind]){
@@ -1277,9 +1970,48 @@ function buildPopup(s,v,val,color){
       +row(def.label,gv===null?"—":gv.toFixed(1)+" "+def.unit);
   }
   if(ll&&USER_POS) html+=row("距您",`<span style="color:#38bdf8;font-weight:600">${fmtDist(haversineKm(USER_POS[0],USER_POS[1],ll[0],ll[1]))}</span>`);
-  html+=row("觀測時間",s.ObsTime?.DateTime?new Date(s.ObsTime.DateTime).toLocaleString("zh-TW"):"—")+`</div>`;
+  html+=row("觀測時間",s.ObsTime?.DateTime?new Date(s.ObsTime.DateTime).toLocaleString("zh-TW"):"—");
+
+  const defTsKey = defaultTsVarKey(v, sid);
+  const autoOpts = TS_VARS.filter(x => x.group === "auto").map(x => `<option value="${x.key}"${x.key===defTsKey?" selected":""}>${x.label}</option>`).join("");
+  const rainOpts = TS_VARS.filter(x => x.group === "rain").map(x => `<option value="${x.key}"${x.key===defTsKey?" selected":""}>${x.label}</option>`).join("");
+  const initTsVar = TS_VARS.find(x => x.key === defTsKey) || TS_VARS[0];
+  const initTarget = resolveTsTarget(sid, initTsVar);
+
+  html+=`<div class="ts-box" data-sid="${sid}" data-def-var="${defTsKey}">
+      <div class="ts-head">
+        <span class="ts-title">📈 過去 24 小時觀測時序圖</span>
+        <span class="ts-badge">${initTarget.datasetId}</span>
+      </div>
+      <div class="ts-ctrl">
+        <select class="ts-var-sel" title="選擇過去 24 小時繪製變數">
+          <optgroup label="自動氣象站 (O-A0001-001)">${autoOpts}</optgroup>
+          <optgroup label="雨量觀測站 (O-A0002-001)">${rainOpts}</optgroup>
+        </select>
+        <button type="button" class="ts-reload-btn" title="強制重新讀取 historyapi 24 小時資料">🔄</button>
+      </div>
+      <div class="ts-prog"><div class="ts-prog-bar"></div></div>
+      <div class="ts-status">準備載入…</div>
+      <div class="ts-canvas-wrap">
+        <canvas class="ts-canvas"></canvas>
+        <div class="ts-tip"></div>
+      </div>
+      <div class="ts-stats"><div><div class="ts-stat-k">24h 最高</div><div class="ts-stat-v">—</div></div><div><div class="ts-stat-k">24h 最低</div><div class="ts-stat-v">—</div></div><div><div class="ts-stat-k">24h 平均</div><div class="ts-stat-v">—</div></div></div>
+    </div></div>`;
   return html;
 }
+
+map.on("popupopen", e => {
+  const el = e.popup && e.popup.getElement ? e.popup.getElement() : null;
+  if(!el) return;
+  const boxEl = el.querySelector(".ts-box");
+  if(!boxEl) return;
+  const sel = boxEl.querySelector(".ts-var-sel");
+  const reloadBtn = boxEl.querySelector(".ts-reload-btn");
+  if(sel) sel.onchange = () => runPopupTimeSeries(boxEl, false);
+  if(reloadBtn) reloadBtn.onclick = () => runPopupTimeSeries(boxEl, true);
+  requestAnimationFrame(() => runPopupTimeSeries(boxEl, false));
+});
 
 // 產生「🌟 綜合天氣概況」複合圖形符號 (Glyph Icon) 與 智慧膠囊卡片 (Smart Pill)
 function shortLocLabel(s, z){
@@ -1553,7 +2285,7 @@ function render(fit, skipKriging){
         zIndexOffset: usePill ? 500 + Math.round(c.score) : (showFarLoc ? 250 + Math.round(c.score / 5) : Math.round(c.score / 10))
       });
       m.bindTooltip(buildOverviewTooltip(s, temp, r1h, r24, spd, dir), { direction: "top", offset: [0, usePill ? -28 : -12] });
-      m.bindPopup(()=>buildPopup(s, v, temp, tColor));
+      m.bindPopup(()=>buildPopup(s, v, temp, tColor), { maxWidth: 400 });
       m.addTo(layer);
     });
 
@@ -1571,7 +2303,8 @@ function render(fit, skipKriging){
     return;
   }
 
-  RAW.forEach(s=>{
+  const srcList = (v.src === "rain" && RAIN.length) ? RAIN : RAW;
+  srcList.forEach(s=>{
     if(county&&s.GeoInfo?.CountyName!==county)return;
     if(q&&!((s.StationName||"").toLowerCase().includes(q)||(s.StationId||"").toLowerCase().includes(q)))return;
     const ll=wgs84(s);if(!ll)return;
@@ -1611,7 +2344,7 @@ function render(fit, skipKriging){
       const r=(val===null?4:6)*sc;
       m=L.circleMarker(ll,{radius:r,fillColor:color,color:"#fff",weight:1,fillOpacity:.92});
     }
-    m.bindPopup(()=>buildPopup(s,v,val,color));
+    m.bindPopup(()=>buildPopup(s,v,val,color), { maxWidth: 400 });
     m.addTo(layer);pts.push(ll);
   });
   if(fit){
@@ -1677,7 +2410,9 @@ function legend(v){
             ? '🡑 箭號指向風的<b>去向</b>，顏色代表<b>風向角度</b>'
             : '🡑 箭號指向風的<b>去向</b>，大小與顏色代表<b>風速</b>')
         : (v.levels
-            ? (v.key==="Precipitation"?'CWB/NCL 標準雨量分級 (mm) ‧ 當日 00 時起累積':'CWB 溫度分級色階 (℃)')
+            ? (v.key==="Rain1hr"
+                ? 'CWB/NCL 標準雨量分級 (mm) ‧ 過去 1 小時累積雨量 (O-A0002-001)'
+                : (v.key==="Precipitation" ? 'CWB/NCL 標準雨量分級 (mm) ‧ 當日 00 時起累積' : 'CWB 溫度分級色階 (℃)'))
             : (v.key==="UVIndex"?'紫外線指數 0-2低 3-5中 6-7高 8-10過高 11+危險':'')));
   $("legNote").style.display=(v.overview||v.wind||v.levels||v.key==="UVIndex")?"block":"none";
   const t=dayNightTime();
@@ -3704,6 +4439,7 @@ function getMoenvValForCwaVar(st, cwaKey){
     case "DailyHigh":
     case "DailyLow":
       return st.items["AMB_TEMP"] ? st.items["AMB_TEMP"].val : null;
+    case "Rain1hr":
     case "Precipitation":
       return st.items["RAINFALL"] ? st.items["RAINFALL"].val : null;
     case "RelativeHumidity":
@@ -5200,6 +5936,7 @@ function submitKey(){
   lightCache=null;
   tyCache=null;
   typClearCache();
+  clearHistoryCache();
   load();
   if(gridKind)loadGrid(gridKind);
   Object.keys(MARINE_DEFS).forEach(k2=>{if($(MARINE_DEFS[k2].chk).checked)loadMarine(k2,true);});
@@ -5607,7 +6344,7 @@ function exportStationData(format = 'csv'){
       showToast("⚠️ 目前未選取觀測變數，無法匯出資料。");
       return;
     }
-    const list = RAW;
+    const list = (v.src === "rain" && RAIN.length) ? RAIN : RAW;
     if(!list || !list.length){
       showToast("⚠️ 目前查無測站觀測資料。");
       return;
@@ -5623,10 +6360,13 @@ function exportStationData(format = 'csv'){
       const ll = wgs84(s);
       if(!ll) return;
       const val = v.get ? v.get(s) : null;
-      const we = s.WeatherElement || {};
+      const sid = s.StationId || "";
+      const autoSt = s.WeatherElement ? s : (RAW_MAP.get(sid) || null);
+      const we = autoSt?.WeatherElement || {};
+      const { r1h, r24 } = stationRainInfo(s);
       
       matched.push({
-        stationId: s.StationId || "",
+        stationId: sid,
         stationName: s.StationName || "",
         county: s.GeoInfo?.CountyName || "",
         town: s.GeoInfo?.TownName || "",
@@ -5637,8 +6377,8 @@ function exportStationData(format = 'csv'){
         currentVal: val !== null ? val : "無觀測值",
         unit: v.unit || "",
         temp: num(we.AirTemperature),
-        rain1hr: num(we.Now?.Precipitation),
-        rain24hr: num(we.DailyPrecipitation),
+        rain1hr: r1h ?? num(we.Now?.Precipitation),
+        rain24hr: r24 ?? num(we.DailyPrecipitation),
         windSpeed: num(we.WindSpeed),
         windDir: num(we.WindDirection),
         pressure: num(we.AirPressure),

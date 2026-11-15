@@ -109,6 +109,23 @@
   a.go.asia-theme:hover{background:rgba(138,180,248,0.12);border-color:rgba(138,180,248,0.4);box-shadow:0 8px 24px rgba(0,0,0,0.3), 0 0 16px rgba(138,180,248,0.2)}
   a.go.asia-theme .title-row .arrow{color:#8ab4f8}
 
+  a.go-subtle{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+    padding:8px 14px;margin-top:2px;
+    background:rgba(255,255,255,0.02);
+    border:1px dashed rgba(255,255,255,0.07);
+    border-radius:10px;
+    color:var(--muted);font-size:12px;font-weight:400;text-decoration:none;
+    opacity:0.65;transition:all .2s ease;
+  }
+  a.go-subtle:hover{
+    opacity:1;color:var(--txt);
+    background:rgba(255,255,255,0.05);
+    border-color:rgba(255,255,255,0.16);
+  }
+  a.go-subtle .arrow{font-size:14px;color:var(--muted);transition:transform .2s ease}
+  a.go-subtle:hover .arrow{transform:translateX(2px);color:var(--accent)}
+
   /* ===== 頁簽 ===== */
   .tabs{display:flex;gap:6px;margin-bottom:20px;padding:4px;background:rgba(255,255,255,0.04);
     border:1px solid var(--line);border-radius:16px}
@@ -221,6 +238,11 @@
         <span class="desc">GFS 全球 · WRF 區域 15km／3km · 氣溫/氣壓/風場/降水 · GRIB2 前端解析 · 動畫播放
           <span class="warn-badge"><span class="material-symbols-outlined" style="font-size:14px">warning</span> 資料檔較大（約 60–200 MB），載入需較久時間（約 30–200 秒），請耐心等候。</span>
         </span>
+      </a>
+
+      <a class="go-subtle" href="CWA_opendata_satellite_display.html">
+        <span>三維地形氣象台（衛星雲圖 × 雷達回波 × 觀測站歷史回放）</span>
+        <span class="material-symbols-outlined arrow">arrow_forward</span>
       </a>
     </div>
     </div><!-- /pane-cwa -->
