@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="臺灣氣候 GIS：中央氣象署大氣變數（地面測站、每日雨量、農業氣象、月氣候面化圖集）時空探索">
+<title>臺灣氣候 GIS · 大氣變數視覺化</title>
+<link rel="stylesheet" href="vendor/leaflet.css">
+<link rel="stylesheet" href="gis.css">
+</head>
+<body>
+<header>
+  <div class="brand">
+    <span>◈</span>
+    <div>
+      <strong>臺灣氣候 GIS · 大氣與海洋變數</strong>
+      <small>CLIMATE ATLAS / ATMOSPHERE &amp; OCEAN EXPLORER</small>
+    </div>
+  </div>
+  <nav>
+    <button id="sidebar-toggle">圖層面板</button>
+    <button id="catalog-open">23 筆氣候與海洋資料目錄</button>
+    <a href="../index.html">觀測地圖集 ↗</a>
+  </nav>
+</header>
+
+<div id="shell">
+  <aside id="sidebar">
+    <h1>氣候與海洋資料</h1>
+    <p class="subtle">依時間尺度與領域選擇產品並載入圖層</p>
+
+    <div id="themes" class="theme-tabs"></div>
+
+    <label>資料產品
+      <select id="dataset"></select>
+    </label>
+    <p id="dataset-desc" class="desc-box"></p>
+    <p id="dataset-note" class="hint" hidden></p>
+    <a id="source" target="_blank" rel="noopener">官方資料說明 ↗</a>
+
+    <div class="section">
+      <h2>載入資料</h2>
+      <label>自訂金鑰（選填）
+        <input id="key" type="password" autocomplete="off" placeholder="CWA-XXXXXXXX-...">
+      </label>
+      <div style="display:grid;gap:8px">
+        <button id="test-key" type="button" class="wide primary">🧪 測試金鑰載入</button>
+        <button id="fetch" type="button" class="wide">🔑 自訂金鑰載入</button>
+      </div>
+      <div id="notice" role="status" aria-live="polite">請選擇資料產品並點選載入。</div>
+    </div>
+
+    <div id="mapping" class="section" hidden aria-hidden="true">
+      <label>資料表<select id="table"></select></label>
+      <label>圖層名稱<input id="layer-name"></label>
+      <select id="kind">
+        <option value="point">測站點位</option>
+        <option value="grid">規則網格</option>
+        <option value="geometry">GeoJSON 幾何</option>
+      </select>
+      <input id="cell" type="number" value="0.25" step="0.125" min="0.001" max="10">
+      <select id="lon"></select>
+      <select id="lat"></select>
+      <select id="value"></select>
+      <input id="unit" placeholder="例如 °C、mm、hPa">
+      <select id="time"></select>
+      <select id="name"></select>
+      <button id="add" type="button" class="wide primary">＋ 加入／更新地圖圖層</button>
+    </div>
+
+    <div class="section">
+      <h2>圖層管理 <span id="layer-count">0</span></h2>
+      <p class="hint">可勾選多層疊加；點「選取」切換時間軸與圖例。</p>
+      <div id="scale-tabs" class="scale-tabs" hidden></div>
+      <div id="layers"><div class="empty-layers">尚未加入資料圖層。</div></div>
+      <button id="export" class="wide" disabled>匯出選取圖層 GeoJSON ↓</button>
+    </div>
+
+    <p class="hint">WGS84 · 微量雨 T=0 mm · 非官方網站</p>
+  </aside>
+
+  <main class="map-stage">
+    <div id="map" aria-label="臺灣大氣氣候 GIS 地圖"></div>
+    <div class="map-top">
+      <div class="map-title">
+        <b id="map-heading">臺灣 · 大氣氣候資料地圖</b>
+        <span id="map-subtitle"><i class="status-dot"></i>載入大氣資料 · 點選測站查看時序</span>
+      </div>
+      <div class="map-tools">
+        <label class="sr-only" for="active-table">切換統計尺度</label>
+        <select id="active-table" hidden title="切換統計尺度（如逐月／逐日／逐時）"></select>
+        <label class="sr-only" for="active-var">切換大氣變數</label>
+        <select id="active-var" hidden title="切換當前圖層著色的大氣變數"></select>
+        <label class="sr-only" for="basemap">底圖</label>
+        <select id="basemap">
+          <option value="emap" selected>國土通用電子地圖</option>
+          <option value="gray">國土灰階圖</option>
+          <option value="photomix">國土正射影像混合</option>
+          <option value="osm">街道底圖 (OSM)</option>
+          <option value="dark">深色底圖</option>
+          <option value="sat">衛星影像</option>
+          <option value="none">無底圖</option>
+        </select>
+        <button id="taiwan">臺灣範圍</button>
+        <button id="fit">圖層範圍</button>
+      </div>
+    </div>
+
+    <section id="detail" hidden aria-label="圖徵資訊">
+      <button id="detail-close" class="close" aria-label="關閉圖徵資訊">×</button>
+      <div id="detail-body"></div>
+    </section>
+
+    <section class="legend" aria-label="圖例與全臺統計">
+      <h3 id="legend-title">大氣變數圖例</h3>
+      <div id="legend-content"><p>加入圖層後，顯示對應大氣變數色階與當期全臺最高／最低站。</p></div>
+    </section>
+
+    <div class="timeline">
+      <button id="play" disabled aria-label="播放時間軸">▶</button>
+      <select id="time-group" hidden title="依年份／月份區間篩選時間軸" aria-label="篩選年份或月份區間"></select>
+      <select id="time-select" disabled title="直接跳轉至指定日期／期別" aria-label="選擇日期或時間點"><option>尚無時間資料</option></select>
+      <output id="time-label" class="sr-only">尚無時間資料</output>
+      <input id="slider" type="range" min="0" max="0" value="0" disabled aria-label="圖層時間">
+      <small id="time-count">選取圖層後探索</small>
+    </div>
+
+    <div id="coordinates">WGS84 · 23.7000° N / 121.0000° E</div>
+  </main>
+</div>
+
+<dialog id="catalog">
+  <h2>大氣與海洋氣候資料目錄 <button id="catalog-close">關閉 ×</button></h2>
+  <label>搜尋名稱／編號<input id="search" type="search" placeholder="例如 雨量、海溫、波高、C-B0049"></label>
+  <p class="hint">完整納入中央氣象署 23 項氣候資料集（含地面氣象、每日雨量、農業氣象、面化圖集、海象測站統計與海域網格資料）。選擇後可立即從左側載入。</p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>氣候／海象資料產品</th><th>主題分類</th><th>時間尺度</th><th>格式</th><th>操作</th></tr></thead>
+      <tbody id="catalog-body"></tbody>
+    </table>
+    <div class="deferred-box" hidden>
+      <h3>其他說明項目</h3>
+      <table>
+        <thead><tr><th>資料產品</th><th>分類</th><th>說明</th></tr></thead>
+        <tbody id="deferred-body"></tbody>
+      </table>
+    </div>
+  </div>
+</dialog>
+
+<script src="vendor/leaflet.js"></script>
+<script src="catalog.js"></script>
+<script src="data.js"></script>
+<script src="gis-core.js"></script>
+<script src="gis.js"></script>
+</body>
+</html>

@@ -109,6 +109,10 @@
   a.go.asia-theme:hover{background:rgba(138,180,248,0.12);border-color:rgba(138,180,248,0.4);box-shadow:0 8px 24px rgba(0,0,0,0.3), 0 0 16px rgba(138,180,248,0.2)}
   a.go.asia-theme .title-row .arrow{color:#8ab4f8}
 
+  a.go.atlas-theme::before{background:#26a69a}
+  a.go.atlas-theme:hover{background:rgba(38,166,154,0.12);border-color:rgba(38,166,154,0.4);box-shadow:0 8px 24px rgba(0,0,0,0.3), 0 0 16px rgba(38,166,154,0.2)}
+  a.go.atlas-theme .title-row .arrow{color:#26a69a}
+
   a.go-subtle{
     display:flex;align-items:center;justify-content:space-between;gap:8px;
     padding:8px 14px;margin-top:2px;
@@ -164,7 +168,7 @@
 
     <div class="tabs" role="tablist">
       <button class="tab active" role="tab" data-pane="cwa">
-        <span class="material-symbols-outlined">cloud</span> 氣象署觀測 <span class="cnt">8</span>
+        <span class="material-symbols-outlined">cloud</span> 氣象署觀測 <span class="cnt">9</span>
       </button>
       <button class="tab" role="tab" data-pane="other">
         <span class="material-symbols-outlined">apps</span> 其他分頁 <span class="cnt">6</span>
@@ -238,6 +242,14 @@
         <span class="desc">GFS 全球 · WRF 區域 15km／3km · 氣溫/氣壓/風場/降水 · GRIB2 前端解析 · 動畫播放
           <span class="warn-badge"><span class="material-symbols-outlined" style="font-size:14px">warning</span> 資料檔較大（約 60–200 MB），載入需較久時間（約 30–200 秒），請耐心等候。</span>
         </span>
+      </a>
+
+      <a class="go atlas-theme" href="climate-atlas/index.html">
+        <div class="title-row">
+          <span>進入地圖（臺灣氣候 GIS · 大氣與海洋變數探索）</span>
+          <span class="material-symbols-outlined arrow">arrow_forward</span>
+        </div>
+        <span class="desc">整合中央氣象署 23 筆氣候與海洋開放資料產品 · 涵蓋地面測站、每日雨量、農業氣象、月氣候面化圖集 · 支援時間尺度與領域切換、點位與網格圖層視覺化 · 支援自備 CWA API 金鑰或示範載入</span>
       </a>
 
       <a class="go-subtle" href="CWA_opendata_satellite_display.html">

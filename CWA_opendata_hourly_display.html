@@ -94,6 +94,13 @@
   .pop .row{display:flex;justify-content:space-between;gap:18px}
   .pop .k{color:var(--muted)} .pop .big{font-size:20px;font-weight:700;color:var(--accent)}
   .pop.pop-with-ts{min-width:330px;max-width:380px}
+  .pop-tabs{display:flex;gap:4px;background:rgba(255,255,255,0.06);border-radius:8px;padding:3px;margin:6px 0 8px}
+  .pop-tab-btn{flex:1;border:none;background:transparent;color:#94a3b8;font-size:11.5px;font-weight:600;padding:5px 0;border-radius:6px;cursor:pointer;transition:all .15s ease}
+  .pop-tab-btn:hover{color:#f8fafc;background:rgba(255,255,255,0.05)}
+  .pop-tab-btn.active{background:rgba(56,189,248,0.22);color:#38bdf8;box-shadow:0 1px 3px rgba(0,0,0,0.3)}
+  .pop-tab-pane{display:none}
+  .pop-tab-pane.active{display:block}
+  .pop-subhead{border-top:1px solid var(--line);margin:6px 0 4px;padding-top:5px;color:#9fb0c8;font-size:11px}
   .ts-box{margin-top:8px;padding:9px 10px;background:rgba(15,23,42,0.75);border:1px solid rgba(138,180,248,0.24);border-radius:10px}
   .ts-head{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px}
   .ts-title{font-size:12px;font-weight:700;color:#e2e8f0;display:flex;align-items:center;gap:4px}
@@ -1943,12 +1950,38 @@ function buildPopup(s,v,val,color){
     </div>`;
   }
   const windExtra = (spd!==null && bft.bft!==null) ? `（${bft.short}${cDir ? " · " + cDir : ""}）` : "";
-  let html=`<div class="pop pop-with-ts"><h3>${s.StationName||""} <small style="color:#9fb0c8">${sid}</small></h3>
+
+  // 游標位置格點值
+  const ll=wgs84(s);
+  let gridRow = "";
+  if(ll&&gridKind&&gridCache[gridKind]){
+    const def=GRID_DEFS[gridKind],gv=gridAt(ll[0],ll[1]);
+    gridRow = `<div class="pop-subhead">格點分析值 (${def.id})</div>` + row(def.label,gv===null?"—":gv.toFixed(1)+" "+def.unit);
+  }
+  const distRow = (ll&&USER_POS) ? row("距您",`<span style="color:#38bdf8;font-weight:600">${fmtDist(haversineKm(USER_POS[0],USER_POS[1],ll[0],ll[1]))}</span>`) : "";
+
+  // ===== 頁籤 1: 概況 =====
+  let tabOverview = `
     ${topSummary}
     ${row("縣市鄉鎮",(geo.CountyName||"")+" "+(geo.TownName||""))}
-    ${row("海拔",(geo.StationAltitude||"—")+" m")}`;
+    ${distRow}
+    ${autoSt ? row("天氣",!isValidText(we.Weather)?"—":(wxEmoji+" "+we.Weather)) : ""}
+    ${autoSt ? row("氣溫 / 溼度",(num(we.AirTemperature)??"—")+"°C / "+(num(we.RelativeHumidity)??"—")+"%") : ""}
+    ${autoSt ? row("日累積雨量",(rget(autoSt)??"—")+" mm") : ""}
+    ${autoSt ? row("風速 / 風向",(spd??"—")+" m/s"+windExtra) : ""}
+    ${gridRow}
+  `;
+
+  // ===== 頁籤 2: 詳細數據 =====
+  let tabDetail = `
+    <div class="pop-subhead" style="border-top:none;margin-top:0">測站基本資訊</div>
+    ${row("縣市鄉鎮",(geo.CountyName||"")+" "+(geo.TownName||""))}
+    ${row("海拔",(geo.StationAltitude||"—")+" m")}
+    ${distRow}
+    ${row("觀測時間",s.ObsTime?.DateTime?new Date(s.ObsTime.DateTime).toLocaleString("zh-TW"):"—")}
+  `;
   if(autoSt){
-    html+=`<div style="border-top:1px solid var(--line);margin:6px 0 4px;padding-top:5px;color:#9fb0c8;font-size:11px">逐時氣象觀測 (O-A0001-001)</div>`
+    tabDetail += `<div class="pop-subhead">逐時氣象觀測 (O-A0001-001)</div>`
       +row("天氣",!isValidText(we.Weather)?"—":(wxEmoji+" "+we.Weather))
       +row("氣溫 / 溼度",(num(we.AirTemperature)??"—")+"°C / "+(num(we.RelativeHumidity)??"—")+"%")
       +row("日累積雨量",(rget(autoSt)??"—")+" mm")
@@ -1958,29 +1991,22 @@ function buildPopup(s,v,val,color){
       +row("日最高 / 最低溫",(dh??"—")+"°C / "+(dl??"—")+"°C");
   }
   if(rainSt){
-    html+=`<div style="border-top:1px solid var(--line);margin:6px 0 4px;padding-top:5px;color:#9fb0c8;font-size:11px">自動雨量站觀測 (O-A0002-001)</div>`
+    tabDetail += `<div class="pop-subhead">自動雨量站觀測 (O-A0002-001)</div>`
       +row("時雨量 / 3h雨量",(num(re.Past1hr?.Precipitation)??"—")+" mm / "+(num(re.Past3hr?.Precipitation)??"—")+" mm")
       +row("日累積 / 24h雨量",(num(re.Now?.Precipitation)??"—")+" mm / "+(num(re.Past24hr?.Precipitation)??"—")+" mm");
   }
-  // 游標位置格點值（若已載入）
-  const ll=wgs84(s);
-  if(ll&&gridKind&&gridCache[gridKind]){
-    const def=GRID_DEFS[gridKind],gv=gridAt(ll[0],ll[1]);
-    html+=`<div style="border-top:1px solid var(--line);margin:6px 0 4px;padding-top:5px;color:#9fb0c8;font-size:11px">格點分析值 (${def.id})</div>`
-      +row(def.label,gv===null?"—":gv.toFixed(1)+" "+def.unit);
-  }
-  if(ll&&USER_POS) html+=row("距您",`<span style="color:#38bdf8;font-weight:600">${fmtDist(haversineKm(USER_POS[0],USER_POS[1],ll[0],ll[1]))}</span>`);
-  html+=row("觀測時間",s.ObsTime?.DateTime?new Date(s.ObsTime.DateTime).toLocaleString("zh-TW"):"—");
+  if(gridRow) tabDetail += gridRow;
 
+  // ===== 頁籤 3: 24h 時序圖 =====
   const defTsKey = defaultTsVarKey(v, sid);
   const autoOpts = TS_VARS.filter(x => x.group === "auto").map(x => `<option value="${x.key}"${x.key===defTsKey?" selected":""}>${x.label}</option>`).join("");
   const rainOpts = TS_VARS.filter(x => x.group === "rain").map(x => `<option value="${x.key}"${x.key===defTsKey?" selected":""}>${x.label}</option>`).join("");
   const initTsVar = TS_VARS.find(x => x.key === defTsKey) || TS_VARS[0];
   const initTarget = resolveTsTarget(sid, initTsVar);
 
-  html+=`<div class="ts-box" data-sid="${sid}" data-def-var="${defTsKey}">
+  let tabTrend = `<div class="ts-box" data-sid="${sid}" data-def-var="${defTsKey}" style="margin-top:2px">
       <div class="ts-head">
-        <span class="ts-title">📈 過去 24 小時觀測時序圖</span>
+        <span class="ts-title">📈 過去 24 小時時序</span>
         <span class="ts-badge">${initTarget.datasetId}</span>
       </div>
       <div class="ts-ctrl">
@@ -1997,19 +2023,57 @@ function buildPopup(s,v,val,color){
         <div class="ts-tip"></div>
       </div>
       <div class="ts-stats"><div><div class="ts-stat-k">24h 最高</div><div class="ts-stat-v">—</div></div><div><div class="ts-stat-k">24h 最低</div><div class="ts-stat-v">—</div></div><div><div class="ts-stat-k">24h 平均</div><div class="ts-stat-v">—</div></div></div>
-    </div></div>`;
+    </div>`;
+
+  let html=`<div class="pop pop-with-ts">
+    <h3>${s.StationName||""}&nbsp;<small style="color:#9fb0c8">${sid}</small></h3>
+    <div class="pop-tabs">
+      <button type="button" class="pop-tab-btn active" data-tab="overview">🌤️ 概況</button>
+      <button type="button" class="pop-tab-btn" data-tab="detail">📋 詳細</button>
+      <button type="button" class="pop-tab-btn" data-tab="trend">📈 24h時序</button>
+    </div>
+    <div class="pop-tab-pane active" data-pane="overview">${tabOverview}</div>
+    <div class="pop-tab-pane" data-pane="detail">${tabDetail}</div>
+    <div class="pop-tab-pane" data-pane="trend">${tabTrend}</div>
+  </div>`;
   return html;
 }
 
 map.on("popupopen", e => {
   const el = e.popup && e.popup.getElement ? e.popup.getElement() : null;
   if(!el) return;
+
+  // 綁定 Tab 切換
+  const tabBtns = el.querySelectorAll(".pop-tab-btn");
+  const tabPanes = el.querySelectorAll(".pop-tab-pane");
   const boxEl = el.querySelector(".ts-box");
+
+  tabBtns.forEach(btn => {
+    btn.onclick = () => {
+      const target = btn.dataset.tab;
+      tabBtns.forEach(b => b.classList.toggle("active", b === btn));
+      tabPanes.forEach(p => {
+        const isTarget = p.dataset.pane === target;
+        p.classList.toggle("active", isTarget);
+      });
+      // 若切換到時序趨勢頁且圖表尚未載入或需重繪時
+      if(target === "trend" && boxEl){
+        const canvas = boxEl.querySelector(".ts-canvas");
+        if(canvas && canvas._tsState){
+          drawTsFrame(canvas, null);
+        } else {
+          runPopupTimeSeries(boxEl, false);
+        }
+      }
+    };
+  });
+
   if(!boxEl) return;
   const sel = boxEl.querySelector(".ts-var-sel");
   const reloadBtn = boxEl.querySelector(".ts-reload-btn");
   if(sel) sel.onchange = () => runPopupTimeSeries(boxEl, false);
   if(reloadBtn) reloadBtn.onclick = () => runPopupTimeSeries(boxEl, true);
+  // 背景預載 24h 資料（但不強迫先畫在隱藏頁籤上）
   requestAnimationFrame(() => runPopupTimeSeries(boxEl, false));
 });
 
